@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/app/generated/prisma
+
+# uploaded files
+/public/uploads/*
+!public/uploads/.gitkeep
+
+# misc sensitive files
+cookies.txt
+process.exit()))

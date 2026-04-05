@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int           @id @default(autoincrement())
+  username     String        @unique
+  password     String
+  role         String
+  contact      String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  orders       Order[]
+  transactions Transaction[]
+}
+
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  products    Product[]
+}
+
+model Product {
+  id               Int               @id @default(autoincrement())
+  name             String
+  categoryId       Int
+  category         Category          @relation(fields: [categoryId], references: [id])
+  subcategory      String?
+  price            Float
+  unit             String            @default("pc")
+  stock            Int               @default(0)
+  image            String?
+  description      String?
+  orderItems       OrderItem[]
+  transactionItems TransactionItem[]
+  restocks         Restock[]
+}
+
+model Transaction {
+  id            Int               @id @default(autoincrement())
+  userId        Int
+  totalAmount   Float
+  paymentMethod String
+  dateTime      DateTime          @default(now())
+  type          String
+  user          User              @relation(fields: [userId], references: [id])
+  items         TransactionItem[]
+}
+
+model TransactionItem {
+  id            Int         @id @default(autoincrement())
+  transactionId Int
+  productId     Int
+  productName   String      @default("")
+  quantity      Int
+  price         Float
+  product       Product     @relation(fields: [productId], references: [id])
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+}
+
+model Order {
+  id          Int         @id @default(autoincrement())
+  customerId  Int
+  status      String      @default("pending")
+  totalAmount Float
+  dateTime    DateTime    @default(now())
+  customer    User        @relation(fields: [customerId], references: [id])
+  items       OrderItem[]
+}
+
+model OrderItem {
+  id        Int     @id @default(autoincrement())
+  orderId   Int
+  productId Int
+  quantity  Int
+  price     Float
+  order     Order   @relation(fields: [orderId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+}
+
+model Restock {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  quantity  Int
+  date      DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id])
+}
