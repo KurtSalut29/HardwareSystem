@@ -36,6 +36,15 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   if (!await requireAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await req.json();
-  await prisma.user.delete({ where: { id } });
-  return NextResponse.json({ message: "User deleted" });
+
+  const token = req.cookies.get("token")?.value;
+  const payload = await verifyToken(token!);
+  if (payload?.id === id) return NextResponse.json({ error: "You cannot delete your own account" }, { status: 400 });
+
+  try {
+    await prisma.user.delete({ where: { id } });
+    return NextResponse.json({ message: "User deleted" });
+  } catch {
+    return NextResponse.json({ error: "Cannot delete this user — they may have existing orders or transactions" }, { status: 400 });
+  }
 }

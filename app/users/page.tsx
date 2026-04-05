@@ -45,7 +45,8 @@ export default function UsersPage() {
 
   async function handleDelete(id: number) {
     if (!confirm("Delete this user?")) return;
-    await fetch("/api/users", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    const res = await fetch("/api/users", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    if (!res.ok) { alert((await res.json()).error); return; }
     fetchUsers();
   }
 
