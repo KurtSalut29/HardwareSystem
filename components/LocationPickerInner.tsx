@@ -42,7 +42,19 @@ type Props = {
 function MapController({ value }: { value: PickedLocation | null }) {
   const map = useMap();
   const prevRef = useRef<PickedLocation | null>(null);
+  const initializedRef = useRef(false);
+
   useEffect(() => {
+    // On first mount, always set view to Biliran center or value
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      if (value) {
+        map.setView([value.lat, value.lng], 16);
+      } else {
+        map.setView(BILIRAN_CENTER, BILIRAN_ZOOM);
+      }
+      return;
+    }
     if (value && (prevRef.current?.lat !== value.lat || prevRef.current?.lng !== value.lng)) {
       map.flyTo([value.lat, value.lng], 16, { duration: 0.6 });
     }
@@ -154,11 +166,11 @@ export default function LocationPickerInner({ value, onChange }: Props) {
       },
       (err) => {
         setGeoLoading(false);
-        if (err.code === err.PERMISSION_DENIED) {
-          setGeoError('Location access was denied. To enable it: open your browser Settings → Site permissions → Location → Allow. Or just search or tap the map to set your location manually.');
-        } else {
-          setGeoError('Could not detect location. Please search or tap the map instead.');
-        }
+        const msg = err.code === err.PERMISSION_DENIED
+          ? 'Location blocked. Please search your barangay above or tap "Pin on map" instead.'
+          : 'Could not detect location. Please search or use "Pin on map".';
+        setGeoError(msg);
+        setTimeout(() => setGeoError(''), 6000);
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
