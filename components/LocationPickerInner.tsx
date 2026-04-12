@@ -155,9 +155,9 @@ export default function LocationPickerInner({ value, onChange }: Props) {
       (err) => {
         setGeoLoading(false);
         if (err.code === err.PERMISSION_DENIED) {
-          setGeoError('Location permission denied. Please allow access or pick manually.');
+          setGeoError('Location access was denied. To enable it: open your browser Settings → Site permissions → Location → Allow. Or just search or tap the map to set your location manually.');
         } else {
-          setGeoError('Could not detect location. Please pick manually.');
+          setGeoError('Could not detect location. Please search or tap the map instead.');
         }
       },
       { enableHighAccuracy: true, timeout: 10000 }
