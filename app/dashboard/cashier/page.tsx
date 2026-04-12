@@ -5,6 +5,7 @@ import { ShoppingCart, Receipt, TrendingUp, Clock, AlertTriangle, Package } from
 import StatCard from "@/components/ui/StatCard";
 import Badge from "@/components/ui/Badge";
 import Link from "next/link";
+import OrderMapWidget from "@/components/OrderMapWidget";
 
 type Transaction = { id: number; totalAmount: number; paymentMethod: string; dateTime: string; items: { quantity: number; product: { name: string } }[] };
 type Order = { id: number; totalAmount: number; status: string; dateTime: string; customer: { username: string }; items: { quantity: number; product: { name: string } }[] };
@@ -40,6 +41,8 @@ export default function CashierDashboardPage() {
         <StatCard title="Total Transactions" value={transactions.length} icon={<ShoppingCart size={20} className="text-emerald-600" />} iconBg="bg-emerald-50" />
         <StatCard title="All Time Revenue" value={`₱${transactions.reduce((s, t) => s + t.totalAmount, 0).toFixed(2)}`} icon={<Clock size={20} className="text-orange-600" />} iconBg="bg-orange-50" />
       </div>
+
+      <OrderMapWidget />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
         {/* Left column: New Transaction + Pending Orders + Low Stock */}

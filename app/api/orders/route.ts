@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/auth";
+import { geocodeAddress } from "@/lib/geocode";
 
 async function getPayload(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
@@ -25,10 +26,25 @@ export async function POST(req: NextRequest) {
   const payload = await getPayload(req);
   if (!payload || payload.role !== "customer") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { items } = await req.json();
+  const { items, deliveryAddress, latitude: providedLat, longitude: providedLng } = await req.json();
   if (!items?.length) return NextResponse.json({ error: "No items" }, { status: 400 });
 
   const totalAmount = items.reduce((sum: number, i: { price: number; quantity: number }) => sum + i.price * i.quantity, 0);
+
+  let latitude: number | null = providedLat ?? null;
+  let longitude: number | null = providedLng ?? null;
+  let geocodingFailed = false;
+
+  // Only geocode if coordinates weren't already provided
+  if (deliveryAddress && latitude === null) {
+    const geo = await geocodeAddress(deliveryAddress);
+    if (geo) {
+      latitude = geo.lat;
+      longitude = geo.lng;
+    } else {
+      geocodingFailed = true;
+    }
+  }
 
   try {
     const order = await prisma.$transaction(async (tx) => {
@@ -41,12 +57,13 @@ export async function POST(req: NextRequest) {
         data: {
           customerId: payload.id,
           totalAmount,
+          ...(deliveryAddress ? { deliveryAddress, latitude, longitude } : {}),
           items: { create: items.map((i: { productId: number; quantity: number; price: number }) => ({ productId: i.productId, quantity: i.quantity, price: i.price })) },
         },
         include: { items: true },
       });
     });
-    return NextResponse.json(order, { status: 201 });
+    return NextResponse.json({ ...order, ...(geocodingFailed ? { geocodingFailed: true } : {}) }, { status: 201 });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Failed" }, { status: 400 });
   }

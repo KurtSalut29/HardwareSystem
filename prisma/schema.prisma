@@ -65,13 +65,16 @@ model TransactionItem {
 }
 
 model Order {
-  id          Int         @id @default(autoincrement())
-  customerId  Int
-  status      String      @default("pending")
-  totalAmount Float
-  dateTime    DateTime    @default(now())
-  customer    User        @relation(fields: [customerId], references: [id])
-  items       OrderItem[]
+  id              Int         @id @default(autoincrement())
+  customerId      Int
+  status          String      @default("pending")
+  totalAmount     Float
+  dateTime        DateTime    @default(now())
+  deliveryAddress String?
+  latitude        Float?
+  longitude       Float?
+  customer        User        @relation(fields: [customerId], references: [id])
+  items           OrderItem[]
 }
 
 model OrderItem {
@@ -90,4 +93,9 @@ model Restock {
   quantity  Int
   date      DateTime @default(now())
   product   Product  @relation(fields: [productId], references: [id])
+}
+
+model Setting {
+  key   String @id
+  value String
 }

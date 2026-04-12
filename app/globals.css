@@ -118,3 +118,13 @@ html.dark .dashboard-bg {
 .animate-fade-in {
   animation: fade-in 0.2s ease;
 }
+
+/* Fix Leaflet map panes bleeding over modals/drawers */
+.leaflet-pane,
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 10 !important;
+}
+.leaflet-control {
+  z-index: 11 !important;
+}

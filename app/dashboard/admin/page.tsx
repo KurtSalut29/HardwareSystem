@@ -5,6 +5,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { DollarSign, Package, ShoppingCart, Users, AlertTriangle } from "lucide-react";
 import StatCard from "@/components/ui/StatCard";
 import Badge from "@/components/ui/Badge";
+import OrderMapWidget from "@/components/OrderMapWidget";
 
 type Stats = { totalUsers: number; totalProducts: number; totalOrders: number; totalRevenue: number };
 type MonthlySale = { month: string; sales: number };
@@ -40,6 +41,8 @@ export default function AdminDashboardPage() {
         <StatCard title="Total Orders" value={stats?.totalOrders ?? 0} icon={<ShoppingCart size={20} className="text-emerald-600" />} iconBg="bg-emerald-50" trend={{ value: "8%", up: true }} />
         <StatCard title="Total Users" value={stats?.totalUsers ?? 0} icon={<Users size={20} className="text-orange-600" />} iconBg="bg-orange-50" trend={{ value: "5%", up: true }} />
       </div>
+
+      <OrderMapWidget />
 
       {/* Chart + Low Stock */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">

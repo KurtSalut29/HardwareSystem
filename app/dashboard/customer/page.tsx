@@ -5,6 +5,7 @@ import { ShoppingBag, ClipboardList, Clock, CheckCircle } from "lucide-react";
 import StatCard from "@/components/ui/StatCard";
 import Badge from "@/components/ui/Badge";
 import Link from "next/link";
+import OrderMapWidget from "@/components/OrderMapWidget";
 
 type Order = { id: number; totalAmount: number; status: string; dateTime: string; items: { quantity: number; product: { name: string } }[] };
 
@@ -32,6 +33,8 @@ export default function CustomerDashboardPage() {
         <StatCard title="Delivered" value={delivered} icon={<CheckCircle size={20} className="text-emerald-600" />} iconBg="bg-emerald-50" />
         <StatCard title="Total Spent" value={`₱${totalSpent.toFixed(2)}`} icon={<ShoppingBag size={20} className="text-purple-600" />} iconBg="bg-purple-50" />
       </div>
+
+      <OrderMapWidget />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <Link href="/shop" className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl p-4 text-white hover:from-purple-700 hover:to-blue-700 transition shadow-lg shadow-purple-500/20 flex items-center gap-4 self-start">

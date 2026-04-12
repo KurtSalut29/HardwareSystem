@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Search, ShoppingCart, Trash2, CheckCircle, ChevronDown, ChevronRight } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import Image from "next/image";
+import LocationPicker, { PickedLocation } from "@/components/LocationPicker";
 
 type Category = { id: number; name: string };
 type Product = { id: number; name: string; category: Category; categoryId: number; subcategory: string | null; price: number; unit: string; stock: number; image: string | null; description: string | null };
@@ -19,6 +20,7 @@ export default function ShopPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [pickedLocation, setPickedLocation] = useState<PickedLocation | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [activeSub, setActiveSub] = useState<Record<string, string>>({});
 
@@ -80,11 +82,18 @@ export default function ShopPage() {
     setError(""); setLoading(true);
     const res = await fetch("/api/orders", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: cart.map((i) => ({ productId: i.id, quantity: i.quantity, price: i.price })) }),
+      body: JSON.stringify({
+        items: cart.map((i) => ({ productId: i.id, quantity: i.quantity, price: i.price })),
+        ...(pickedLocation ? {
+          deliveryAddress: pickedLocation.address,
+          latitude: pickedLocation.lat,
+          longitude: pickedLocation.lng,
+        } : {}),
+      }),
     });
     setLoading(false);
     if (!res.ok) { setError((await res.json()).error); return; }
-    setCart([]); setShowCart(false); setSuccess(true); fetchProducts();
+    setCart([]); setPickedLocation(null); setShowCart(false); setSuccess(true); fetchProducts();
     setTimeout(() => setSuccess(false), 4000);
   }
 
@@ -249,6 +258,10 @@ export default function ShopPage() {
                 <div className="flex justify-between font-bold text-gray-800">
                   <span>Total</span>
                   <span className="text-lg">₱{total.toFixed(2)}</span>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Delivery Location <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <LocationPicker value={pickedLocation} onChange={setPickedLocation} />
                 </div>
                 {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
                 <button onClick={handleOrder} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-3 text-sm font-semibold transition disabled:opacity-60 shadow-lg shadow-blue-500/20">
