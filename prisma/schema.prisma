@@ -15,7 +15,8 @@ model User {
   contact      String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-  orders       Order[]
+  orders       Order[]       @relation("CustomerOrders")
+  driverOrders Order[]       @relation("DriverOrders")
   transactions Transaction[]
 }
 
@@ -34,9 +35,10 @@ model Product {
   subcategory      String?
   price            Float
   unit             String            @default("pc")
-  stock            Int               @default(0)
+  stock            Float             @default(0)
   image            String?
   description      String?
+  createdAt        DateTime          @default(now())
   orderItems       OrderItem[]
   transactionItems TransactionItem[]
   restocks         Restock[]
@@ -58,30 +60,43 @@ model TransactionItem {
   transactionId Int
   productId     Int
   productName   String      @default("")
-  quantity      Int
+  quantity      Float
   price         Float
   product       Product     @relation(fields: [productId], references: [id])
   transaction   Transaction @relation(fields: [transactionId], references: [id])
 }
 
 model Order {
-  id              Int         @id @default(autoincrement())
-  customerId      Int
-  status          String      @default("pending")
-  totalAmount     Float
-  dateTime        DateTime    @default(now())
-  deliveryAddress String?
-  latitude        Float?
-  longitude       Float?
-  customer        User        @relation(fields: [customerId], references: [id])
-  items           OrderItem[]
+  id                      Int         @id @default(autoincrement())
+  customerId              Int
+  status                  String      @default("pending")
+  totalAmount             Float
+  dateTime                DateTime    @default(now())
+  fulfillmentMode         String      @default("delivery")
+  paymentMethod           String      @default("Cash")
+  gcashNumber             String?
+  gcashReference          String?
+  paymentVerified         Boolean     @default(false)
+  deliveryAddress         String?
+  latitude                Float?
+  longitude               Float?
+  driverId                Int?
+  assignedAt              DateTime?
+  driverLat               Float?
+  driverLng               Float?
+  driverLocationUpdatedAt DateTime?
+  customer                User        @relation("CustomerOrders", fields: [customerId], references: [id])
+  driver                  User?       @relation("DriverOrders", fields: [driverId], references: [id])
+  items                   OrderItem[]
+
+  @@index([driverId, status])
 }
 
 model OrderItem {
   id        Int     @id @default(autoincrement())
   orderId   Int
   productId Int
-  quantity  Int
+  quantity  Float
   price     Float
   order     Order   @relation(fields: [orderId], references: [id])
   product   Product @relation(fields: [productId], references: [id])
@@ -90,7 +105,7 @@ model OrderItem {
 model Restock {
   id        Int      @id @default(autoincrement())
   productId Int
-  quantity  Int
+  quantity  Float
   date      DateTime @default(now())
   product   Product  @relation(fields: [productId], references: [id])
 }

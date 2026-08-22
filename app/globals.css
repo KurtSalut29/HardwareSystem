@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 * {
@@ -6,22 +5,57 @@
 }
 
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-inter), sans-serif;
   background-color: var(--bg-base);
   color: var(--text-primary);
   transition: background-color 0.2s, color 0.2s;
 }
 
 :root {
-  --bg-base: #f4f6f8;
+  --bg-base: #F5F6FB;
   --bg-card: #ffffff;
-  --bg-subtle: #f9fafb;
-  --bg-muted: #f3f4f6;
-  --border: #e5e7eb;
-  --text-primary: #111827;
-  --text-secondary: #374151;
-  --text-muted: #6b7280;
-  --text-faint: #9ca3af;
+  --bg-subtle: #F8F9FD;
+  --bg-muted: #EEF0F8;
+  --border: #E2E5F0;
+  --border-strong: #C9CEE0;
+  --text-primary: #14161F;
+  --text-secondary: #4B4F63;
+  --text-muted: #6B7086;
+  --text-faint: #9498AC;
+
+  --brand: #1E4FD8;
+  --brand-ink: #12327F;
+  --brand-soft: #E8EDFC;
+  /* 60/30/10 rule: white/blue/gray only — no separate accent hue.
+     --accent aliases --brand so existing CTA/highlight usages stay blue. */
+  --accent: #1E4FD8;
+  --accent-ink: #12327F;
+  --accent-soft: #E8EDFC;
+  /* Sidebar/nav chrome — a light rail in light mode, not a permanent dark strip. */
+  --nav-bg: #ffffff;
+  --nav-ink: #14161F;
+  --nav-ink-dim: #6B7086;
+  --nav-line: #E2E5F0;
+  --nav-active: #E8EDFC;
+  --nav-active-ink: #12327F;
+
+  /* Semantic status colors — kept separate from --brand/--accent so state
+     (pending/confirmed/low-stock/etc.) never gets confused with brand identity. */
+  --good: #128A4A;
+  --good-soft: #E1F6EA;
+  --warn: #B4670A;
+  --warn-soft: #FCEFD9;
+  --bad: #D1362A;
+  --bad-soft: #FBE7E5;
+  --info: #2D6FE0;
+  --info-soft: #E5EDFD;
+
+  /* Dedicated dark hero panel for the auth screen — a deliberate design choice
+     (not the app theme), so it stays put regardless of light/dark toggle. */
+  --hero-bg: #12141B;
+  --hero-ink: #E7E9F0;
+  --hero-ink-dim: #868EA3;
+  --hero-chip-bg: #1E2030;
 }
 
 html.dark {
@@ -34,6 +68,43 @@ html.dark {
   --text-secondary: #cbd5e1;
   --text-muted: #94a3b8;
   --text-faint: #64748b;
+
+  --brand: #6089FF;
+  --brand-ink: #C4D3FF;
+  --brand-soft: #182246;
+  --accent: #6089FF;
+  --accent-ink: #C4D3FF;
+  --accent-soft: #182246;
+  --nav-bg: #0A0B10;
+  --nav-ink: #E7E9F0;
+  --nav-ink-dim: #6D7386;
+  --nav-line: #1C1E28;
+  --nav-active: #171A24;
+  --nav-active-ink: #ffffff;
+
+  --good: #34D399;
+  --good-soft: #123227;
+  --warn: #F5B93E;
+  --warn-soft: #362510;
+  --bad: #F26359;
+  --bad-soft: #351515;
+  --info: #6089FF;
+  --info-soft: #182246;
+}
+
+.font-display {
+  font-family: var(--font-archivo), var(--font-inter), sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.blueprint-grid {
+  background-image:
+    repeating-linear-gradient(0deg, rgba(94, 130, 255, 0.09) 0px, rgba(94, 130, 255, 0.09) 1px, transparent 1px, transparent 34px),
+    repeating-linear-gradient(90deg, rgba(94, 130, 255, 0.09) 0px, rgba(94, 130, 255, 0.09) 1px, transparent 1px, transparent 34px);
 }
 
 /* Apply CSS vars to common elements */
@@ -117,6 +188,46 @@ html.dark .dashboard-bg {
 }
 .animate-fade-in {
   animation: fade-in 0.2s ease;
+}
+
+/* Modal / Drawer motion primitives */
+@keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes panel-in   { from { opacity: 0; transform: scale(0.96) translateY(4px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes drawer-in  { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes sidebar-in { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+
+.animate-overlay-in { animation: overlay-in 150ms ease-out; }
+.animate-panel-in   { animation: panel-in 180ms cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-drawer-in  { animation: drawer-in 220ms cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-sidebar-in { animation: sidebar-in 220ms cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Sign-in success — the two auth panels break apart to reveal the dashboard underneath.
+   The crack flashes first, then the panels glide apart a beat later. Uses the Material
+   "standard" easing (0.4,0,0.2,1) — gentle at both ends, not a steep S-curve — so motion
+   stays visible and even across the whole duration instead of finishing early. */
+@keyframes auth-break-left   { to { transform: translateX(-110%); } }
+@keyframes auth-break-right  { to { transform: translateX(110%); } }
+@keyframes auth-crack-flash  { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
+.animate-auth-break-left  { animation: auth-break-left 950ms cubic-bezier(0.4, 0, 0.2, 1) 120ms forwards; }
+.animate-auth-break-right { animation: auth-break-right 950ms cubic-bezier(0.4, 0, 0.2, 1) 120ms forwards; }
+.animate-auth-crack-flash { animation: auth-crack-flash 700ms ease-out forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-auth-break-left, .animate-auth-break-right, .animate-auth-crack-flash { animation: none; }
+}
+
+/* Page-content transition on route change */
+@keyframes page-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.animate-page-in { animation: page-in 260ms cubic-bezier(0.16, 1, 0.3, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .animate-page-in { animation: none; }
+}
+
+/* Sidebar active-nav-item indicator — glides between items instead of snapping */
+.sidebar-indicator {
+  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-indicator { transition: none; }
 }
 
 /* Fix Leaflet map panes bleeding over modals/drawers */

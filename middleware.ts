@@ -5,13 +5,15 @@ const ROLE_ROUTES: Record<string, string[]> = {
   "/dashboard/admin": ["admin"],
   "/dashboard/cashier": ["cashier"],
   "/dashboard/customer": ["customer"],
+  "/dashboard/driver": ["driver"],
   "/categories": ["admin"],
   "/users": ["admin"],
   "/products": ["admin"],
   "/transactions": ["admin", "cashier"],
-  "/orders": ["admin", "customer"],
+  "/orders": ["admin", "cashier", "customer"],
   "/pos": ["cashier"],
   "/shop": ["customer"],
+  "/deliveries": ["driver"],
 };
 
 export async function middleware(req: NextRequest) {
@@ -53,5 +55,6 @@ export const config = {
     "/orders/:path*",
     "/pos/:path*",
     "/shop/:path*",
+    "/deliveries/:path*",
   ],
 };

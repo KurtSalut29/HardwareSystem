@@ -11,6 +11,7 @@ async function main() {
     { username: "cashier2", password: "cashier123", role: "cashier", contact: "09003335555" },
     { username: "customer1", password: "customer123", role: "customer", contact: "09005556666" },
     { username: "customer2", password: "customer123", role: "customer", contact: "09005557777" },
+    { username: "driver1", password: "driver123", role: "driver", contact: "09006668888" },
   ];
 
   const createdUsers: Record<string, number> = {};
@@ -170,6 +171,37 @@ async function main() {
     });
   }
   console.log("✓ Orders seeded");
+
+  // Out-for-delivery order, assigned to driver1, with a live-looking driver position
+  const driverId = createdUsers["driver1"];
+  const outForDeliveryItems = [{ name: "Common Wire Nail 2\"", qty: 1.5 }, { name: "Portland Cement 40kg", qty: 2 }];
+  const items = outForDeliveryItems.map((i) => {
+    const prod = products.find((p) => p.name === i.name)!;
+    return { productId: createdProducts[i.name], quantity: i.qty, price: prod.price };
+  });
+  const total = items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const storeLat = parseFloat(process.env.STORE_LAT ?? "11.4573");
+  const storeLng = parseFloat(process.env.STORE_LNG ?? "124.5638");
+  const existingDelivery = await prisma.order.findFirst({ where: { customerId, status: "out_for_delivery" } });
+  if (!existingDelivery) {
+    await prisma.order.create({
+      data: {
+        customerId,
+        driverId,
+        totalAmount: total,
+        status: "out_for_delivery",
+        dateTime: new Date(),
+        deliveryAddress: "Brgy. Cabucgayan Poblacion, Biliran",
+        latitude: storeLat + 0.02,
+        longitude: storeLng + 0.015,
+        driverLat: storeLat + 0.008,
+        driverLng: storeLng + 0.006,
+        driverLocationUpdatedAt: new Date(),
+        items: { create: items },
+      },
+    });
+    console.log("✓ Out-for-delivery order seeded (driver1)");
+  }
 }
 
 main()

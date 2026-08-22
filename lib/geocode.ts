@@ -1,17 +1,6 @@
+import { BILIRAN_VIEWBOX, isWithinBiliran } from "./biliran";
+
 export type GeocodeResult = { lat: number; lng: number } | null;
-
-// Biliran Island bounding box — only accept results within this area
-const BILIRAN_BBOX = {
-  minLat: 11.42, maxLat: 11.75,
-  minLng: 124.25, maxLng: 124.55,
-};
-
-function isWithinBiliran(lat: number, lng: number): boolean {
-  return (
-    lat >= BILIRAN_BBOX.minLat && lat <= BILIRAN_BBOX.maxLat &&
-    lng >= BILIRAN_BBOX.minLng && lng <= BILIRAN_BBOX.maxLng
-  );
-}
 
 export async function geocodeAddress(address: string): Promise<GeocodeResult> {
   try {
@@ -19,8 +8,8 @@ export async function geocodeAddress(address: string): Promise<GeocodeResult> {
     url.searchParams.set("q", address);
     url.searchParams.set("format", "json");
     url.searchParams.set("limit", "5");
-    // Bias results toward Biliran Island
-    url.searchParams.set("viewbox", "124.25,11.75,124.55,11.42");
+    // Bias results toward Biliran province
+    url.searchParams.set("viewbox", BILIRAN_VIEWBOX);
     url.searchParams.set("bounded", "1");
 
     const response = await fetch(url.toString(), {
@@ -35,7 +24,7 @@ export async function geocodeAddress(address: string): Promise<GeocodeResult> {
       return null;
     }
 
-    // Pick the first result that falls within Biliran bounds
+    // Pick the first result that falls within the service area
     for (const item of data) {
       const lat = parseFloat(item.lat);
       const lng = parseFloat(item.lon);

@@ -22,9 +22,9 @@ export async function GET(req: NextRequest) {
   };
 
   const where =
-    payload.role === "customer"
-      ? { ...baseWhere, customerId: payload.id }
-      : baseWhere;
+    payload.role === "customer" ? { ...baseWhere, customerId: payload.id } :
+    payload.role === "driver" ? { ...baseWhere, driverId: payload.id } :
+    baseWhere;
 
   const orders = await prisma.order.findMany({
     where,
@@ -34,7 +34,12 @@ export async function GET(req: NextRequest) {
       deliveryAddress: true,
       latitude: true,
       longitude: true,
+      driverId: true,
+      driverLat: true,
+      driverLng: true,
+      driverLocationUpdatedAt: true,
       customer: { select: { username: true } },
+      driver: { select: { username: true } },
     },
   });
 

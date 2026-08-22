@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/auth";
 import { geocodeAddress } from "@/lib/geocode";
+import { isOrderStatus } from "@/lib/orderStatus";
+
+const FULFILLMENT_MODES = ["delivery", "pickup"];
+// Card was dropped — online customers pay cash on delivery/pickup or via GCash.
+const PAYMENT_METHODS = ["Cash", "GCash"];
+
+// GCash sender numbers are PH mobile numbers; reference numbers are 13 digits.
+const GCASH_NUMBER_RE = /^09\d{9}$/;
+const GCASH_REFERENCE_RE = /^\d{13}$/;
+const stripSpacing = (v: unknown) => String(v ?? "").replace(/[\s-]/g, "");
 
 async function getPayload(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
@@ -13,10 +23,18 @@ export async function GET(req: NextRequest) {
   const payload = await getPayload(req);
   if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const where = payload.role === "customer" ? { customerId: payload.id } : {};
+  const where =
+    payload.role === "customer" ? { customerId: payload.id } :
+    payload.role === "driver" ? { driverId: payload.id } :
+    {};
   const orders = await prisma.order.findMany({
     where,
-    include: { items: { include: { product: true } }, customer: { select: { username: true } } },
+    include: {
+      items: { include: { product: true } },
+      // Drivers need the customer's number to call ahead on a delivery.
+      customer: { select: { username: true, contact: true } },
+      driver: { select: { username: true, contact: true } },
+    },
     orderBy: { dateTime: "desc" },
   });
   return NextResponse.json(orders);
@@ -26,17 +44,46 @@ export async function POST(req: NextRequest) {
   const payload = await getPayload(req);
   if (!payload || payload.role !== "customer") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { items, deliveryAddress, latitude: providedLat, longitude: providedLng } = await req.json();
+  const {
+    items,
+    deliveryAddress,
+    latitude: providedLat,
+    longitude: providedLng,
+    fulfillmentMode = "delivery",
+    paymentMethod = "Cash",
+    gcashNumber: rawGcashNumber,
+    gcashReference: rawGcashReference,
+  } = await req.json();
   if (!items?.length) return NextResponse.json({ error: "No items" }, { status: 400 });
+  if (!FULFILLMENT_MODES.includes(fulfillmentMode)) return NextResponse.json({ error: "Invalid fulfillment mode" }, { status: 400 });
+  if (!PAYMENT_METHODS.includes(paymentMethod)) return NextResponse.json({ error: "Invalid payment method" }, { status: 400 });
+  if (fulfillmentMode === "delivery" && !deliveryAddress && providedLat == null) {
+    return NextResponse.json({ error: "Delivery address is required for delivery orders" }, { status: 400 });
+  }
+
+  // GCash orders must carry proof of payment — the sender's number and the
+  // reference number from their GCash receipt. Cash orders never store these.
+  const isGcash = paymentMethod === "GCash";
+  const gcashNumber = isGcash ? stripSpacing(rawGcashNumber) : null;
+  const gcashReference = isGcash ? stripSpacing(rawGcashReference) : null;
+  if (isGcash) {
+    if (!GCASH_NUMBER_RE.test(gcashNumber!)) {
+      return NextResponse.json({ error: "Enter the GCash number you paid from (11 digits, starts with 09)." }, { status: 400 });
+    }
+    if (!GCASH_REFERENCE_RE.test(gcashReference!)) {
+      return NextResponse.json({ error: "Enter the 13-digit GCash reference number from your receipt." }, { status: 400 });
+    }
+  }
 
   const totalAmount = items.reduce((sum: number, i: { price: number; quantity: number }) => sum + i.price * i.quantity, 0);
 
-  let latitude: number | null = providedLat ?? null;
-  let longitude: number | null = providedLng ?? null;
+  const isPickup = fulfillmentMode === "pickup";
+  let latitude: number | null = isPickup ? null : providedLat ?? null;
+  let longitude: number | null = isPickup ? null : providedLng ?? null;
   let geocodingFailed = false;
 
-  // Only geocode if coordinates weren't already provided
-  if (deliveryAddress && latitude === null) {
+  // Only geocode if coordinates weren't already provided, and never for pickup orders
+  if (!isPickup && deliveryAddress && latitude === null) {
     const geo = await geocodeAddress(deliveryAddress);
     if (geo) {
       latitude = geo.lat;
@@ -57,7 +104,10 @@ export async function POST(req: NextRequest) {
         data: {
           customerId: payload.id,
           totalAmount,
-          ...(deliveryAddress ? { deliveryAddress, latitude, longitude } : {}),
+          fulfillmentMode,
+          paymentMethod,
+          ...(isGcash ? { gcashNumber, gcashReference } : {}),
+          ...(!isPickup && deliveryAddress ? { deliveryAddress, latitude, longitude } : {}),
           items: { create: items.map((i: { productId: number; quantity: number; price: number }) => ({ productId: i.productId, quantity: i.quantity, price: i.price })) },
         },
         include: { items: true },
@@ -71,10 +121,70 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const payload = await getPayload(req);
-  if (!payload || (payload.role !== "admin" && payload.role !== "cashier"))
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id, status } = await req.json();
-  const order = await prisma.order.update({ where: { id }, data: { status } });
+  const { id, status, driverId, paymentVerified } = await req.json();
+  if (status !== undefined && !isOrderStatus(status)) return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+
+  const existing = await prisma.order.findUnique({ where: { id } });
+  if (!existing) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+  if (payload.role === "customer") {
+    if (existing.customerId !== payload.id || status !== "cancelled" || driverId !== undefined || paymentVerified !== undefined) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (!["pending", "confirmed"].includes(existing.status)) {
+      return NextResponse.json({ error: "This order can no longer be cancelled" }, { status: 400 });
+    }
+    const order = await prisma.order.update({ where: { id }, data: { status: "cancelled" } });
+    return NextResponse.json(order);
+  }
+
+  if (payload.role === "driver") {
+    if (existing.driverId !== payload.id || status !== "delivered" || driverId !== undefined || paymentVerified !== undefined) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const order = await prisma.order.update({ where: { id }, data: { status: "delivered" } });
+    return NextResponse.json(order);
+  }
+
+  if (payload.role !== "admin" && payload.role !== "cashier") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (existing.fulfillmentMode === "pickup" && (driverId != null || status === "out_for_delivery")) {
+    return NextResponse.json({ error: "Pickup orders cannot be assigned a driver" }, { status: 400 });
+  }
+
+  const data: { status?: string; driverId?: number | null; assignedAt?: Date | null; paymentVerified?: boolean } = {};
+  if (status !== undefined) data.status = status;
+
+  if (paymentVerified !== undefined) {
+    if (existing.paymentMethod !== "GCash") {
+      return NextResponse.json({ error: "Only GCash orders need payment verification" }, { status: 400 });
+    }
+    data.paymentVerified = Boolean(paymentVerified);
+  }
+
+  // Driver dispatch belongs to the cashier — admins can still confirm, cancel
+  // and verify payment, but no longer assign deliveries.
+  if (driverId !== undefined) {
+    if (payload.role !== "cashier") {
+      return NextResponse.json({ error: "Only a cashier can assign drivers" }, { status: 403 });
+    }
+    if (driverId !== null) {
+      const driver = await prisma.user.findUnique({ where: { id: driverId } });
+      if (!driver || driver.role !== "driver") return NextResponse.json({ error: "Invalid driver" }, { status: 400 });
+      data.driverId = driverId;
+      // Stamped on every (re)assignment so the driver's client can tell a newly
+      // handed-over delivery from one it has already alerted about.
+      if (existing.driverId !== driverId) data.assignedAt = new Date();
+      if (status === undefined && existing.status === "confirmed") data.status = "out_for_delivery";
+    } else {
+      data.driverId = null;
+      data.assignedAt = null;
+      if (status === undefined && existing.status === "out_for_delivery") data.status = "confirmed";
+    }
+  }
+
+  const order = await prisma.order.update({ where: { id }, data });
   return NextResponse.json(order);
 }

@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Password must be 6–128 characters" }, { status: 400 });
   }
 
-  const validRoles = ["admin", "cashier", "customer"];
+  const validRoles = ["admin", "cashier", "customer", "driver"];
   if (!role || !validRoles.includes(role)) {
     return NextResponse.json({ error: "Invalid role" }, { status: 400 });
   }

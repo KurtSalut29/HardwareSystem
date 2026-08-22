@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    localPatterns: [{ pathname: "/uploads/**" }],
+    localPatterns: [{ pathname: "/uploads/**" }, { pathname: "/logo.png" }],
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
     ],

@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-lea
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Search, MapPin, X, LocateFixed, Crosshair } from 'lucide-react';
+import { BILIRAN_CENTER, BILIRAN_LEAFLET_BOUNDS, BILIRAN_VIEWBOX } from '@/lib/biliran';
 
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -13,12 +14,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-const BILIRAN_CENTER: [number, number] = [11.5833, 124.3667];
 const BILIRAN_ZOOM = 12;
-const BILIRAN_BOUNDS: [[number, number], [number, number]] = [
-  [11.42, 124.25],
-  [11.75, 124.55],
-];
 
 type SuggestionResult = {
   place_id: number;
@@ -96,7 +92,7 @@ export default function LocationPickerInner({ value, onChange }: Props) {
       url.searchParams.set('q', `${q}, Biliran, Philippines`);
       url.searchParams.set('format', 'json');
       url.searchParams.set('limit', '6');
-      url.searchParams.set('viewbox', '124.25,11.75,124.55,11.42');
+      url.searchParams.set('viewbox', BILIRAN_VIEWBOX);
       url.searchParams.set('bounded', '1');
       const res = await fetch(url.toString(), { headers: { 'User-Agent': 'order-location-map/1.0' } });
       const data: SuggestionResult[] = await res.json();
@@ -235,7 +231,7 @@ export default function LocationPickerInner({ value, onChange }: Props) {
           onClick={() => setPinMode((p) => !p)}
           className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition border ${
             pinMode
-              ? 'bg-orange-500 text-white border-orange-500'
+              ? 'bg-blue-600 text-white border-blue-600'
               : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'
           }`}
         >
@@ -248,7 +244,7 @@ export default function LocationPickerInner({ value, onChange }: Props) {
 
       {/* Map */}
       <div
-        className={`rounded-lg overflow-hidden border-2 transition ${pinMode ? 'border-orange-400 cursor-crosshair' : 'border-gray-200'}`}
+        className={`rounded-lg overflow-hidden border-2 transition ${pinMode ? 'border-blue-400 cursor-crosshair' : 'border-gray-200'}`}
         style={{ height: '220px' }}
       >
         <MapContainer
@@ -256,7 +252,7 @@ export default function LocationPickerInner({ value, onChange }: Props) {
           zoom={value ? 15 : BILIRAN_ZOOM}
           minZoom={11}
           maxZoom={18}
-          maxBounds={BILIRAN_BOUNDS}
+          maxBounds={BILIRAN_LEAFLET_BOUNDS}
           maxBoundsViscosity={1.0}
           style={{ height: '100%', width: '100%' }}
           scrollWheelZoom={true}
