@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Search, ChevronDown, ChevronUp, CheckCircle, XCircle, Clock, CheckCheck, Receipt, Printer, MapPin, ChevronLeft, ChevronRight, Truck, Ban, Smartphone, ShieldCheck, ShieldAlert, Upload, Calendar as CalendarIcon } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, CheckCircle, XCircle, Clock, CheckCheck, Receipt, Printer, MapPin, ChevronLeft, ChevronRight, Truck, Ban, Smartphone, ShieldCheck, ShieldAlert, Upload, Calendar as CalendarIcon, AlertTriangle } from "lucide-react";
 import Image from "next/image";
 import PageHeader from "@/components/ui/PageHeader";
 import Modal from "@/components/ui/Modal";
@@ -13,6 +13,7 @@ import OrderMap, { OrderPin } from "@/components/OrderMap";
 import LocationPicker, { PickedLocation } from "@/components/LocationPicker";
 import { ORDER_STATUSES } from "@/lib/orderStatus";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
+import { STORE_NAME } from "@/lib/brand";
 
 type OItem = { id: number; quantity: number; price: number; product: { name: string } };
 type Order = {
@@ -32,6 +33,7 @@ type Order = {
   gcashNumber?: string | null;
   gcashReference?: string | null;
   paymentVerified?: boolean;
+  amountPaid?: number;
 };
 
 type StorePayment = { gcashName: string | null; gcashNumber: string | null; gcashQr: string | null };
@@ -88,7 +90,7 @@ function StoreLocationModal({ current, onClose, onSaved }: {
   const [pickedLocation, setPickedLocation] = useState<PickedLocation | null>(
     current ? { address: current.name, lat: current.lat, lng: current.lng } : null
   );
-  const [storeName, setStoreName] = useState(current?.name ?? "Hardware Store");
+  const [storeName, setStoreName] = useState(current?.name ?? STORE_NAME);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -223,7 +225,7 @@ function ReceiptModal({ order, onClose }: { order: Order; onClose: () => void })
         <div id="receipt-print" className="space-y-4">
           {/* Store */}
           <div className="text-center">
-            <p className="font-bold text-gray-900 text-base">Hardware Store</p>
+            <p className="font-bold text-gray-900 text-base">{STORE_NAME}</p>
             <p className="text-xs text-gray-400 mt-0.5">Official Receipt</p>
           </div>
 
@@ -298,6 +300,18 @@ function ReceiptModal({ order, onClose }: { order: Order; onClose: () => void })
                     {order.paymentVerified ? "Verified" : "Unverified"}
                   </span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Amount paid</span>
+                  <span className="font-semibold text-gray-800">₱{(order.amountPaid ?? 0).toFixed(2)}</span>
+                </div>
+                {order.totalAmount - (order.amountPaid ?? 0) > 0.005 && (
+                  <div className="flex justify-between">
+                    <span className="font-bold" style={{ color: "var(--warn)" }}>Balance due</span>
+                    <span className="font-bold" style={{ color: "var(--warn)" }}>
+                      ₱{(order.totalAmount - (order.amountPaid ?? 0)).toFixed(2)}
+                    </span>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -413,7 +427,7 @@ function NextStepCell({ order, drivers, canAssign, onStatus, onAssign }: {
       return (
         <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg whitespace-nowrap"
           style={{ background: "var(--warn-soft)", color: "var(--warn)" }}>
-          <Truck size={11} /> Cashier to assign
+          <Truck size={11} /> Staff to assign
         </span>
       );
     }
@@ -564,6 +578,18 @@ export default function OrdersPage() {
     setPins((prev) => prev.map((p) => (p.id === id ? { ...p, status: updated.status } : p)));
     if (driver) showToast(`${driver.username} was notified about Order #${id}.`, "success");
     else notifyStatus(updated.status);
+  }
+
+  /** Record that the outstanding balance on a partly-paid order has been collected. */
+  async function settleBalance(id: number, total: number) {
+    const res = await fetch("/api/orders", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, amountPaid: total }),
+    });
+    if (!res.ok) { showToast("Failed to record the payment.", "error"); return; }
+    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, amountPaid: total } : o)));
+    showToast(`Balance for order #${id} marked as settled.`);
   }
 
   async function setPaymentVerified(id: number, verified: boolean) {
@@ -975,6 +1001,30 @@ export default function OrdersPage() {
                                   {o.paymentVerified ? <ShieldCheck size={ICON_SIZE.xs} /> : <ShieldAlert size={ICON_SIZE.xs} />}
                                   {o.paymentVerified ? "Payment verified" : "Payment unverified"}
                                 </span>
+                                {(() => {
+                                  const paid = o.amountPaid ?? 0;
+                                  const bal = Math.max(0, Math.round((o.totalAmount - paid) * 100) / 100);
+                                  // This block only renders for GCash orders, so a
+                                  // shortfall here always means a real balance owed.
+                                  if (bal <= 0) return null;
+                                  return (
+                                    <>
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border"
+                                        style={{ background: "var(--warn-soft)", color: "var(--warn)", borderColor: "var(--warn)" }}>
+                                        <AlertTriangle size={ICON_SIZE.xs} />
+                                        Paid ₱{paid.toFixed(2)} · Balance ₱{bal.toFixed(2)}
+                                      </span>
+                                      {(role === "admin" || role === "cashier") && (
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); settleBalance(o.id, o.totalAmount); }}
+                                          className="text-[11px] font-semibold px-2 py-1 rounded-lg transition text-emerald-600 bg-emerald-50 hover:bg-emerald-100"
+                                        >
+                                          Balance collected
+                                        </button>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                                 {(role === "admin" || role === "cashier") && (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setPaymentVerified(o.id, !o.paymentVerified); }}

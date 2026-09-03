@@ -12,6 +12,7 @@ const PAYMENT_METHODS = ["Cash", "GCash"];
 const GCASH_NUMBER_RE = /^09\d{9}$/;
 const GCASH_REFERENCE_RE = /^\d{13}$/;
 const stripSpacing = (v: unknown) => String(v ?? "").replace(/[\s-]/g, "");
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 async function getPayload(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
     paymentMethod = "Cash",
     gcashNumber: rawGcashNumber,
     gcashReference: rawGcashReference,
+    amountPaid: rawAmountPaid,
   } = await req.json();
   if (!items?.length) return NextResponse.json({ error: "No items" }, { status: 400 });
   if (!FULFILLMENT_MODES.includes(fulfillmentMode)) return NextResponse.json({ error: "Invalid fulfillment mode" }, { status: 400 });
@@ -75,7 +77,23 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const totalAmount = items.reduce((sum: number, i: { price: number; quantity: number }) => sum + i.price * i.quantity, 0);
+  const totalAmount = round2(items.reduce((sum: number, i: { price: number; quantity: number }) => sum + i.price * i.quantity, 0));
+
+  // A GCash payer may send less than the full amount — the remainder becomes a
+  // balance they settle on delivery or pickup. Defaulting to the full total
+  // keeps the common "paid in full" case a no-op for the client.
+  let amountPaid = 0;
+  if (isGcash) {
+    amountPaid = rawAmountPaid == null ? totalAmount : round2(Number(rawAmountPaid));
+    if (!Number.isFinite(amountPaid) || amountPaid <= 0) {
+      return NextResponse.json({ error: "Enter how much you sent via GCash." }, { status: 400 });
+    }
+    // A cent of tolerance absorbs float rounding on the client's total.
+    if (amountPaid > totalAmount + 0.01) {
+      return NextResponse.json({ error: "The amount paid can't be more than the order total." }, { status: 400 });
+    }
+    if (amountPaid > totalAmount) amountPaid = totalAmount;
+  }
 
   const isPickup = fulfillmentMode === "pickup";
   let latitude: number | null = isPickup ? null : providedLat ?? null;
@@ -106,7 +124,7 @@ export async function POST(req: NextRequest) {
           totalAmount,
           fulfillmentMode,
           paymentMethod,
-          ...(isGcash ? { gcashNumber, gcashReference } : {}),
+          ...(isGcash ? { gcashNumber, gcashReference, amountPaid } : {}),
           ...(!isPickup && deliveryAddress ? { deliveryAddress, latitude, longitude } : {}),
           items: { create: items.map((i: { productId: number; quantity: number; price: number }) => ({ productId: i.productId, quantity: i.quantity, price: i.price })) },
         },
@@ -123,14 +141,14 @@ export async function PATCH(req: NextRequest) {
   const payload = await getPayload(req);
   if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id, status, driverId, paymentVerified } = await req.json();
+  const { id, status, driverId, paymentVerified, amountPaid } = await req.json();
   if (status !== undefined && !isOrderStatus(status)) return NextResponse.json({ error: "Invalid status" }, { status: 400 });
 
   const existing = await prisma.order.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
   if (payload.role === "customer") {
-    if (existing.customerId !== payload.id || status !== "cancelled" || driverId !== undefined || paymentVerified !== undefined) {
+    if (existing.customerId !== payload.id || status !== "cancelled" || driverId !== undefined || paymentVerified !== undefined || amountPaid !== undefined) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (!["pending", "confirmed"].includes(existing.status)) {
@@ -141,7 +159,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (payload.role === "driver") {
-    if (existing.driverId !== payload.id || status !== "delivered" || driverId !== undefined || paymentVerified !== undefined) {
+    if (existing.driverId !== payload.id || status !== "delivered" || driverId !== undefined || paymentVerified !== undefined || amountPaid !== undefined) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const order = await prisma.order.update({ where: { id }, data: { status: "delivered" } });
@@ -154,8 +172,18 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Pickup orders cannot be assigned a driver" }, { status: 400 });
   }
 
-  const data: { status?: string; driverId?: number | null; assignedAt?: Date | null; paymentVerified?: boolean } = {};
+  const data: { status?: string; driverId?: number | null; assignedAt?: Date | null; paymentVerified?: boolean; amountPaid?: number } = {};
   if (status !== undefined) data.status = status;
+
+  // Recording a settlement: what the customer has now paid in total, not a
+  // delta. Clamped to the order total so a balance can never go negative.
+  if (amountPaid !== undefined) {
+    const paid = round2(Number(amountPaid));
+    if (!Number.isFinite(paid) || paid < 0) {
+      return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
+    }
+    data.amountPaid = Math.min(paid, existing.totalAmount);
+  }
 
   if (paymentVerified !== undefined) {
     if (existing.paymentMethod !== "GCash") {

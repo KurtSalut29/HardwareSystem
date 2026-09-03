@@ -4,7 +4,9 @@ import { useState, FormEvent, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense } from "react";
 import Image from "next/image";
-import { Eye, EyeOff, Package, Users2, MapPin } from "lucide-react";
+import Link from "next/link";
+import { Eye, EyeOff, Package, Users2, MapPin, ArrowLeft } from "lucide-react";
+import { STORE_NAME } from "@/lib/brand";
 
 function AuthPage() {
   const searchParams = useSearchParams();
@@ -24,13 +26,15 @@ function AuthPage() {
   const [siLoading, setSiLoading] = useState(false);
 
   // Sign up state
-  const [suForm, setSuForm] = useState({ username: "", password: "", confirm: "", contact: "", role: "customer" });
+  const [suForm, setSuForm] = useState({ username: "", password: "", confirm: "", contact: "" });
   const [suShowPass, setSuShowPass] = useState(false);
   const [suError, setSuError] = useState("");
   const [suLoading, setSuLoading] = useState(false);
 
   useEffect(() => {
     if (searchParams.get("registered") === "1") setSiSuccess("Account created! You can now sign in.");
+    // The landing page links straight to the signup tab.
+    if (searchParams.get("mode") === "signup") setMode("signup");
   }, [searchParams]);
 
   useEffect(() => {
@@ -59,7 +63,14 @@ function AuthPage() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { setSiLoading(false); setSiError(data.error || "Login failed"); return; }
 
-    const target = `/dashboard/${data.role}`;
+    // A visitor who tapped "Order" on the landing page is sent straight to the
+    // shop once they're in. Only same-origin relative paths are honoured, and
+    // only for customers, so ?next= can't be used to push staff somewhere odd.
+    const next = searchParams.get("next");
+    const target =
+      data.role === "customer" && next && next.startsWith("/") && !next.startsWith("//")
+        ? next
+        : `/dashboard/${data.role}`;
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) { window.location.href = target; return; }
 
@@ -76,7 +87,9 @@ function AuthPage() {
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: suForm.username, password: suForm.password, contact: suForm.contact, role: suForm.role }),
+      // No role is sent — public signup always creates a customer. Staff and
+      // driver accounts are created by the admin on the Users page.
+      body: JSON.stringify({ username: suForm.username, password: suForm.password, contact: suForm.contact }),
     });
     const data = await res.json();
     setSuLoading(false);
@@ -107,8 +120,8 @@ function AuthPage() {
         />
 
         <div className={`relative z-10 flex items-center gap-3 transition-all duration-700 ease-out ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-          <Image src="/logo.png" alt="HardwareStore" width={60} height={60} className="shrink-0 object-contain" priority />
-          <span className="font-display font-extrabold text-lg" style={{ color: "var(--hero-ink)" }}>HardwareStore</span>
+          <Image src="/logo.png" alt={STORE_NAME} width={60} height={60} className="shrink-0 object-contain" priority />
+          <span className="font-display font-extrabold text-lg" style={{ color: "var(--hero-ink)" }}>{STORE_NAME}</span>
         </div>
 
         <div className={`relative z-10 max-w-md transition-all duration-700 delay-150 ease-out ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
@@ -154,10 +167,19 @@ function AuthPage() {
       {/* Right — form */}
       <div className={`flex-1 flex items-center justify-center p-6 ${breaking ? "animate-auth-break-right" : ""}`}>
         <div className={`w-full max-w-sm transition-all duration-700 ease-out ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+          {/* Back to the public storefront — visitors reach this page from the
+              landing page and need a way back without using the browser button. */}
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-gray-700 transition mb-6"
+          >
+            <ArrowLeft size={14} /> Back to store
+          </Link>
+
           {/* Mobile-only logo */}
           <div className="flex md:hidden flex-col items-center mb-8">
-            <Image src="/logo.png" alt="HardwareStore" width={96} height={96} className="object-contain mb-3" priority />
-            <h1 className="font-display text-xl font-extrabold text-gray-900">HardwareStore</h1>
+            <Image src="/logo.png" alt={STORE_NAME} width={96} height={96} className="object-contain mb-3" priority />
+            <h1 className="font-display text-xl font-extrabold text-gray-900">{STORE_NAME}</h1>
           </div>
 
           {/* Tab switcher */}
@@ -231,7 +253,7 @@ function AuthPage() {
             ) : (
               <div>
                 <h2 className="font-display text-2xl font-extrabold text-gray-900 mb-1">Create account</h2>
-                <p className="text-sm text-gray-400 mb-6">Fill in your details to get started</p>
+                <p className="text-sm text-gray-400 mb-6">Create a customer account to start ordering. Staff and driver accounts are set up by the store admin.</p>
 
                 <form onSubmit={handleSignUp} className="space-y-4">
                   {[
@@ -250,17 +272,6 @@ function AuthPage() {
                         placeholder={placeholder} />
                     </div>
                   ))}
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Role</label>
-                    <select value={suForm.role} onChange={(e) => setSuForm(p => ({ ...p, role: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 transition">
-                      <option value="customer">Customer</option>
-                      <option value="cashier">Cashier</option>
-                      <option value="driver">Driver</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Password</label>

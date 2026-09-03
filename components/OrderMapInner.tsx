@@ -6,6 +6,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet'
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { BILIRAN_CENTER, BILIRAN_LEAFLET_BOUNDS } from '@/lib/biliran';
+import { STORE_NAME } from "@/lib/brand";
 
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -128,7 +129,7 @@ async function fetchRoute(
 
 export default function OrderMapInner({
   pins, loading, height = '350px', linkToOrders,
-  storeLat, storeLng, storeName = 'Hardware Store', routeFrom = 'store'
+  storeLat, storeLng, storeName = STORE_NAME, routeFrom = 'store'
 }: OrderMapProps) {
   // Road routes keyed by pin id. `key` records which origin the line was drawn
   // from, so a driver route is refetched once they've actually moved.

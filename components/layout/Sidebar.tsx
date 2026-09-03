@@ -5,12 +5,14 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Receipt,
-  ClipboardList, Store, ChevronLeft, ChevronRight, LogOut, Tag, X, Truck, History
+  ClipboardList, Store, ChevronLeft, ChevronRight, LogOut, Tag, X, Truck, History, FileBarChart
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import { useLogout } from "@/hooks/useLogout";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
+import { STORE_NAME } from "@/lib/brand";
+import { roleLabel } from "@/lib/roles";
 
 type NavItem = { label: string; href: string; icon: React.ReactNode };
 
@@ -21,6 +23,7 @@ const adminNav: NavItem[] = [
   { label: "Users", href: "/users", icon: <Users size={ICON_SIZE.md} /> },
   { label: "Transactions", href: "/transactions", icon: <Receipt size={ICON_SIZE.md} /> },
   { label: "Orders", href: "/orders", icon: <ClipboardList size={ICON_SIZE.md} /> },
+  { label: "Reports", href: "/reports", icon: <FileBarChart size={ICON_SIZE.md} /> },
 ];
 
 const cashierNav: NavItem[] = [
@@ -28,6 +31,7 @@ const cashierNav: NavItem[] = [
   { label: "POS", href: "/pos", icon: <ShoppingCart size={ICON_SIZE.md} /> },
   { label: "Orders", href: "/orders", icon: <ClipboardList size={ICON_SIZE.md} /> },
   { label: "Transactions", href: "/transactions", icon: <Receipt size={ICON_SIZE.md} /> },
+  { label: "Reports", href: "/reports", icon: <FileBarChart size={ICON_SIZE.md} /> },
 ];
 
 const customerNav: NavItem[] = [
@@ -115,8 +119,8 @@ export default function Sidebar({ role, mobileOpen, onClose }: { role: string; m
     >
       {/* Logo */}
       <div style={{ borderColor: "var(--nav-line)" }} className={`flex items-center gap-2.5 px-4 py-2 border-b ${collapsed ? "justify-center" : ""}`}>
-        <Image src="/logo.png" alt="HardwareStore" width={48} height={48} className="shrink-0 object-contain" priority />
-        {!collapsed && <span className="font-display font-extrabold text-sm tracking-tight" style={{ color: "var(--nav-ink)" }}>HardwareStore</span>}
+        <Image src="/logo.png" alt={STORE_NAME} width={48} height={48} className="shrink-0 object-contain" priority />
+        {!collapsed && <span className="font-display font-extrabold text-sm tracking-tight" style={{ color: "var(--nav-ink)" }}>{STORE_NAME}</span>}
         {/* Close button — mobile only */}
         {!collapsed && (
           <button onClick={onClose} className="ml-auto p-1 rounded-lg transition lg:hidden" style={{ color: "var(--nav-ink-dim)" }}>
@@ -137,7 +141,7 @@ export default function Sidebar({ role, mobileOpen, onClose }: { role: string; m
       {/* Role label */}
       {!collapsed && (
         <div className="px-4 pt-5 pb-1">
-          <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: "var(--nav-ink-dim)" }}>{role}</span>
+          <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: "var(--nav-ink-dim)" }}>{roleLabel(role)}</span>
         </div>
       )}
 

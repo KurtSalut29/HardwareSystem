@@ -3,6 +3,7 @@ import { Inter, Archivo } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ToastProvider } from "@/components/ui/ToastProvider";
+import { STORE_NAME } from "@/lib/brand";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -17,8 +18,8 @@ const archivo = Archivo({
 });
 
 export const metadata: Metadata = {
-  title: "Hardware Store",
-  description: "Hardware Store Management System",
+  title: STORE_NAME,
+  description: `${STORE_NAME} — hardware store management system`,
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

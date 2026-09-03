@@ -434,6 +434,8 @@ export default function POSPage() {
       <Drawer
         open={cartOpen}
         onClose={() => setCartOpen(false)}
+        placement="center"
+        width="lg"
         title={
           <>
             <ShoppingCart size={ICON_SIZE.md} className="text-blue-600" />

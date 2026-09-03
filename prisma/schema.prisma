@@ -18,6 +18,7 @@ model User {
   orders       Order[]       @relation("CustomerOrders")
   driverOrders Order[]       @relation("DriverOrders")
   transactions Transaction[]
+  reports      Report[]      @relation("AuthoredReports")
 }
 
 model Category {
@@ -77,6 +78,10 @@ model Order {
   gcashNumber             String?
   gcashReference          String?
   paymentVerified         Boolean     @default(false)
+  // What the customer has actually settled so far. Defaults to 0 and is
+  // topped up to totalAmount when the balance is collected, so
+  // totalAmount - amountPaid is always the outstanding balance.
+  amountPaid              Float       @default(0)
   deliveryAddress         String?
   latitude                Float?
   longitude               Float?
@@ -113,4 +118,31 @@ model Restock {
 model Setting {
   key   String @id
   value String
+}
+
+// A sales/accomplishment report a staff member compiles for a period and sends
+// to the admin. The figures are snapshotted at send time rather than recomputed
+// on read, so a report always shows what was reported, even if a transaction is
+// edited later.
+model Report {
+  id                Int       @id @default(autoincrement())
+  authorId          Int
+  author            User      @relation("AuthoredReports", fields: [authorId], references: [id])
+  title             String
+  periodStart       DateTime
+  periodEnd         DateTime
+  totalSales        Float
+  totalTransactions Int
+  itemsSold         Float
+  cashTotal         Float
+  gcashTotal        Float
+  otherTotal        Float
+  // JSON snapshot of the line detail (top products + the transactions counted).
+  payload           String
+  note              String?
+  status            String    @default("sent")
+  createdAt         DateTime  @default(now())
+  readAt            DateTime?
+
+  @@index([authorId, createdAt])
 }

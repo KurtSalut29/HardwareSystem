@@ -239,3 +239,72 @@ html.dark .dashboard-bg {
 .leaflet-control {
   z-index: 11 !important;
 }
+
+/* ------------------------------------------------------------------
+   Printing
+   Reports are printed straight from the browser, but they live inside the
+   dashboard shell (sidebar, navbar, page chrome). Rather than maintaining a
+   separate print route, the sheet marks itself with [data-print-root] and
+   everything else is hidden for the print job. `visibility` is used instead of
+   `display:none` so the sheet's own ancestors can stay in the flow — hiding
+   them outright would take the sheet down with them.
+   ------------------------------------------------------------------ */
+@media print {
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  [data-print-root],
+  [data-print-root] * {
+    visibility: visible;
+  }
+  [data-print-root] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  .no-print,
+  .no-print * {
+    visibility: hidden !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  /* Keep table rows from splitting across pages mid-row. */
+  tr, .avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  @page {
+    margin: 14mm;
+  }
+}
+
+.print-only {
+  display: none;
+}
+
+/* ------------------------------------------------------------------
+   Smooth in-page scrolling
+   The landing page navigates by anchor (#products, #how, #visit), which
+   otherwise teleports the viewport with no sense of direction. Set on the
+   scrolling element itself — `scroll-behavior` has no effect on the target.
+   ------------------------------------------------------------------ */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

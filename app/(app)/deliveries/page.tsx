@@ -24,6 +24,7 @@ type Order = {
   longitude?: number | null;
   paymentMethod?: string;
   paymentVerified?: boolean;
+  amountPaid?: number;
 };
 
 export default function DeliveriesPage() {
@@ -90,9 +91,13 @@ export default function DeliveriesPage() {
       return a.order.id - b.order.id;
     });
   const totalValue = active.reduce((s, a) => s + a.order.totalAmount, 0);
-  const toCollect = active
-    .filter((a) => a.order.paymentMethod === "Cash" || (a.order.paymentMethod === "GCash" && !a.order.paymentVerified))
-    .reduce((s, a) => s + a.order.totalAmount, 0);
+  // What the driver actually has to come back with: the full amount on a
+  // cash order, and whatever is still outstanding on a partly-paid GCash one.
+  const balanceOf = (o: Order) =>
+    o.paymentMethod === "Cash"
+      ? o.totalAmount
+      : Math.max(0, Math.round((o.totalAmount - (o.amountPaid ?? 0)) * 100) / 100);
+  const toCollect = active.reduce((s, a) => s + balanceOf(a.order), 0);
 
   return (
     <div className="space-y-5">
@@ -126,6 +131,8 @@ export default function DeliveriesPage() {
           {active.map(({ order: o, km }, idx) => {
             const collectCash = o.paymentMethod === "Cash";
             const unverifiedGcash = o.paymentMethod === "GCash" && !o.paymentVerified;
+            const due = balanceOf(o);
+            const partiallyPaid = o.paymentMethod === "GCash" && due > 0;
             return (
               <div key={o.id} className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -155,6 +162,11 @@ export default function DeliveriesPage() {
                         : unverifiedGcash ? <><ShieldAlert size={10} /> GCash unverified</>
                         : <><Smartphone size={10} /> Paid ({o.paymentMethod})</>}
                     </span>
+                    {partiallyPaid && (
+                      <p className="mt-1 text-[11px] font-bold" style={{ color: "var(--warn)" }}>
+                        Collect ₱{due.toFixed(2)} balance
+                      </p>
+                    )}
                   </div>
                 </div>
 

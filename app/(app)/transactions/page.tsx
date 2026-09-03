@@ -151,7 +151,7 @@ export default function TransactionsPage() {
                   <tr className="border-b border-gray-100 bg-gray-50/50">
                     <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide w-8"></th>
                     <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">ID</th>
-                    <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">Cashier</th>
+                    <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">Handled by</th>
                     <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">Type</th>
                     <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Payment</th>
                     <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Amount</th>

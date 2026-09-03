@@ -19,13 +19,21 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(users);
 }
 
+// Roles that already exist in the system and stay editable.
 const VALID_ROLES = ["admin", "cashier", "customer", "driver"];
+
+// What the admin is allowed to *create* here: internal accounts only. Customers
+// come in through public signup, and an extra admin isn't handed out from this
+// form. Mirrors CREATABLE_ROLES on the Users page.
+const CREATABLE_ROLES = ["cashier", "driver"];
 
 export async function POST(req: NextRequest) {
   if (!await requireAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { username, password, role, contact } = await req.json();
   if (!username || !password || !role) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
-  if (!VALID_ROLES.includes(role)) return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+  if (!CREATABLE_ROLES.includes(role)) {
+    return NextResponse.json({ error: "Only staff and driver accounts can be created here" }, { status: 400 });
+  }
   const existing = await prisma.user.findUnique({ where: { username } });
   if (existing) return NextResponse.json({ error: "Username already taken" }, { status: 409 });
   const hashed = await bcrypt.hash(password, 10);

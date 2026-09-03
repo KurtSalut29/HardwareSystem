@@ -11,9 +11,16 @@ import StatCard from "@/components/ui/StatCard";
 import EmptyState from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
+import { roleLabel } from "@/lib/roles";
 
 type User = { id: number; username: string; role: string; contact: string | null; createdAt: string };
-const EMPTY = { username: "", password: "", role: "customer", contact: "" };
+
+// The admin only ever creates internal accounts. Customers register themselves
+// through public signup, and a second admin isn't something the store hands out
+// from this form. Mirrored by the POST guard in /api/users.
+const CREATABLE_ROLES = ["cashier", "driver"] as const;
+
+const EMPTY = { username: "", password: "", role: "cashier", contact: "" };
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -90,17 +97,22 @@ export default function UsersPage() {
     fetchUsers();
   }
 
+  const roleOptions: string[] =
+    editTarget && !CREATABLE_ROLES.includes(editTarget.role as (typeof CREATABLE_ROLES)[number])
+      ? [editTarget.role, ...CREATABLE_ROLES]
+      : [...CREATABLE_ROLES];
+
   return (
     <div className="space-y-5">
       <PageHeader
         title="Users"
-        subtitle="Manage system users and roles"
-        action={<Button onClick={openAdd} icon={<Plus size={ICON_SIZE.md} />}>Add User</Button>}
+        subtitle="Add staff and driver accounts. Customers register themselves."
+        action={<Button onClick={openAdd} icon={<Plus size={ICON_SIZE.md} />}>Add Staff / Driver</Button>}
       />
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard title="Total Users" value={users.length} icon={<Users2 size={ICON_SIZE.lg} className="text-blue-600" />} iconBg="bg-blue-50" />
-        <StatCard title="Staff (Admin/Cashier)" value={staffCount} icon={<ShieldCheck size={ICON_SIZE.lg} className="text-purple-600" />} iconBg="bg-purple-50" />
+        <StatCard title="Staff (Admin/Staff)" value={staffCount} icon={<ShieldCheck size={ICON_SIZE.lg} className="text-purple-600" />} iconBg="bg-purple-50" />
         <StatCard title="Drivers" value={driverCount} icon={<Truck size={ICON_SIZE.lg} className="text-indigo-600" />} iconBg="bg-indigo-50" />
         <StatCard title="Customers" value={customerCount} icon={<ShoppingBag size={ICON_SIZE.lg} className="text-emerald-600" />} iconBg="bg-emerald-50" />
       </div>
@@ -143,7 +155,7 @@ export default function UsersPage() {
                       <span className="font-medium text-gray-900">{u.username}</span>
                     </div>
                   </td>
-                  <td className="py-3 px-4"><Badge label={u.role} /></td>
+                  <td className="py-3 px-4"><Badge label={roleLabel(u.role)} variant={u.role} /></td>
                   <td className="py-3 px-4 text-gray-500">{u.contact ?? "—"}</td>
                   <td className="py-3 px-4 text-gray-400 text-xs">{new Date(u.createdAt).toLocaleDateString()}</td>
                   <td className="py-3 px-4 text-right">
@@ -177,7 +189,7 @@ export default function UsersPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-gray-900 truncate">{u.username}</span>
-                    <Badge label={u.role} />
+                    <Badge label={roleLabel(u.role)} variant={u.role} />
                   </div>
                   <p className="text-xs text-gray-500 mt-1">{u.contact ?? "No contact on file"}</p>
                   <p className="text-[11px] text-gray-400 mt-0.5">Joined {new Date(u.createdAt).toLocaleDateString()}</p>
@@ -219,7 +231,7 @@ export default function UsersPage() {
       <Modal
         open={showModal}
         onClose={() => setShowModal(false)}
-        title={editTarget ? "Edit User" : "Add New User"}
+        title={editTarget ? "Edit User" : "Add Staff or Driver"}
         footer={
           <div className="flex gap-2">
             <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowModal(false)}>Cancel</Button>
@@ -249,11 +261,16 @@ export default function UsersPage() {
             <div className={editTarget ? "col-span-2" : ""}>
               <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
               <select value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition bg-white">
-                <option value="customer">Customer</option>
-                <option value="cashier">Cashier</option>
-                <option value="driver">Driver</option>
-                <option value="admin">Admin</option>
+                {/* When editing someone who is already a customer or admin, keep
+                    their current role in the list — otherwise just opening the
+                    form and saving would silently demote them to Staff. */}
+                {roleOptions.map((r) => (
+                  <option key={r} value={r}>{roleLabel(r)}</option>
+                ))}
               </select>
+              {!editTarget && (
+                <p className="text-[11px] text-gray-400 mt-1">Customers create their own accounts when they sign up.</p>
+              )}
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Contact <span className="text-gray-400">(optional)</span></label>

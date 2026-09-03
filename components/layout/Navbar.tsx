@@ -9,6 +9,7 @@ import ConfirmModal from "@/components/ui/ConfirmModal";
 import { useLogout } from "@/hooks/useLogout";
 import { useDriverAlerts } from "@/components/DriverAlertsProvider";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
+import { roleLabel } from "@/lib/roles";
 
 type Notification = { id: string; type: "low_stock" | "new_order" | "delivery"; message: string };
 
@@ -21,6 +22,7 @@ function pageLabel(pathname: string, role: string): string {
   if (pathname.startsWith("/orders")) return role === "customer" ? "My Orders" : "Orders";
   if (pathname.startsWith("/pos")) return "Point of Sale";
   if (pathname.startsWith("/shop")) return "Shop";
+  if (pathname.startsWith("/reports")) return role === "admin" ? "Sales Reports" : "Sales & Accomplishment Report";
   return "";
 }
 
@@ -99,7 +101,7 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
 
       {/* Wayfinding — where am I? (desktop only, sidebar already carries this on mobile) */}
       <div className="hidden lg:flex flex-col justify-center min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-widest truncate" style={{ color: "var(--text-faint)" }}>{role}</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest truncate" style={{ color: "var(--text-faint)" }}>{roleLabel(role)}</p>
         <p className="text-sm font-bold truncate" style={{ color: "var(--text-primary)" }}>{label}</p>
       </div>
 
@@ -258,7 +260,7 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
             </div>
             <div className="hidden sm:block text-left">
               <p className="text-sm font-semibold leading-none" style={{ color: "var(--text-primary)" }}>{username}</p>
-              <span className="mt-1 inline-block"><Badge label={role} /></span>
+              <span className="mt-1 inline-block"><Badge label={roleLabel(role)} variant={role} /></span>
             </div>
             <ChevronDown size={ICON_SIZE.xs} style={{ color: "var(--text-faint)" }} />
           </button>
@@ -274,7 +276,7 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-bold truncate" style={{ color: "var(--text-primary)" }}>{username}</p>
-                  <span className="mt-0.5 inline-block"><Badge label={role} /></span>
+                  <span className="mt-0.5 inline-block"><Badge label={roleLabel(role)} variant={role} /></span>
                 </div>
               </div>
               <div className="p-1.5">

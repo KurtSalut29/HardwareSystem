@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Search, ShoppingCart, Trash2, CheckCircle, ChevronDown, ChevronRight, PackageSearch, Banknote, Smartphone, Copy, Check, QrCode } from "lucide-react";
+import { Search, ShoppingCart, Trash2, CheckCircle, ChevronDown, ChevronRight, PackageSearch, Banknote, Smartphone, Copy, Check, QrCode, AlertTriangle } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import Drawer from "@/components/ui/Drawer";
 import Modal from "@/components/ui/Modal";
@@ -10,6 +10,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import Image from "next/image";
 import LocationPicker, { PickedLocation } from "@/components/LocationPicker";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
+import { STORE_NAME } from "@/lib/brand";
 
 type Category = { id: number; name: string };
 type Product = { id: number; name: string; category: Category; categoryId: number; subcategory: string | null; price: number; unit: string; stock: number; image: string | null; description: string | null };
@@ -50,6 +51,9 @@ export default function ShopPage() {
   const [storePayment, setStorePayment] = useState<StorePayment | null>(null);
   const [gcashNumber, setGcashNumber] = useState("");
   const [gcashReference, setGcashReference] = useState("");
+  // Blank means "paid the full total" — the common case, so the customer only
+  // has to touch this when they actually sent less.
+  const [gcashAmount, setGcashAmount] = useState("");
   const [copied, setCopied] = useState(false);
 
   const fetchProducts = useCallback(async () => {
@@ -114,7 +118,16 @@ export default function ShopPage() {
 
   const gcashNumberValid = GCASH_NUMBER_RE.test(gcashNumber);
   const gcashReferenceValid = GCASH_REFERENCE_RE.test(gcashReference);
-  const gcashReady = paymentMethod !== "GCash" || (gcashNumberValid && gcashReferenceValid);
+
+  // What the customer says they sent. Anything short of the total becomes a
+  // balance they settle on delivery or pickup.
+  const paidEntered = gcashAmount.trim() === "" ? total : Number(gcashAmount);
+  const gcashAmountValid = Number.isFinite(paidEntered) && paidEntered > 0 && paidEntered <= total + 0.01;
+  const amountPaid = gcashAmountValid ? Math.min(paidEntered, total) : 0;
+  const balance = Math.max(0, round2(total - amountPaid));
+  const isPartialPayment = paymentMethod === "GCash" && gcashAmountValid && balance > 0;
+
+  const gcashReady = paymentMethod !== "GCash" || (gcashNumberValid && gcashReferenceValid && gcashAmountValid);
 
   async function copyGcashNumber() {
     if (!storePayment?.gcashNumber) return;
@@ -153,7 +166,7 @@ export default function ShopPage() {
         items: cart.map((i) => ({ productId: i.id, quantity: i.quantity, price: i.price })),
         fulfillmentMode,
         paymentMethod,
-        ...(paymentMethod === "GCash" ? { gcashNumber, gcashReference } : {}),
+        ...(paymentMethod === "GCash" ? { gcashNumber, gcashReference, amountPaid } : {}),
         ...(fulfillmentMode === "delivery" && pickedLocation ? {
           deliveryAddress: pickedLocation.address,
           latitude: pickedLocation.lat,
@@ -164,7 +177,7 @@ export default function ShopPage() {
     setLoading(false);
     if (!res.ok) { setError((await res.json()).error); return; }
     setCart([]); setPickedLocation(null); setFulfillmentMode("delivery"); setPaymentMethod("Cash");
-    setGcashNumber(""); setGcashReference("");
+    setGcashNumber(""); setGcashReference(""); setGcashAmount("");
     setShowReview(false); setShowCart(false); setSuccess(true); fetchProducts();
     setTimeout(() => setSuccess(false), 4000);
   }
@@ -351,6 +364,8 @@ export default function ShopPage() {
       <Drawer
         open={showCart}
         onClose={() => setShowCart(false)}
+        placement="center"
+        width="lg"
         title={<><ShoppingCart size={ICON_SIZE.md} /> Your Cart</>}
         footer={cart.length > 0 ? (
           <div className="p-5 space-y-3">
@@ -416,7 +431,7 @@ export default function ShopPage() {
               </div>
             ) : (
               <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5 text-xs text-blue-700">
-                <p className="font-semibold">{storeInfo?.name ?? "Hardware Store"}</p>
+                <p className="font-semibold">{storeInfo?.name ?? STORE_NAME}</p>
                 <p className="text-blue-500 mt-0.5">We&apos;ll notify you when your order is ready for pickup.</p>
               </div>
             )}
@@ -461,7 +476,7 @@ export default function ShopPage() {
                       )}
                       <div className="min-w-0 flex-1 space-y-1">
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-500">Send payment to</p>
-                        <p className="text-sm font-bold text-gray-900 truncate">{storePayment.gcashName ?? storeInfo?.name ?? "Hardware Store"}</p>
+                        <p className="text-sm font-bold text-gray-900 truncate">{storePayment.gcashName ?? storeInfo?.name ?? STORE_NAME}</p>
                         {storePayment.gcashNumber && (
                           <button type="button" onClick={copyGcashNumber}
                             className="flex items-center gap-1.5 text-sm font-bold text-blue-700 num hover:underline">
@@ -499,6 +514,54 @@ export default function ShopPage() {
                           Found on your GCash receipt as &ldquo;Ref. No.&rdquo; — the store checks this before releasing your order.
                         </p>
                       </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[11px] font-semibold text-gray-700">Amount you sent</label>
+                          {gcashAmount.trim() !== "" && (
+                            <button type="button" onClick={() => setGcashAmount("")}
+                              className="text-[10px] font-bold text-blue-600 hover:underline">
+                              Paid in full
+                            </button>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₱</span>
+                          <input
+                            value={gcashAmount}
+                            onChange={(e) => setGcashAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+                            inputMode="decimal"
+                            placeholder={total.toFixed(2)}
+                            className={`w-full text-sm num border rounded-lg pl-7 pr-3 py-2 bg-white focus:outline-none focus:ring-2 transition ${
+                              gcashAmount.trim() !== "" && !gcashAmountValid
+                                ? "border-red-300 focus:ring-red-500/20"
+                                : "border-gray-200 focus:ring-blue-500/20 focus:border-blue-400"
+                            }`}
+                          />
+                        </div>
+                        {gcashAmount.trim() !== "" && !gcashAmountValid ? (
+                          <p className="text-[10px] text-red-500 mt-1">
+                            Enter an amount between ₱0.01 and the order total of ₱{total.toFixed(2)}.
+                          </p>
+                        ) : (
+                          <p className="text-[10px] text-gray-500 mt-1">
+                            Leave this blank if you paid the full ₱{total.toFixed(2)}.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Partial payment — spell out the balance before they commit. */}
+                      {isPartialPayment && (
+                        <div className="rounded-lg border px-3 py-2.5" style={{ borderColor: "var(--warn)", background: "var(--warn-soft)" }}>
+                          <p className="text-[11px] font-bold flex items-center gap-1.5" style={{ color: "var(--warn)" }}>
+                            <AlertTriangle size={ICON_SIZE.xs} /> You will still owe ₱{balance.toFixed(2)}
+                          </p>
+                          <p className="text-[10px] mt-1 leading-relaxed" style={{ color: "var(--warn)" }}>
+                            You&apos;re sending ₱{amountPaid.toFixed(2)} of the ₱{total.toFixed(2)} total. The remaining
+                            ₱{balance.toFixed(2)} must be paid {fulfillmentMode === "delivery" ? "to the driver on delivery" : "at the counter when you pick up"}.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -536,9 +599,21 @@ export default function ShopPage() {
               <>
                 <p>📱 Paid from <span className="num font-medium text-gray-700">{gcashNumber}</span></p>
                 <p>🧾 Ref. No. <span className="num font-medium text-gray-700">{gcashReference}</span></p>
+                <p>💵 Amount sent <span className="num font-medium text-gray-700">₱{amountPaid.toFixed(2)}</span></p>
               </>
             )}
           </div>
+          {isPartialPayment && (
+            <div className="rounded-lg border px-3 py-2.5" style={{ borderColor: "var(--warn)", background: "var(--warn-soft)" }}>
+              <p className="text-xs font-bold flex items-center gap-1.5" style={{ color: "var(--warn)" }}>
+                <AlertTriangle size={ICON_SIZE.sm} /> Outstanding balance: ₱{balance.toFixed(2)}
+              </p>
+              <p className="text-[11px] mt-1 leading-relaxed" style={{ color: "var(--warn)" }}>
+                This order is only partly paid. Please settle the remaining ₱{balance.toFixed(2)}
+                {fulfillmentMode === "delivery" ? " with the driver on delivery" : " at the counter on pickup"}.
+              </p>
+            </div>
+          )}
           {paymentMethod === "GCash" && (
             <p className="text-[11px] text-gray-500 -mt-1">
               The store will verify this reference number against their GCash account before confirming your order.

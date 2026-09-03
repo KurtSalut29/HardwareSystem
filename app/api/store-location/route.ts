@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { STORE_NAME, resolveStoreName } from "@/lib/brand";
 
-const DEFAULTS = { lat: 11.4573, lng: 124.5638, name: "Hardware Store" };
+const DEFAULTS = { lat: 11.4573, lng: 124.5638, name: STORE_NAME };
 
 async function getSetting(key: string) {
   const row = await prisma.setting.findUnique({ where: { key } });
@@ -18,7 +19,7 @@ export async function GET() {
   return NextResponse.json({
     lat: lat ? parseFloat(lat) : DEFAULTS.lat,
     lng: lng ? parseFloat(lng) : DEFAULTS.lng,
-    name: name ?? DEFAULTS.name,
+    name: resolveStoreName(name),
   });
 }
 

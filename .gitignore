@@ -49,3 +49,7 @@ next-env.d.ts
 # misc sensitive files
 cookies.txt
 process.exit()))
+
+# client voice notes / recordings — kept local, not source
+*.m4a
+*.mp3
