@@ -11,7 +11,7 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 import Image from "next/image";
 
-type Product = { id: number; name: string; unit: string; stock: number; image: string | null };
+type Product = { id: number; name: string; unit: string; stock: number; image: string | null; category: { id: number; name: string } };
 type Restock = {
   id: number;
   quantity: number;
@@ -106,6 +106,24 @@ export default function RestocksPage() {
 
   const selectedProduct = products.find((p) => p.id === Number(form.productId));
   const previewTotal = form.quantity && form.unitCost ? Number(form.quantity) * Number(form.unitCost) : 0;
+
+  // Grouped by category, alphabetically both ways — a long flat list of 70+
+  // products is hard to scan; grouping mirrors how the Products page itself
+  // is organized, so the admin finds things where they expect them.
+  const productsByCategory = useMemo(() => {
+    const groups = new Map<string, Product[]>();
+    for (const p of products) {
+      const key = p.category?.name ?? "Uncategorized";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(p);
+    }
+    return [...groups.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([category, items]) => ({
+        category,
+        items: [...items].sort((a, b) => a.name.localeCompare(b.name)),
+      }));
+  }, [products]);
 
   return (
     <div className="space-y-5">
@@ -210,8 +228,12 @@ export default function RestocksPage() {
               className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition bg-white"
             >
               <option value="">Select a product</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>{p.name} ({p.stock} {p.unit} in stock)</option>
+              {productsByCategory.map(({ category, items }) => (
+                <optgroup key={category} label={category}>
+                  {items.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name} — {p.stock} {p.unit} in stock</option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
