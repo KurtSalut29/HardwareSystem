@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/auth";
-import { buildSummary, startOfDay, endOfDay } from "@/lib/reporting";
+import { buildSummary, startOfDayPH, endOfDayPH, todayPH, isDateOnly } from "@/lib/reporting";
 
 async function getPayload(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
@@ -44,23 +44,37 @@ export async function POST(req: NextRequest) {
   }
 
   const { from, to, note, title } = await req.json();
-  const fromDate = from ? new Date(`${from}T00:00:00`) : new Date();
-  const toDate = to ? new Date(`${to}T00:00:00`) : fromDate;
-  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+
+  // A missing field defaults to today; a *present but malformed* one is a
+  // caller bug and should 400, not silently fall back to today's figures.
+  if ((from !== undefined && (typeof from !== "string" || !isDateOnly(from))) ||
+      (to !== undefined && (typeof to !== "string" || !isDateOnly(to)))) {
     return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
   }
-  if (toDate < fromDate) {
+
+  // "Today" always means the Philippines' calendar day — see the comment on
+  // todayPH() in lib/reporting.ts for why this can't just be `new Date()`.
+  const fromStr = typeof from === "string" ? from : todayPH();
+  const toStr = typeof to === "string" ? to : fromStr;
+
+  const periodStart = startOfDayPH(fromStr);
+  const periodEnd = endOfDayPH(toStr);
+  if (Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime())) {
+    return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
+  }
+  if (toStr < fromStr) {
     return NextResponse.json({ error: "The end date can't be before the start date" }, { status: 400 });
   }
 
-  const periodStart = startOfDay(fromDate);
-  const periodEnd = endOfDay(toDate);
   const summary = await buildSummary(periodStart, periodEnd, payload.id);
 
-  const sameDay = periodStart.toDateString() === startOfDay(toDate).toDateString();
+  // Both dates render as the fixed Asia/Manila calendar day, not the server's
+  // own timezone — toLocaleDateString reads its locale for language/format
+  // only; the timeZone option is what actually pins the wall-clock date.
+  const sameDay = fromStr === toStr;
   const fallbackTitle = sameDay
-    ? `Daily sales — ${periodStart.toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}`
-    : `Sales report — ${periodStart.toLocaleDateString("en-PH", { month: "short", day: "numeric" })} to ${periodEnd.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}`;
+    ? `Daily sales — ${periodStart.toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric", timeZone: "Asia/Manila" })}`
+    : `Sales report — ${periodStart.toLocaleDateString("en-PH", { month: "short", day: "numeric", timeZone: "Asia/Manila" })} to ${periodEnd.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric", timeZone: "Asia/Manila" })}`;
 
   const report = await prisma.report.create({
     data: {

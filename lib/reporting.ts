@@ -32,14 +32,44 @@ export type ReportSummary = {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** Start of the given day in local time. */
-export function startOfDay(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+// The store operates in one timezone (Asia/Manila, UTC+8, no DST), so "today"
+// for a report always means the Philippine calendar day — regardless of which
+// timezone the server process happens to run in. This matters because Vercel's
+// serverless functions run in UTC: parsing a plain "YYYY-MM-DD" with no offset
+// (the old `new Date(`${d}T00:00:00`)` pattern) or reading it back with
+// `.getFullYear()`/`.getMonth()`/`.getDate()` resolves against the *server's*
+// local time, not the Philippines'. Locally that bug was invisible because the
+// dev machine happens to also sit at UTC+8 — but on Vercel it silently shifted
+// every report window by 8 hours, so orders placed in the first third of the PH
+// day landed in "yesterday" as far as the report query was concerned.
+const PH_UTC_OFFSET = "+08:00";
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** True if `s` is a plain "YYYY-MM-DD" date (the shape the reports UI sends). */
+export function isDateOnly(s: string): boolean {
+  return DATE_ONLY_RE.test(s);
 }
 
-/** End of the given day in local time (inclusive of the last millisecond). */
-export function endOfDay(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+/** Today's date, as a "YYYY-MM-DD" string in the Philippines' calendar — not the server's. */
+export function todayPH(): string {
+  // Shift the current instant by the fixed PH offset, then read the *UTC*
+  // calendar fields off that shifted instant. This lands on the right day
+  // regardless of the server process's own timezone.
+  const shifted = new Date(Date.now() + 8 * 60 * 60 * 1000);
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(shifted.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/** The instant 00:00:00.000 Asia/Manila on the given "YYYY-MM-DD" date. */
+export function startOfDayPH(dateStr: string): Date {
+  return new Date(`${dateStr}T00:00:00.000${PH_UTC_OFFSET}`);
+}
+
+/** The instant 23:59:59.999 Asia/Manila on the given "YYYY-MM-DD" date. */
+export function endOfDayPH(dateStr: string): Date {
+  return new Date(`${dateStr}T23:59:59.999${PH_UTC_OFFSET}`);
 }
 
 /**
