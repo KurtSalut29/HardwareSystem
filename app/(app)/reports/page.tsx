@@ -48,6 +48,14 @@ const startOfMonthISO = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 };
 
+// Calendar week starting Sunday, matching the day-of-week convention used
+// elsewhere in the app (e.g. the Transactions calendar).
+const startOfWeekISO = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - d.getDay());
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 function periodLabel(from: string, to: string) {
   const f = new Date(`${from}T00:00:00`);
   const t = new Date(`${to}T00:00:00`);
@@ -279,7 +287,7 @@ function AdminReports({ username }: { username: string }) {
 
       {tab === "store" ? (
         <>
-          <RangePicker from={from} to={to} setFrom={setFrom} setTo={setTo} showMonth />
+          <RangePicker from={from} to={to} setFrom={setFrom} setTo={setTo} />
           {loading || !summary ? (
             <SheetSkeleton />
           ) : (
@@ -351,15 +359,18 @@ function TabButton({ active, onClick, icon, badge, children }: {
   );
 }
 
-function RangePicker({ from, to, setFrom, setTo, showMonth }: {
-  from: string; to: string; setFrom: (v: string) => void; setTo: (v: string) => void; showMonth?: boolean;
+// Daily / Weekly / Monthly presets plus the date inputs above them for a
+// user-defined custom period — both admin and staff get the same set, since
+// both generate reports day to day.
+function RangePicker({ from, to, setFrom, setTo }: {
+  from: string; to: string; setFrom: (v: string) => void; setTo: (v: string) => void;
 }) {
   const presets: { label: string; apply: () => void }[] = [
     { label: "Today", apply: () => { setFrom(todayISO()); setTo(todayISO()); } },
     { label: "Yesterday", apply: () => { setFrom(shiftISO(-1)); setTo(shiftISO(-1)); } },
-    { label: "Last 7 days", apply: () => { setFrom(shiftISO(-6)); setTo(todayISO()); } },
+    { label: "This Week", apply: () => { setFrom(startOfWeekISO()); setTo(todayISO()); } },
+    { label: "This Month", apply: () => { setFrom(startOfMonthISO()); setTo(todayISO()); } },
   ];
-  if (showMonth) presets.push({ label: "This month", apply: () => { setFrom(startOfMonthISO()); setTo(todayISO()); } });
 
   return (
     <div className="no-print bg-white rounded-2xl border p-4 flex flex-wrap items-end gap-3" style={{ borderColor: "var(--border)" }}>

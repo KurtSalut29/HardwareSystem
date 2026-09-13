@@ -6,10 +6,13 @@ const ROLE_ROUTES: Record<string, string[]> = {
   "/dashboard/cashier": ["cashier"],
   "/dashboard/customer": ["customer"],
   "/dashboard/driver": ["driver"],
-  "/categories": ["admin"],
+  // Product catalogue and purchase recording are shared operational work —
+  // staff keep listings and stock current day to day, while account
+  // management stays admin-only.
+  "/categories": ["admin", "cashier"],
   "/users": ["admin"],
-  "/products": ["admin"],
-  "/restocks": ["admin"],
+  "/products": ["admin", "cashier"],
+  "/restocks": ["admin", "cashier"],
   "/transactions": ["admin", "cashier"],
   "/orders": ["admin", "cashier", "customer"],
   "/reports": ["admin", "cashier"],

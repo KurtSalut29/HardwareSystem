@@ -9,11 +9,11 @@ async function getPayload(req: NextRequest) {
 }
 
 // Purchase records — logging what the store bought from a supplier, and the
-// only path that increases a product's stock. Admin-only: stock purchasing
-// is an owner decision in this system, same tier as Products/Categories.
+// only path that increases a product's stock. Admin and staff both record
+// purchases day to day; account management stays admin-only elsewhere.
 export async function GET(req: NextRequest) {
   const payload = await getPayload(req);
-  if (!payload || payload.role !== "admin") {
+  if (!payload || (payload.role !== "admin" && payload.role !== "cashier")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const payload = await getPayload(req);
-  if (!payload || payload.role !== "admin") {
+  if (!payload || (payload.role !== "admin" && payload.role !== "cashier")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

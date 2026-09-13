@@ -8,6 +8,11 @@ async function getRole(req: NextRequest) {
   return (await verifyToken(token))?.role ?? null;
 }
 
+// Catalogue upkeep is shared day-to-day operational work between admin and staff.
+function canManage(role: string | null) {
+  return role === "admin" || role === "cashier";
+}
+
 export async function GET(req: NextRequest) {
   const role = await getRole(req);
   if (!role) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -19,7 +24,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (await getRole(req) !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!canManage(await getRole(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const { name, description } = await req.json();
     if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -31,7 +36,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  if (await getRole(req) !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!canManage(await getRole(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const { id, name, description } = await req.json();
     const category = await prisma.category.update({ where: { id }, data: { name, description: description || null } });
@@ -42,7 +47,7 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  if (await getRole(req) !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!canManage(await getRole(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const { id } = await req.json();
     await prisma.category.delete({ where: { id } });
