@@ -19,6 +19,7 @@ model User {
   driverOrders Order[]       @relation("DriverOrders")
   transactions Transaction[]
   reports      Report[]      @relation("AuthoredReports")
+  restocks     Restock[]     @relation("RecordedRestocks")
 }
 
 model Category {
@@ -107,12 +108,25 @@ model OrderItem {
   product   Product @relation(fields: [productId], references: [id])
 }
 
+// A logged purchase of stock from a supplier. Recording one both keeps an
+// audit trail of what the store bought and when, and is the only supported
+// way stock goes up — the alternative (an admin just overwriting the number
+// on the product form) leaves no record of where the stock came from or what
+// it cost.
 model Restock {
-  id        Int      @id @default(autoincrement())
-  productId Int
-  quantity  Float
-  date      DateTime @default(now())
-  product   Product  @relation(fields: [productId], references: [id])
+  id           Int      @id @default(autoincrement())
+  productId    Int
+  quantity     Float
+  unitCost     Float
+  totalCost    Float
+  supplierName String?
+  note         String?
+  date         DateTime @default(now())
+  recordedById Int
+  product      Product  @relation(fields: [productId], references: [id])
+  recordedBy   User     @relation("RecordedRestocks", fields: [recordedById], references: [id])
+
+  @@index([productId, date])
 }
 
 model Setting {

@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Receipt,
-  ClipboardList, Store, ChevronLeft, ChevronRight, LogOut, Tag, X, Truck, History, FileBarChart
+  ClipboardList, Store, ChevronLeft, ChevronRight, LogOut, Tag, X, Truck, History, FileBarChart, PackagePlus
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import ConfirmModal from "@/components/ui/ConfirmModal";
@@ -19,6 +19,7 @@ type NavItem = { label: string; href: string; icon: React.ReactNode };
 const adminNav: NavItem[] = [
   { label: "Dashboard", href: "/dashboard/admin", icon: <LayoutDashboard size={ICON_SIZE.md} /> },
   { label: "Products", href: "/products", icon: <Package size={ICON_SIZE.md} /> },
+  { label: "Restocks", href: "/restocks", icon: <PackagePlus size={ICON_SIZE.md} /> },
   { label: "Categories", href: "/categories", icon: <Tag size={ICON_SIZE.md} /> },
   { label: "Users", href: "/users", icon: <Users size={ICON_SIZE.md} /> },
   { label: "Transactions", href: "/transactions", icon: <Receipt size={ICON_SIZE.md} /> },

@@ -16,6 +16,7 @@ type Notification = { id: string; type: "low_stock" | "new_order" | "delivery"; 
 function pageLabel(pathname: string, role: string): string {
   if (pathname.startsWith("/dashboard")) return "Dashboard";
   if (pathname.startsWith("/products")) return "Products";
+  if (pathname.startsWith("/restocks")) return "Restocks";
   if (pathname.startsWith("/categories")) return "Categories";
   if (pathname.startsWith("/users")) return "Users";
   if (pathname.startsWith("/transactions")) return "Transactions";
