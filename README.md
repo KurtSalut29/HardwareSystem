@@ -4,6 +4,8 @@ A web-based system for RM Hardware: point of sale, products and restocks, custom
 
 This guide walks you through installing the system on a Windows laptop, from downloading the code to logging in for the first time. Follow the steps in order. Setup takes about 30–45 minutes, mostly waiting for downloads.
 
+To see which part of the code belongs to Admin, Staff, Customer, and Driver, jump to [Where each role is in the code](#where-each-role-is-in-the-code).
+
 ---
 
 ## What you need
@@ -210,3 +212,84 @@ npm start
 ```
 
 `npx prisma migrate deploy` updates the database tables. It keeps all your existing data.
+
+---
+
+## Where each role is in the code
+
+The screens are grouped into folders named after the role that uses them, inside `app/(app)/`:
+
+```
+app/(app)/
+├── (admin)/                  ← ADMIN only
+│   ├── dashboard/admin/          Admin dashboard
+│   └── users/                    Manage accounts (staff, drivers, customers)
+│
+├── (staff)/                  ← STAFF only
+│   ├── dashboard/cashier/        Staff dashboard
+│   └── pos/                      Point of Sale (walk-in sales)
+│
+├── (customer)/               ← CUSTOMER only
+│   ├── dashboard/customer/       Customer dashboard
+│   └── shop/                     Browse products and place orders
+│
+├── (driver)/                 ← DRIVER only
+│   ├── dashboard/driver/         Driver dashboard
+│   └── deliveries/               Assigned deliveries, navigation map, history
+│
+├── (admin-staff)/            ← shared by ADMIN and STAFF
+│   ├── products/                 Product list, prices, stock
+│   ├── categories/               Product categories
+│   ├── restocks/                 Record purchases from suppliers
+│   ├── transactions/             Sales history
+│   └── reports/                  Sales reports
+│
+├── (admin-staff-customer)/   ← shared by ADMIN, STAFF, and CUSTOMER
+│   └── orders/                   Online orders (customers see only their own)
+│
+└── layout.tsx                    Sidebar and top bar shared by every role
+```
+
+Each screen's code is the `page.tsx` file inside its folder. For example, the Point of Sale screen is `app/(app)/(staff)/pos/page.tsx`.
+
+**Why do Staff folders say `cashier`?** "Staff" used to be called "Cashier". The screens show "Staff", but inside the code and the database the role is still stored as `cashier`, so the Staff dashboard's web address is `/dashboard/cashier`. Wherever you see `cashier` in the code, it means Staff.
+
+**The folder names in parentheses do not appear in the web address.** `app/(app)/(staff)/pos/` opens at `http://localhost:3000/pos`, not `/staff/pos`. The parentheses only organize the code.
+
+### Who is allowed to open each screen
+
+`middleware.ts` is the single list that decides which role can open which screen. If someone tries to open a screen their role is not allowed to use, they are sent back to their own dashboard. To change who can open a screen, change it there.
+
+### Server-side code (`app/api/`)
+
+The screens read and save data through the files in `app/api/`. Many of these are used by more than one role, and each file checks the user's role itself before doing anything:
+
+| Folder in `app/api/` | Used by | What it does |
+|---|---|---|
+| `auth/` | Everyone | Log in, log out, sign up (sign-up always creates a Customer) |
+| `users/` | Admin | Create, edit, and delete accounts |
+| `dashboard/` | Admin | Numbers on the Admin dashboard |
+| `store-location/`, `store-payment/` | Admin changes them; the other roles read them | Store map pin and GCash payment details |
+| `upload/` | Admin | Image uploads (product photos, GCash QR code) |
+| `products/`, `categories/` | Admin and Staff edit; Customers only view | Product catalogue |
+| `restocks/` | Admin and Staff | Supplier purchases |
+| `transactions/` | Staff record sales; Admin sees all | Walk-in sales |
+| `reports/` | Staff create; Admin reviews | Sales reports |
+| `drivers/` | Admin and Staff | List of drivers to assign to orders |
+| `orders/` | Customer places; Admin/Staff manage; Driver delivers | Online orders |
+| `driver/location/` | Driver | Sends the driver's live location |
+| `storefront/` | Public (no login) | Products shown on the home page |
+
+### Shared building blocks
+
+| Folder | What is inside |
+|---|---|
+| `components/ui/` | Buttons, pop-ups, badges, and other pieces used by every role |
+| `components/layout/` | Sidebar, top bar, and page frame used by every role |
+| `components/DriverAlertsProvider.tsx`, `NavigationMap*.tsx` | Driver: new-delivery alerts and turn-by-turn map |
+| `components/LocationPicker*.tsx` | Customer: choosing a delivery address on the map |
+| `components/OrderMap*.tsx` | Delivery maps shown on the dashboards and orders screen |
+| `components/reports/` | Printable report sheet (Admin and Staff) |
+| `components/landing/` | The public home page, before logging in |
+| `lib/` | Shared helpers: login tokens (`auth.ts`), role names (`roles.ts`), store name (`brand.ts`), database connection (`prisma.ts`) |
+| `prisma/schema.prisma` | The database tables |
