@@ -11,6 +11,8 @@
     "vercel-build": "prisma generate && node scripts/migrate-deploy.mjs && next build",
     "start": "next start",
     "lint": "eslint",
+    "postinstall": "prisma generate",
+    "setup": "prisma migrate deploy && prisma db seed",
     "prisma:generate": "prisma generate"
   },
   "dependencies": {

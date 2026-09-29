@@ -4,6 +4,14 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
+  // A database that already has accounts is in use. Re-seeding it would add a
+  // second copy of the sample sales and orders and reset every product's stock
+  // and price, so leave it alone.
+  if ((await prisma.user.count()) > 0) {
+    console.log("Database already has data — skipping sample data.");
+    return;
+  }
+
   // Users
   const users = [
     { username: "admin", password: "admin123", role: "admin", contact: "09001112222" },
