@@ -35,7 +35,10 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "GCash number must be 11 digits starting with 09." }, { status: 400 });
   }
   // Only accept paths produced by our own upload route — never an arbitrary URL.
-  if (gcashQr != null && gcashQr !== "" && !String(gcashQr).startsWith("/uploads/")) {
+  // "/api/uploads/" is the database-backed store; "/uploads/" covers files saved
+  // to disk by older versions on a local install.
+  const qr = String(gcashQr ?? "");
+  if (qr !== "" && !qr.startsWith("/api/uploads/") && !qr.startsWith("/uploads/")) {
     return NextResponse.json({ error: "Invalid QR image." }, { status: 400 });
   }
 

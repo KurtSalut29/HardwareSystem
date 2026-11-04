@@ -18,9 +18,9 @@ export type ReportSummary = {
     itemCount: number;
     staff: string;
   }[];
-  /** Online-order activity for the same window. Kept separate from `totalSales`
-   *  so an order isn't counted twice — an online order only becomes revenue once
-   *  a staff member rings it up at the counter, which creates a transaction. */
+  /** Online-order activity for the same window, by when orders were placed.
+   *  Revenue is counted in `totalSales` instead: an online order becomes a sale
+   *  (a transaction) when it is delivered, or when staff ring it up at the POS. */
   orders: {
     placed: number;
     placedValue: number;

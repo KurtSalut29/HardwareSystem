@@ -101,11 +101,6 @@ html.dark {
   font-variant-numeric: tabular-nums;
 }
 
-.blueprint-grid {
-  background-image:
-    repeating-linear-gradient(0deg, rgba(94, 130, 255, 0.09) 0px, rgba(94, 130, 255, 0.09) 1px, transparent 1px, transparent 34px),
-    repeating-linear-gradient(90deg, rgba(94, 130, 255, 0.09) 0px, rgba(94, 130, 255, 0.09) 1px, transparent 1px, transparent 34px);
-}
 
 /* Apply CSS vars to common elements */
 .card, .bg-card { background-color: var(--bg-card); }
@@ -307,4 +302,47 @@ html {
   html {
     scroll-behavior: auto;
   }
+}
+
+/* Storefront and sign-in motion. Entrances play once on load; `.reveal` blocks fade up
+   the first time they scroll into view (see Reveal in LandingPage.tsx). */
+@keyframes rise-in        { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
+@keyframes draw-line      { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes live-ping      { 0% { transform: scale(1); opacity: 0.7; } 80%, 100% { transform: scale(2.6); opacity: 0; } }
+@keyframes slide-in-right { from { opacity: 0; transform: translateX(32px); } to { opacity: 1; transform: none; } }
+@keyframes ken-burns      { from { transform: scale(1.08); } to { transform: scale(1); } }
+@keyframes menu-in        { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.animate-rise-in        { animation: rise-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-slide-in-right { animation: slide-in-right 850ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-ken-burns      { animation: ken-burns 2600ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-menu-in        { animation: menu-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-draw-line      { animation: draw-line 900ms cubic-bezier(0.65, 0, 0.35, 1) both; transform-origin: left; }
+.animate-live-ping      { animation: live-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite; }
+.reveal {
+  transition: opacity 850ms cubic-bezier(0.22, 1, 0.36, 1), transform 850ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal[data-shown="false"] { opacity: 0; transform: translateY(40px) scale(0.98); }
+/* The short rule beside each section number grows in once its heading is revealed. */
+.heading-rule { transform: scaleX(0); transform-origin: left; transition: transform 700ms cubic-bezier(0.65, 0, 0.35, 1) 250ms; }
+.reveal[data-shown="true"] .heading-rule { transform: scaleX(1); }
+/* Keep autofilled sign-in fields on the form's own colours instead of the browser's blue fill. */
+.auth-input:-webkit-autofill,
+.auth-input:-webkit-autofill:hover {
+  -webkit-text-fill-color: var(--text-primary);
+  -webkit-box-shadow: 0 0 0 1000px var(--bg-subtle) inset;
+  caret-color: var(--text-primary);
+}
+.auth-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-primary);
+  -webkit-box-shadow: 0 0 0 1000px var(--bg-card) inset, 0 0 0 4px var(--brand-soft);
+}
+/* The navbar's active pill slides between links instead of jumping. */
+.nav-indicator {
+  transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1), width 380ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise-in, .animate-slide-in-right, .animate-ken-burns, .animate-menu-in, .animate-draw-line, .animate-live-ping { animation: none; }
+  .reveal, .nav-indicator, .heading-rule { transition: none; }
+  .heading-rule { transform: none; }
+  .reveal[data-shown="false"] { opacity: 1; transform: none; }
 }

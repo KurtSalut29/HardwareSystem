@@ -33,20 +33,30 @@ export async function POST(req: NextRequest) {
   const payload = await getPayload(req);
   if (!payload || payload.role !== "cashier") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { items, paymentMethod } = await req.json();
+  const { items, paymentMethod, orderIds } = await req.json();
   if (!items?.length || !paymentMethod) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  // Online orders loaded into this checkout. Linking them marks them as sold, so
+  // marking one delivered later doesn't record the same sale a second time.
+  const linkedOrderIds: number[] = Array.isArray(orderIds) ? orderIds.filter((n: unknown) => Number.isInteger(n)) : [];
 
   const totalAmount = items.reduce((sum: number, i: { price: number; quantity: number }) => sum + i.price * i.quantity, 0);
 
   const transaction = await prisma.$transaction(async (tx) => {
     for (const item of items) {
-      if (!item.fromOrder) {
+      // Stock for an online order's items was taken when the order was placed.
+      // `orderQuantity` is that already-reserved share of the line; anything above
+      // it is a walk-in addition and is taken from stock now.
+      const reserved = item.orderQuantity != null
+        ? Math.min(item.quantity, Math.max(0, Number(item.orderQuantity) || 0))
+        : item.fromOrder ? item.quantity : 0;
+      const take = item.quantity - reserved;
+      if (take > 0) {
         const product = await tx.product.findUnique({ where: { id: item.productId } });
-        if (!product || product.stock < item.quantity) throw new Error(`Insufficient stock for product ${item.productId}`);
-        await tx.product.update({ where: { id: item.productId }, data: { stock: { decrement: item.quantity } } });
+        if (!product || product.stock < take) throw new Error(`Insufficient stock for product ${item.productId}`);
+        await tx.product.update({ where: { id: item.productId }, data: { stock: { decrement: take } } });
       }
     }
-    return tx.transaction.create({
+    const sale = await tx.transaction.create({
       data: {
         userId: payload.id,
         totalAmount,
@@ -56,6 +66,13 @@ export async function POST(req: NextRequest) {
       },
       include: { items: true },
     });
+    if (linkedOrderIds.length) {
+      await tx.order.updateMany({
+        where: { id: { in: linkedOrderIds }, transactionId: null },
+        data: { transactionId: sale.id, handledById: payload.id },
+      });
+    }
+    return sale;
   });
 
   return NextResponse.json(transaction, { status: 201 });

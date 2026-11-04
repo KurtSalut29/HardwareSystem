@@ -14,7 +14,8 @@ import Image from "next/image";
 
 type Category = { id: number; name: string };
 type Product = { id: number; name: string; category: Category; subcategory: string | null; price: number; unit: string; stock: number; image: string | null; description: string | null };
-type CartItem = Product & { quantity: number; fromOrder?: boolean };
+// `orderQty` is how much of the line came from a customer's online order (stock already reserved).
+type CartItem = Product & { quantity: number; fromOrder?: boolean; orderQty?: number };
 type OItem = { id: number; quantity: number; price: number; product: { name: string }; productId: number };
 type Order = { id: number; totalAmount: number; status: string; dateTime: string; customer: { username: string }; items: OItem[] };
 type PendingEntry = { orderId: number; customer: string; quantity: number; orderItemId: number; totalItems: number };
@@ -35,6 +36,8 @@ export default function POSPage() {
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("All");
   const [cart, setCart] = useState<CartItem[]>([]);
+  // Online orders loaded into the cart, linked to the sale at checkout.
+  const [loadedOrderIds, setLoadedOrderIds] = useState<number[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [loading, setLoading] = useState(false);
@@ -108,9 +111,12 @@ export default function POSPage() {
       const ex = prev.find((i) => i.id === product.id);
       if (ex) {
         const newQty = round2(Math.min(ex.quantity + qty, product.stock));
-        return prev.map((i) => i.id === product.id ? { ...i, quantity: newQty, fromOrder: ex.fromOrder || fromOrder } : i);
+        return prev.map((i) => i.id === product.id
+          ? { ...i, quantity: newQty, fromOrder: ex.fromOrder || fromOrder, orderQty: round2((ex.orderQty ?? 0) + (fromOrder ? qty : 0)) }
+          : i);
       }
-      return [...prev, { ...product, quantity: round2(Math.min(qty, product.stock)), fromOrder }];
+      const quantity = round2(Math.min(qty, product.stock));
+      return [...prev, { ...product, quantity, fromOrder, orderQty: fromOrder ? quantity : 0 }];
     });
   }
 
@@ -131,15 +137,20 @@ export default function POSPage() {
     setLoading(true);
     const res = await fetch("/api/transactions", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: cart.map((i) => ({ productId: i.id, productName: i.name, quantity: i.quantity, price: i.price })), paymentMethod }),
+      body: JSON.stringify({
+        items: cart.map((i) => ({ productId: i.id, productName: i.name, quantity: i.quantity, price: i.price, orderQuantity: i.orderQty ?? 0 })),
+        paymentMethod,
+        orderIds: loadedOrderIds,
+      }),
     });
     setLoading(false);
     if (!res.ok) { showToast((await res.json().catch(() => ({ error: "Checkout failed" }))).error, "error"); return; }
-    setCart([]); setCartOpen(false); setShowCheckoutConfirm(false); showToast("Transaction completed successfully!"); fetchAll();
+    setCart([]); setLoadedOrderIds([]); setCartOpen(false); setShowCheckoutConfirm(false); showToast("Transaction completed successfully!"); fetchAll();
   }
 
   function handleClearCart() {
     setCart([]);
+    setLoadedOrderIds([]);
     setShowClearConfirm(false);
     setCartOpen(false);
   }
@@ -149,6 +160,7 @@ export default function POSPage() {
     const customerName = orders.find((o) => o.id === orderId)?.customer.username;
     const res = await fetch("/api/orders", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: orderId, status: "confirmed" }) });
     if (!res.ok) return;
+    setLoadedOrderIds((prev) => (prev.includes(orderId) ? prev : [...prev, orderId]));
     setOrders((prev) => prev.filter((o) => o.id !== orderId));
     setActivePopover(null); setPopoverPos(null);
     showToast(`Order #${orderId} from ${customerName} added to cart`);
@@ -161,6 +173,7 @@ export default function POSPage() {
     }
     const res = await fetch("/api/orders", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: order.id, status: "confirmed" }) });
     if (!res.ok) return;
+    setLoadedOrderIds((prev) => (prev.includes(order.id) ? prev : [...prev, order.id]));
     setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, status: "confirmed" } : o));
     showToast(`Order #${order.id} from ${order.customer.username} loaded to cart`);
     setCartOpen(true);

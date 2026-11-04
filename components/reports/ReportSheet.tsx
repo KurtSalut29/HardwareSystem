@@ -88,8 +88,8 @@ export default function ReportSheet({
           <MiniStat label="Unpaid balance" value={peso(summary.orders.outstandingBalance)} />
         </div>
         <p className="text-[10px] mt-2" style={{ color: "#6B7086" }}>
-          Online orders are counted as sales only once they are rung up at the counter, so they are listed
-          separately here and are not added to Total sales above.
+          Delivered online orders are already included in Total sales above, on the day they were delivered.
+          This box counts orders by the day they were placed.
         </p>
       </Section>
 

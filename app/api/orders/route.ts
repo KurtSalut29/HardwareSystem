@@ -137,6 +137,61 @@ export async function POST(req: NextRequest) {
   }
 }
 
+type OrderUpdate = {
+  status?: string;
+  driverId?: number | null;
+  assignedAt?: Date | null;
+  paymentVerified?: boolean;
+  amountPaid?: number;
+  handledById?: number;
+};
+
+/**
+ * Applies an order update. The first time an order is marked delivered it is
+ * also recorded as an "Online" sale, credited to `creditTo`, so it appears in the
+ * staff and store reports. Before this, a delivered order never became a
+ * transaction and the reports left it out entirely.
+ *
+ * The sale is created only while the order has no `transactionId`, claimed with
+ * a conditional update inside one database transaction: two people marking the
+ * same order delivered at once, or an order already rung up at the POS, can
+ * never produce a second sale. Stock is not touched here — it was taken when
+ * the order was placed.
+ */
+async function applyOrderUpdate(id: number, data: OrderUpdate, creditTo: number) {
+  if (data.status !== "delivered") return prisma.order.update({ where: { id }, data });
+
+  return prisma.$transaction(async (tx) => {
+    const claimed = await tx.order.updateMany({
+      where: { id, transactionId: null, status: { not: "delivered" } },
+      data,
+    });
+    if (claimed.count === 0) return tx.order.update({ where: { id }, data });
+
+    const order = await tx.order.findUniqueOrThrow({
+      where: { id },
+      include: { items: { include: { product: { select: { name: true } } } } },
+    });
+    const sale = await tx.transaction.create({
+      data: {
+        userId: creditTo,
+        totalAmount: order.totalAmount,
+        paymentMethod: order.paymentMethod,
+        type: "Online",
+        items: {
+          create: order.items.map((i) => ({
+            productId: i.productId,
+            productName: i.product.name,
+            quantity: i.quantity,
+            price: i.price,
+          })),
+        },
+      },
+    });
+    return tx.order.update({ where: { id }, data: { transactionId: sale.id } });
+  });
+}
+
 export async function PATCH(req: NextRequest) {
   const payload = await getPayload(req);
   if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -162,7 +217,9 @@ export async function PATCH(req: NextRequest) {
     if (existing.driverId !== payload.id || status !== "delivered" || driverId !== undefined || paymentVerified !== undefined || amountPaid !== undefined) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    const order = await prisma.order.update({ where: { id }, data: { status: "delivered" } });
+    // A delivery finished by the driver is credited to the staff member who handled
+    // the order (usually the one who dispatched it), so it lands in their report.
+    const order = await applyOrderUpdate(id, { status: "delivered" }, existing.handledById ?? payload.id);
     return NextResponse.json(order);
   }
 
@@ -172,7 +229,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Pickup orders cannot be assigned a driver" }, { status: 400 });
   }
 
-  const data: { status?: string; driverId?: number | null; assignedAt?: Date | null; paymentVerified?: boolean; amountPaid?: number } = {};
+  // Whoever works the order is recorded as handling it.
+  const data: OrderUpdate = { handledById: payload.id };
   if (status !== undefined) data.status = status;
 
   // Recording a settlement: what the customer has now paid in total, not a
@@ -213,6 +271,6 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
-  const order = await prisma.order.update({ where: { id }, data });
+  const order = await applyOrderUpdate(id, data, payload.id);
   return NextResponse.json(order);
 }

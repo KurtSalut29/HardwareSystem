@@ -1,32 +1,40 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
 
 type Theme = "light" | "dark";
 const ThemeContext = createContext<{ theme: Theme; toggle: (t: Theme) => void }>({ theme: "light", toggle: () => {} });
 
+// The public storefront and the sign-in / create-account screen are always shown
+// in light mode. A dark preference saved from the dashboard still applies everywhere else.
+const LIGHT_ONLY_PATHS = ["/", "/login", "/signup"];
+const THEME_EVENT = "theme-change";
+
+// The saved preference lives in localStorage; other tabs report changes through "storage".
+function subscribe(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  window.addEventListener(THEME_EVENT, onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener(THEME_EVENT, onChange);
+  };
+}
+const readTheme = (): Theme => (localStorage.getItem("theme") === "dark" ? "dark" : "light");
+const serverTheme = (): Theme => "light";
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("light");
+  const theme = useSyncExternalStore(subscribe, readTheme, serverTheme);
+  const pathname = usePathname();
 
   useEffect(() => {
-    const saved = localStorage.getItem("theme") as Theme | null;
-    const initial = saved ?? "light";
-    applyTheme(initial);
-    setTheme(initial);
-  }, []);
-
-  function applyTheme(t: Theme) {
-    if (t === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }
+    const shown = LIGHT_ONLY_PATHS.includes(pathname) ? "light" : theme;
+    document.documentElement.classList.toggle("dark", shown === "dark");
+  }, [pathname, theme]);
 
   function toggle(t: Theme) {
     localStorage.setItem("theme", t);
-    applyTheme(t);
-    setTheme(t);
+    window.dispatchEvent(new Event(THEME_EVENT));
   }
 
   return <ThemeContext.Provider value={{ theme, toggle }}>{children}</ThemeContext.Provider>;
