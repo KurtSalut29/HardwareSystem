@@ -461,7 +461,7 @@ function Hero({
           <div className="flex items-center gap-2.5 mb-6 animate-rise-in">
             <span className="h-px w-8" style={{ background: "var(--brand)" }} />
             <span className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--brand)" }}>
-              Naval, Biliran
+              Brgy. Sanggalang, Biliran
             </span>
           </div>
 
@@ -593,7 +593,7 @@ function ShelfCard({ items, loading, productCount }: { items: Product[]; loading
 // What the store offers, right under the hero: four plain facts instead of a decorative band.
 const SERVICES: [LucideIcon, string, string][] = [
   [Truck, "Delivery", "Brought to the spot you pin on the map"],
-  [Store, "Store pickup", "Reserve online, collect in Naval"],
+  [Store, "Store pickup", "Reserve online, collect in Sanggalang"],
   [Wallet, "Cash or GCash", "Pay whichever way suits you"],
   [Tag, "Live prices", "Updated as stock moves"],
 ];
@@ -1047,7 +1047,7 @@ function VisitUs({ displayName }: { displayName: string }) {
     : null;
 
   const details = [
-    { icon: MapPin, label: "Where", value: "Naval, Biliran" },
+    { icon: MapPin, label: "Where", value: "Brgy. Sanggalang, Biliran, Biliran" },
     { icon: Truck, label: "Delivery", value: "Brought to the spot you pin on the map" },
     { icon: Store, label: "Pickup", value: "Reserve online, collect at the store" },
     { icon: Wallet, label: "Payment", value: "Cash or GCash" },
@@ -1163,7 +1163,7 @@ function SiteFooter({ displayName }: { displayName: string }) {
               <span className="font-display font-extrabold text-lg" style={{ color: "var(--text-primary)" }}>{displayName}</span>
             </div>
             <p className="mt-4 text-sm leading-relaxed max-w-xs" style={{ color: "var(--text-muted)" }}>
-              Building materials and hardware supply in Naval, Biliran. Order online for delivery or store pickup.
+              Building materials and hardware supply in Brgy. Sanggalang, Biliran, Biliran. Order online for delivery or store pickup.
             </p>
           </div>
           {columns.map((col) => (

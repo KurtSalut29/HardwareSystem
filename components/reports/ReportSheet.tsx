@@ -52,7 +52,7 @@ export default function ReportSheet({
       <div className="flex items-start justify-between gap-4 pb-4 border-b-2" style={{ borderColor: "#14161F" }}>
         <div>
           <p className="font-display text-xl font-extrabold tracking-tight">{STORE_NAME}</p>
-          <p className="text-[11px] mt-0.5" style={{ color: "#6B7086" }}>Naval, Biliran &middot; Hardware Store Management System</p>
+          <p className="text-[11px] mt-0.5" style={{ color: "#6B7086" }}>Brgy. Sanggalang, Biliran, Biliran &middot; Hardware Store Management System</p>
         </div>
         <div className="text-right shrink-0">
           <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#6B7086" }}>{scopeLabel}</p>

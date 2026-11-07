@@ -137,7 +137,7 @@ function StoreBadge({ compact = false }: { compact?: boolean }) {
         <>
           <span aria-hidden className="mx-1.5 h-8 w-px" style={{ background: "rgba(255,255,255,0.35)" }} />
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: "rgba(255,255,255,0.9)" }}>
-            <MapPin size={13} style={{ color: "#9DB8FF" }} /> Naval, Biliran
+            <MapPin size={13} style={{ color: "#9DB8FF" }} /> Brgy. Sanggalang, Biliran
           </span>
         </>
       )}
