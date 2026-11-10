@@ -5,6 +5,7 @@ import { Printer, Send, Inbox, FileText, CalendarDays, CheckCircle2, Loader2 } f
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
+import Pagination, { usePagination } from "@/components/ui/Pagination";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/ToastProvider";
 import ReportSheet, { SheetSummary } from "@/components/reports/ReportSheet";
@@ -415,6 +416,7 @@ function SheetSkeleton() {
 function SentList({ reports, emptyText, onOpen, showAuthor }: {
   reports: SentReport[]; emptyText: string; onOpen?: (r: SentReport) => void; showAuthor?: boolean;
 }) {
+  const paging = usePagination(reports, 8);
   return (
     <div className="no-print bg-white rounded-2xl border overflow-hidden" style={{ borderColor: "var(--border)" }}>
       <div className="px-5 py-3.5 border-b" style={{ borderColor: "var(--border)" }}>
@@ -426,7 +428,7 @@ function SentList({ reports, emptyText, onOpen, showAuthor }: {
         <EmptyState icon={Inbox} title="Nothing here yet" description={emptyText} />
       ) : (
         <ul>
-          {reports.map((r) => {
+          {paging.pageItems.map((r) => {
             const row = (
               <div className="flex flex-wrap items-center gap-3 px-5 py-3.5">
                 <div className="min-w-0 flex-1">
@@ -462,6 +464,7 @@ function SentList({ reports, emptyText, onOpen, showAuthor }: {
           })}
         </ul>
       )}
+      <Pagination {...paging} onChange={paging.setPage} noun="reports" />
     </div>
   );
 }

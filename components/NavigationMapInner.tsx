@@ -1,6 +1,7 @@
 'use client';
 
 import 'leaflet/dist/leaflet.css';
+import { MapPin } from 'lucide-react';
 import L from 'leaflet';
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
 import { useEffect } from 'react';
@@ -93,7 +94,7 @@ export default function NavigationMapInner({
       )}
 
       <Marker position={[destLat, destLng]} icon={destIcon}>
-        <Popup><div className="text-sm font-semibold">📍 {destLabel ?? 'Drop-off'}</div></Popup>
+        <Popup><div className="text-sm font-semibold flex items-center gap-1.5"><MapPin size={14} className="shrink-0" /> {destLabel ?? 'Drop-off'}</div></Popup>
       </Marker>
 
       {hasMe && (

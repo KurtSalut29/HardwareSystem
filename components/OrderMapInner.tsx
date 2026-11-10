@@ -7,6 +7,14 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { BILIRAN_CENTER, BILIRAN_LEAFLET_BOUNDS } from '@/lib/biliran';
 import { STORE_NAME } from "@/lib/brand";
+import { Store, Truck, MapPin, User, Route, Clock } from 'lucide-react';
+
+// Lucide "store" and "truck" icons (the app's icon set), drawn white inside the markers.
+// Leaflet markers take an HTML string, so the icon paths are inlined here.
+const STORE_ICON_PATHS = '<path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"/><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"/><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"/>';
+const TRUCK_ICON_PATHS = '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/>';
+const markerGlyph = (paths: string, x: number, y: number) =>
+  `<g transform="translate(${x} ${y}) scale(0.6)" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${paths}</g>`;
 
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -19,7 +27,7 @@ const storeIcon = L.divIcon({
   html: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
     <path d="M16 0C8.268 0 0 6.268 0 16c0 10.667 16 24 16 24S32 26.667 32 16C32 6.268 23.732 0 16 0z"
       fill="#1E4FD8" stroke="white" stroke-width="2"/>
-    <text x="16" y="21" text-anchor="middle" fill="white" font-size="14" font-family="sans-serif">🏪</text>
+    ${markerGlyph(STORE_ICON_PATHS, 8.8, 8.3)}
   </svg>`,
   className: '',
   iconSize: [32, 40],
@@ -54,7 +62,7 @@ const driverIcon = L.divIcon({
       <animate attributeName="opacity" values="0.5;0;0.5" dur="1.8s" repeatCount="indefinite"/>
     </circle>
     <circle cx="15" cy="15" r="14" fill="#1E4FD8" stroke="white" stroke-width="2"/>
-    <text x="15" y="20" text-anchor="middle" fill="white" font-size="14" font-family="sans-serif">🛵</text>
+    ${markerGlyph(TRUCK_ICON_PATHS, 7.8, 7.8)}
   </svg>`,
   className: '',
   iconSize: [30, 30],
@@ -221,7 +229,7 @@ export default function OrderMapInner({
       />
       {storeLat && storeLng && (
         <Marker position={[storeLat, storeLng]} icon={storeIcon}>
-          <Popup><div className="text-sm font-semibold">🏪 {storeName}</div></Popup>
+          <Popup><div className="text-sm font-semibold flex items-center gap-1.5"><Store size={14} className="shrink-0" /> {storeName}</div></Popup>
         </Marker>
       )}
       {/* Road routes — from the store, or from the driver on their own map */}
@@ -250,12 +258,12 @@ export default function OrderMapInner({
                   className="inline-block w-2 h-2 rounded-full shrink-0" />
                 <span className="capitalize">{pin.status.replace(/_/g, ' ')}</span>
               </p>
-              {pin.deliveryAddress && <p className="text-xs text-gray-500">📍 {pin.deliveryAddress}</p>}
-              {pin.customerUsername && <p className="text-xs text-gray-500">👤 {pin.customerUsername}</p>}
+              {pin.deliveryAddress && <p className="text-xs text-gray-500 flex items-start gap-1"><MapPin size={12} className="shrink-0 mt-0.5" /> {pin.deliveryAddress}</p>}
+              {pin.customerUsername && <p className="text-xs text-gray-500 flex items-center gap-1"><User size={12} className="shrink-0" /> {pin.customerUsername}</p>}
               {pin.distanceLabel && (
                 <div className="mt-1 pt-1 border-t border-gray-100 text-xs text-gray-600 space-y-0.5">
-                  <p>🛣️ {pin.distanceLabel} from store</p>
-                  <p>🕐 {pin.durationLabel} travel time</p>
+                  <p className="flex items-center gap-1"><Route size={12} className="shrink-0" /> {pin.distanceLabel} from store</p>
+                  <p className="flex items-center gap-1"><Clock size={12} className="shrink-0" /> {pin.durationLabel} travel time</p>
                 </div>
               )}
             </div>
@@ -268,7 +276,7 @@ export default function OrderMapInner({
           <Marker key={`driver-${pin.id}`} position={[pin.driverLat!, pin.driverLng!]} icon={driverIcon}>
             <Popup>
               <div className="text-sm space-y-1 min-w-[140px]">
-                <p><strong>🛵 {pin.driver?.username ?? 'Driver'}</strong></p>
+                <p className="flex items-center gap-1.5"><Truck size={14} className="shrink-0" /><strong>{pin.driver?.username ?? 'Driver'}</strong></p>
                 <p className="text-xs text-gray-500">Delivering Order #{pin.id}</p>
                 {timeAgo(pin.driverLocationUpdatedAt) && (
                   <p className="text-xs text-gray-400">Updated {timeAgo(pin.driverLocationUpdatedAt)}</p>

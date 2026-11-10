@@ -1,17 +1,37 @@
 "use client";
 
-import { Bell, ChevronDown, Package, ShoppingBag, Settings, Sun, Moon, Monitor, Menu, LogOut, Clock, Truck } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
-import { usePathname } from "next/navigation";
+import { Bell, ChevronDown, Package, ShoppingBag, Settings, Sun, Moon, Monitor, Menu, LogOut, Clock, Truck, PackageX, ClipboardCheck, Volume2, VolumeX } from "lucide-react";
+import { useState, useEffect, useRef, useSyncExternalStore } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "@/components/ThemeProvider";
 import Badge from "@/components/ui/Badge";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import { useLogout } from "@/hooks/useLogout";
 import { useDriverAlerts } from "@/components/DriverAlertsProvider";
+import { useNotifications } from "@/components/NotificationsProvider";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 import { roleLabel } from "@/lib/roles";
+import { isSoundOn, playAlert, setSoundOn, subscribeSound, unlockAudio, type AlertSound } from "@/lib/sounds";
 
-type Notification = { id: string; type: "low_stock" | "new_order" | "delivery"; message: string };
+type BellType = "new_order" | "low_stock" | "out_of_stock" | "order_update" | "delivery";
+type BellItem = { id: string; type: BellType; title: string; message: string; href?: string; unread: boolean };
+
+// Icon, colors and label for each kind of notification in the bell.
+const BELL_STYLE: Record<BellType, { icon: typeof Bell; fg: string; bg: string }> = {
+  new_order: { icon: ShoppingBag, fg: "var(--brand)", bg: "var(--brand-soft)" },
+  order_update: { icon: ClipboardCheck, fg: "var(--good)", bg: "var(--good-soft)" },
+  delivery: { icon: Truck, fg: "var(--brand)", bg: "var(--brand-soft)" },
+  low_stock: { icon: Package, fg: "var(--warn)", bg: "var(--warn-soft)" },
+  out_of_stock: { icon: PackageX, fg: "var(--bad)", bg: "var(--bad-soft)" },
+};
+
+// The sound each role hears most, played by the "Test" button in Settings.
+const TEST_SOUND: Record<string, AlertSound> = {
+  admin: "new_order",
+  cashier: "new_order",
+  customer: "order_update",
+  driver: "delivery",
+};
 
 function pageLabel(pathname: string, role: string): string {
   if (pathname.startsWith("/dashboard")) return "Dashboard";
@@ -33,33 +53,16 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
   const [showProfile, setShowProfile] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [notifs, setNotifs] = useState<Notification[]>([]);
-  const [unread, setUnread] = useState(0);
   const [now, setNow] = useState<Date | null>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
   const { confirmOpen, requestLogout, cancelLogout, confirmLogout } = useLogout();
   const { alerts: deliveryAlerts, openPopup } = useDriverAlerts();
-
-  useEffect(() => {
-    if (role !== "admin") return;
-    async function fetchNotifs() {
-      const res = await fetch("/api/dashboard");
-      if (!res.ok) return;
-      const data = await res.json();
-      const items: Notification[] = [];
-      (data.lowStock ?? []).forEach((p: { id: number; name: string; stock: number }) => {
-        items.push({ id: `ls-${p.id}`, type: "low_stock", message: `${p.name} is low on stock (${p.stock} left)` });
-      });
-      (data.recentOrders ?? []).filter((o: { status: string }) => o.status === "pending").forEach((o: { id: number }) => {
-        items.push({ id: `ord-${o.id}`, type: "new_order", message: `Order #${o.id} is pending approval` });
-      });
-      setNotifs(items);
-      setUnread(items.length);
-    }
-    fetchNotifs();
-  }, [role]);
+  const { items: feed, unread: feedUnread, isUnread, markAllRead } = useNotifications();
+  const soundOn = useSyncExternalStore(subscribeSound, isSoundOn, () => true);
+  const [newWhenOpened, setNewWhenOpened] = useState<Set<string>>(new Set());
 
   // Live clock — set on mount only, so server/client markup matches (avoids hydration mismatch)
   useEffect(() => {
@@ -80,18 +83,36 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
 
   const label = pageLabel(pathname, role);
 
-  // Drivers get the same bell, fed by their live delivery assignments instead
-  // of the admin's stock/order digest.
+  // Every role has a bell. Drivers' is fed by their live delivery assignments;
+  // everyone else's by the notification feed (orders, stock, order progress).
   const isDriver = role === "driver";
-  const bellItems: Notification[] = isDriver
+  const bellItems: BellItem[] = isDriver
     ? deliveryAlerts.map((a) => ({
         id: `dlv-${a.key}`,
         type: "delivery",
+        title: "New delivery",
         message: `Order #${a.id} — ${a.customer}${a.address ? ` · ${a.address}` : ""}`,
+        unread: true,
       }))
-    : notifs;
-  const bellUnread = isDriver ? deliveryAlerts.length : unread;
-  const showBell = role === "admin" || isDriver;
+    : feed.map((n) => ({ id: n.key, type: n.type, title: n.title, message: n.message, href: n.href, unread: newWhenOpened.has(n.key) || isUnread(n.key) }));
+  const bellUnread = isDriver ? deliveryAlerts.length : feedUnread;
+  const emptyText = isDriver ? "No new deliveries assigned" : role === "customer" ? "No order updates yet" : "You're all caught up";
+
+  // Opening the bell clears the count, but what was new keeps its dot while the
+  // panel is open, so people can still see which ones they hadn't read.
+  function toggleBell() {
+    const opening = !showNotifs;
+    setShowNotifs(opening);
+    if (opening && !isDriver) {
+      setNewWhenOpened(new Set(feed.filter((n) => isUnread(n.key)).map((n) => n.key)));
+      markAllRead();
+    }
+  }
+
+  function openItem(item: BellItem) {
+    setShowNotifs(false);
+    if (item.href) router.push(item.href);
+  }
 
   return (
     <header className="h-[60px] bg-white border-b border-gray-200 flex items-center justify-between px-3 md:px-6 shrink-0 gap-3">
@@ -123,11 +144,12 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
           </div>
         )}
 
-        {/* Notifications — admin digest, or the driver's live assignments */}
-        {showBell && (
+        {/* Notifications: the role's feed, or the driver's live assignments */}
+        {
           <div className="relative" ref={notifRef}>
             <button
-              onClick={() => { setShowNotifs(!showNotifs); if (!isDriver) setUnread(0); }}
+              onClick={toggleBell}
+              aria-label={bellUnread > 0 ? `Notifications, ${bellUnread} unread` : "Notifications"}
               className="relative w-9 h-9 flex items-center justify-center rounded-xl transition"
               style={{ background: showNotifs ? "var(--bg-muted)" : "transparent", color: "var(--text-muted)" }}
             >
@@ -148,32 +170,38 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
                   <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
                     {isDriver ? "My Deliveries" : "Notifications"}
                   </p>
-                  {bellItems.length > 0 && <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "var(--bg-muted)", color: "var(--text-muted)" }}>{bellItems.length} {isDriver ? "new" : "alerts"}</span>}
+                  {bellItems.length > 0 && <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "var(--bg-muted)", color: "var(--text-muted)" }}>{bellItems.length} {isDriver ? "new" : bellItems.length === 1 ? "alert" : "alerts"}</span>}
                 </div>
-                <div className="max-h-72 overflow-y-auto">
+                <div className="max-h-80 overflow-y-auto">
                   {bellItems.length === 0 ? (
                     <div className="py-10 text-center">
                       <Bell size={ICON_SIZE.lg} className="mx-auto mb-2" style={{ color: "var(--text-faint)" }} />
-                      <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                        {isDriver ? "No new deliveries assigned" : "You're all caught up"}
-                      </p>
+                      <p className="text-sm" style={{ color: "var(--text-muted)" }}>{emptyText}</p>
                     </div>
-                  ) : bellItems.map((n) => (
-                    <div key={n.id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 border-b border-gray-50 last:border-0">
-                      <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                        style={n.type === "low_stock" ? { background: "var(--warn-soft)", color: "var(--warn)" } : { background: "var(--brand-soft)", color: "var(--brand)" }}
+                  ) : bellItems.map((n) => {
+                    const style = BELL_STYLE[n.type];
+                    const Icon = style.icon;
+                    return (
+                      <button
+                        key={n.id}
+                        type="button"
+                        onClick={() => openItem(n)}
+                        disabled={!n.href}
+                        className="w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-gray-50 border-b border-gray-50 last:border-0 disabled:cursor-default"
                       >
-                        {n.type === "low_stock" ? <Package size={ICON_SIZE.xs} /> : n.type === "delivery" ? <Truck size={ICON_SIZE.xs} /> : <ShoppingBag size={ICON_SIZE.xs} />}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: n.type === "low_stock" ? "var(--warn)" : "var(--brand)" }}>
-                          {n.type === "low_stock" ? "Low stock" : n.type === "delivery" ? "New delivery" : "New order"}
-                        </p>
-                        <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "var(--text-secondary)" }}>{n.message}</p>
-                      </div>
-                    </div>
-                  ))}
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: style.bg, color: style.fg }}>
+                          <Icon size={ICON_SIZE.xs} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-bold uppercase tracking-wide flex items-center gap-1.5" style={{ color: style.fg }}>
+                            {n.title}
+                            {n.unread && !isDriver && <span aria-label="unread" className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--brand)" }} />}
+                          </p>
+                          <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "var(--text-secondary)" }}>{n.message}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
                 {isDriver && bellItems.length > 0 && (
                   <button
@@ -187,7 +215,7 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
               </div>
             )}
           </div>
-        )}
+        }
 
         {/* Settings */}
         <div className="relative" ref={settingsRef}>
@@ -239,6 +267,32 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
                   >
                     <Monitor size={ICON_SIZE.sm} />
                     System
+                  </button>
+                </div>
+              </div>
+
+              {/* Notification sound */}
+              <div className="px-4 py-3 border-t border-gray-100">
+                <p className="text-[10px] uppercase tracking-widest font-bold mb-2" style={{ color: "var(--text-faint)" }}>Notification sound</p>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={soundOn}
+                    onClick={() => { unlockAudio(); setSoundOn(!soundOn); }}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs font-semibold transition"
+                    style={soundOn ? { borderColor: "var(--brand)", background: "var(--brand-soft)", color: "var(--brand-ink)" } : { borderColor: "var(--border)", color: "var(--text-muted)" }}
+                  >
+                    {soundOn ? <Volume2 size={ICON_SIZE.sm} /> : <VolumeX size={ICON_SIZE.sm} />}
+                    {soundOn ? "On" : "Off"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { unlockAudio(); playAlert(TEST_SOUND[role] ?? "new_order", { force: true }); }}
+                    className="flex-1 py-2 rounded-xl border text-xs font-semibold transition hover:bg-gray-50"
+                    style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
+                  >
+                    Test
                   </button>
                 </div>
               </div>

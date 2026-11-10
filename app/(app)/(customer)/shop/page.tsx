@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Search, ShoppingCart, Trash2, CheckCircle, ChevronDown, ChevronRight, PackageSearch, Banknote, Smartphone, Copy, Check, QrCode, AlertTriangle } from "lucide-react";
+import { Search, ShoppingCart, Trash2, CheckCircle, ChevronDown, ChevronRight, PackageSearch, Banknote, Smartphone, Copy, Check, QrCode, AlertTriangle, Truck, Store, CreditCard, Receipt } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import Drawer from "@/components/ui/Drawer";
 import Modal from "@/components/ui/Modal";
@@ -414,12 +414,12 @@ export default function ShopPage() {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Fulfillment</label>
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => setFulfillmentMode("delivery")}
-                  className={`py-2 rounded-lg text-xs font-semibold border transition ${fulfillmentMode === "delivery" ? "bg-blue-600 text-white border-blue-600" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
-                  🚚 Delivery
+                  className={`py-2 rounded-lg text-xs font-semibold border transition inline-flex items-center justify-center gap-1.5 ${fulfillmentMode === "delivery" ? "bg-blue-600 text-white border-blue-600" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+                  <Truck size={14} /> Delivery
                 </button>
                 <button type="button" onClick={() => setFulfillmentMode("pickup")}
-                  className={`py-2 rounded-lg text-xs font-semibold border transition ${fulfillmentMode === "pickup" ? "bg-blue-600 text-white border-blue-600" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
-                  🏪 Pickup at Store
+                  className={`py-2 rounded-lg text-xs font-semibold border transition inline-flex items-center justify-center gap-1.5 ${fulfillmentMode === "pickup" ? "bg-blue-600 text-white border-blue-600" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+                  <Store size={14} /> Pickup at Store
                 </button>
               </div>
             </div>
@@ -593,13 +593,16 @@ export default function ShopPage() {
             <span>₱{total.toFixed(2)}</span>
           </div>
           <div className="bg-gray-50 rounded-lg px-3 py-2.5 text-xs text-gray-600 space-y-1">
-            <p>{fulfillmentMode === "delivery" ? "🚚 Delivery" : "🏪 Pickup at Store"}{fulfillmentMode === "delivery" && pickedLocation ? ` — ${pickedLocation.address}` : ""}</p>
-            <p>💳 {paymentMethod}{paymentMethod === "Cash" ? (fulfillmentMode === "delivery" ? " on Delivery" : " on Pickup") : ""}</p>
+            <p className="flex items-start gap-1.5">
+              {fulfillmentMode === "delivery" ? <Truck size={13} className="shrink-0 mt-px" /> : <Store size={13} className="shrink-0 mt-px" />}
+              <span>{fulfillmentMode === "delivery" ? "Delivery" : "Pickup at Store"}{fulfillmentMode === "delivery" && pickedLocation ? ` — ${pickedLocation.address}` : ""}</span>
+            </p>
+            <p className="flex items-center gap-1.5"><CreditCard size={13} className="shrink-0" /> {paymentMethod}{paymentMethod === "Cash" ? (fulfillmentMode === "delivery" ? " on Delivery" : " on Pickup") : ""}</p>
             {paymentMethod === "GCash" && (
               <>
-                <p>📱 Paid from <span className="num font-medium text-gray-700">{gcashNumber}</span></p>
-                <p>🧾 Ref. No. <span className="num font-medium text-gray-700">{gcashReference}</span></p>
-                <p>💵 Amount sent <span className="num font-medium text-gray-700">₱{amountPaid.toFixed(2)}</span></p>
+                <p className="flex items-center gap-1.5"><Smartphone size={13} className="shrink-0" /> Paid from <span className="num font-medium text-gray-700">{gcashNumber}</span></p>
+                <p className="flex items-center gap-1.5"><Receipt size={13} className="shrink-0" /> Ref. No. <span className="num font-medium text-gray-700">{gcashReference}</span></p>
+                <p className="flex items-center gap-1.5"><Banknote size={13} className="shrink-0" /> Amount sent <span className="num font-medium text-gray-700">₱{amountPaid.toFixed(2)}</span></p>
               </>
             )}
           </div>

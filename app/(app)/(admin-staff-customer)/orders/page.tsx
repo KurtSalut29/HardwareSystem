@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Search, ChevronDown, ChevronUp, CheckCircle, XCircle, Clock, CheckCheck, Receipt, Printer, MapPin, ChevronLeft, ChevronRight, Truck, Ban, Smartphone, ShieldCheck, ShieldAlert, Upload, Calendar as CalendarIcon, AlertTriangle } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, CheckCircle, XCircle, Clock, CheckCheck, Receipt, Printer, MapPin, ChevronLeft, ChevronRight, Truck, Ban, Smartphone, ShieldCheck, ShieldAlert, Upload, Calendar as CalendarIcon, AlertTriangle, Store, Route, CreditCard } from "lucide-react";
 import Image from "next/image";
 import PageHeader from "@/components/ui/PageHeader";
 import Modal from "@/components/ui/Modal";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
+import Pagination from "@/components/ui/Pagination";
 import { useToast } from "@/components/ui/ToastProvider";
 import OrderMap, { OrderPin } from "@/components/OrderMap";
 import LocationPicker, { PickedLocation } from "@/components/LocationPicker";
@@ -641,7 +642,8 @@ export default function OrdersPage() {
       })
     : pins;
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
-  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const currentPage = Math.min(page, Math.max(1, totalPages));
+  const paginated = filtered.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
 
   // Calendar helpers
   const orderDateKeys = new Set(orders.map((o) => toDateKey(new Date(o.dateTime))));
@@ -908,8 +910,11 @@ export default function OrdersPage() {
                         {expanded === o.id ? <ChevronUp size={ICON_SIZE.sm} /> : <ChevronDown size={ICON_SIZE.sm} />}
                       </td>
                       <td className="py-3 px-4 font-medium text-gray-900">
-                        <span title={o.fulfillmentMode === "pickup" ? "Pickup at Store" : "Delivery"}>
-                          {o.fulfillmentMode === "pickup" ? "🏪" : "🚚"} #{o.id}
+                        <span title={o.fulfillmentMode === "pickup" ? "Pickup at Store" : "Delivery"} className="inline-flex items-center gap-1.5">
+                          {o.fulfillmentMode === "pickup"
+                            ? <Store size={ICON_SIZE.sm} className="text-gray-400 shrink-0" aria-label="Pickup at Store" />
+                            : <Truck size={ICON_SIZE.sm} className="text-gray-400 shrink-0" aria-label="Delivery" />}
+                          #{o.id}
                         </span>
                         <p className="text-xs text-gray-400 sm:hidden">{o.customer.username}</p>
                       </td>
@@ -976,14 +981,16 @@ export default function OrdersPage() {
                               const pin = pins.find((p) => p.id === o.id);
                               return pin?.distanceLabel ? (
                                 <div className="mt-2 pt-2 border-t border-gray-200 flex gap-4">
-                                  <span className="text-gray-500">🛣️ {pin.distanceLabel} from store</span>
-                                  <span className="text-gray-500">🕐 {pin.durationLabel}</span>
+                                  <span className="text-gray-500 inline-flex items-center gap-1"><Route size={12} /> {pin.distanceLabel} from store</span>
+                                  <span className="text-gray-500 inline-flex items-center gap-1"><Clock size={12} /> {pin.durationLabel}</span>
                                 </div>
                               ) : null;
                             })()}
                             <div className="mt-2 pt-2 border-t border-gray-200 flex gap-4">
-                              <span className="text-gray-500">{o.fulfillmentMode === "pickup" ? "🏪 Pickup at Store" : "🚚 Delivery"}</span>
-                              {o.paymentMethod && <span className="text-gray-500">💳 {o.paymentMethod}</span>}
+                              <span className="text-gray-500 inline-flex items-center gap-1">
+                                {o.fulfillmentMode === "pickup" ? <><Store size={12} /> Pickup at Store</> : <><Truck size={12} /> Delivery</>}
+                              </span>
+                              {o.paymentMethod && <span className="text-gray-500 inline-flex items-center gap-1"><CreditCard size={12} /> {o.paymentMethod}</span>}
                             </div>
 
                             {o.paymentMethod === "GCash" && (
@@ -1093,16 +1100,7 @@ export default function OrdersPage() {
             </table>
           </div>
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-              <p className="text-xs text-gray-400">Page {page} of {totalPages}</p>
-              <div className="flex gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                  <button key={p} onClick={() => setPage(p)} className={`w-7 h-7 rounded-lg text-xs font-medium transition ${p === page ? "bg-blue-600 text-white" : "text-gray-500 hover:bg-gray-100"}`}>{p}</button>
-                ))}
-              </div>
-            </div>
-          )}
+          <Pagination page={currentPage} totalPages={Math.max(1, totalPages)} total={filtered.length} pageSize={PER_PAGE} onChange={setPage} noun="orders" />
         </div>
       </div>
     </div>

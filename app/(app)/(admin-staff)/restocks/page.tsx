@@ -7,8 +7,11 @@ import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import StatCard from "@/components/ui/StatCard";
 import EmptyState from "@/components/ui/EmptyState";
+import Pagination, { usePagination } from "@/components/ui/Pagination";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
+import ReorderPlanner from "@/components/inventory/ReorderPlanner";
+import type { ReorderPlan, ReorderRow } from "@/lib/inventory";
 import Image from "next/image";
 
 type Product = { id: number; name: string; unit: string; stock: number; image: string | null; category: { id: number; name: string } };
@@ -42,20 +45,45 @@ export default function RestocksPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [plan, setPlan] = useState<ReorderPlan | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const showToast = useToast();
 
+  const fetchPlan = useCallback(async () => {
+    const res = await fetch("/api/inventory/reorder", { cache: "no-store" });
+    if (res.ok) setPlan(await res.json());
+  }, []);
+
   const fetchAll = useCallback(async () => {
-    setLoading(true);
     const [rRes, pRes] = await Promise.all([fetch("/api/restocks"), fetch("/api/products")]);
     setRestocks(await rRes.json());
     setProducts(await pRes.json());
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    fetchAll();
+    fetchPlan();
+    fetch("/api/auth/me").then((r) => r.json()).then((d) => setIsAdmin(d.role === "admin")).catch(() => {});
+  }, [fetchAll, fetchPlan]);
+
+  const planBy = useMemo(() => new Map((plan?.rows ?? []).map((r) => [r.productId, r])), [plan]);
 
   function openAdd() {
     setForm(EMPTY_FORM);
+    setError("");
+    setShowModal(true);
+  }
+
+  // "Order" in the reorder planner: the form starts with the EOQ quantity and
+  // the last price paid, both still editable.
+  function openOrder(row: ReorderRow) {
+    setForm({
+      ...EMPTY_FORM,
+      productId: String(row.productId),
+      quantity: row.eoq != null ? String(row.eoq) : "",
+      unitCost: row.costSource === "restock" ? String(row.unitCost) : "",
+    });
     setError("");
     setShowModal(true);
   }
@@ -86,6 +114,7 @@ export default function RestocksPage() {
     setShowModal(false);
     showToast("Purchase recorded — stock updated.");
     fetchAll();
+    fetchPlan();
   }
 
   const filtered = useMemo(() => {
@@ -99,12 +128,15 @@ export default function RestocksPage() {
     );
   }, [restocks, search]);
 
+  const paging = usePagination(filtered, 10);
+
   const monthCutoff = startOfThisMonth();
   const thisMonth = restocks.filter((r) => new Date(r.date) >= monthCutoff);
   const spentThisMonth = thisMonth.reduce((s, r) => s + r.totalCost, 0);
   const unitsThisMonth = thisMonth.reduce((s, r) => s + r.quantity, 0);
 
   const selectedProduct = products.find((p) => p.id === Number(form.productId));
+  const selectedPlan = planBy.get(Number(form.productId));
   const previewTotal = form.quantity && form.unitCost ? Number(form.quantity) * Number(form.unitCost) : 0;
 
   // Grouped by category, alphabetically both ways — a long flat list of 70+
@@ -140,13 +172,21 @@ export default function RestocksPage() {
         <StatCard title="Products Tracked" value={products.length} icon={<Package size={ICON_SIZE.lg} className="text-purple-600" />} iconBg="bg-purple-50" />
       </div>
 
+      <ReorderPlanner
+        plan={plan}
+        isAdmin={isAdmin}
+        onOrder={openOrder}
+        onSettingsSaved={() => { fetchPlan(); showToast("EOQ settings saved — suggestions updated."); }}
+      />
+
       <div className="bg-white rounded-xl border border-gray-200">
         <div className="flex items-center gap-3 p-4 border-b border-gray-100">
+          <h2 className="font-display font-extrabold text-gray-900 shrink-0 hidden md:block">Purchase history</h2>
           <div className="relative max-w-md flex-1">
             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); paging.setPage(1); }}
               placeholder="Search by product, supplier, or who recorded it..."
               className="w-full pl-11 pr-4 py-3 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 transition placeholder:text-gray-400"
             />
@@ -177,7 +217,7 @@ export default function RestocksPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filtered.map((r) => (
+                {paging.pageItems.map((r) => (
                   <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -203,6 +243,7 @@ export default function RestocksPage() {
                 ))}
               </tbody>
             </table>
+            <Pagination {...paging} onChange={paging.setPage} noun="purchases" />
           </div>
         )}
       </div>
@@ -260,6 +301,23 @@ export default function RestocksPage() {
               />
             </div>
           </div>
+
+          {selectedPlan && (
+            <div className="rounded-lg px-3 py-2 text-xs flex flex-wrap items-center gap-x-3 gap-y-1" style={{ background: "var(--bg-muted)", color: "var(--text-secondary)" }}>
+              <span>
+                {selectedPlan.eoq != null
+                  ? <>Suggested order (EOQ): <b>{selectedPlan.eoq} {selectedPlan.unit}</b></>
+                  : <>No sales yet, so there&apos;s no EOQ suggestion</>}
+              </span>
+              <span>Reorder at: <b>{selectedPlan.reorderPoint}</b></span>
+              {selectedPlan.eoq != null && form.quantity !== String(selectedPlan.eoq) && (
+                <button type="button" className="ml-auto font-semibold hover:underline" style={{ color: "var(--brand)" }}
+                  onClick={() => setForm((p) => ({ ...p, quantity: String(selectedPlan.eoq) }))}>
+                  Use {selectedPlan.eoq}
+                </button>
+              )}
+            </div>
+          )}
 
           {previewTotal > 0 && (
             <div className="bg-blue-50 rounded-lg px-3 py-2 flex justify-between text-sm">

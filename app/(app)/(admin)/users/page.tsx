@@ -9,6 +9,7 @@ import ConfirmModal from "@/components/ui/ConfirmModal";
 import Button from "@/components/ui/Button";
 import StatCard from "@/components/ui/StatCard";
 import EmptyState from "@/components/ui/EmptyState";
+import Pagination from "@/components/ui/Pagination";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 import { roleLabel } from "@/lib/roles";
@@ -49,7 +50,8 @@ export default function UsersPage() {
     (u) => u.username.toLowerCase().includes(search.toLowerCase()) || u.role.toLowerCase().includes(search.toLowerCase())
   );
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
-  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const currentPage = Math.min(page, Math.max(1, totalPages));
+  const paginated = filtered.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
 
   const staffCount = users.filter((u) => u.role === "admin" || u.role === "cashier").length;
   const driverCount = users.filter((u) => u.role === "driver").length;
@@ -207,16 +209,7 @@ export default function UsersPage() {
           ))}
         </div>
 
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-            <p className="text-xs text-gray-400">Page {page} of {totalPages}</p>
-            <div className="flex gap-1">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                <button key={p} onClick={() => setPage(p)} className={`w-7 h-7 rounded-lg text-xs font-medium transition ${p === page ? "bg-blue-600 text-white" : "text-gray-500 hover:bg-gray-100"}`}>{p}</button>
-              ))}
-            </div>
-          </div>
-        )}
+        <Pagination page={currentPage} totalPages={Math.max(1, totalPages)} total={filtered.length} pageSize={PER_PAGE} onChange={setPage} noun="users" />
       </div>
 
       <ConfirmModal

@@ -8,6 +8,7 @@ import StatCard from "@/components/ui/StatCard";
 import { useToast } from "@/components/ui/ToastProvider";
 import OrderMap, { OrderPin } from "@/components/OrderMap";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
+import { MapLegend } from "@/components/OrderMapWidget";
 
 type OItem = { id: number; quantity: number; price: number; product: { name: string } };
 type Order = {
@@ -126,11 +127,11 @@ export default function DriverDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Driver Dashboard" subtitle="Your delivery status and live location sharing." />
+      <PageHeader title="Driver Dashboard" subtitle="Your deliveries for today, your route, and live location sharing so the store and customers can follow you." />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <StatCard title="Active Deliveries" value={activeOrders.length} icon={<Truck size={ICON_SIZE.lg} className="text-indigo-600" />} iconBg="bg-indigo-50" />
-        <StatCard title="Delivered (all time)" value={deliveredCount} icon={<CheckCircle2 size={ICON_SIZE.lg} className="text-emerald-600" />} iconBg="bg-emerald-50" />
+        <StatCard title="Active Deliveries" subtitle="Assigned to you and not yet delivered" value={activeOrders.length} icon={<Truck size={ICON_SIZE.lg} className="text-indigo-600" />} iconBg="bg-indigo-50" />
+        <StatCard title="Delivered (all time)" subtitle="Orders you have completed" value={deliveredCount} icon={<CheckCircle2 size={ICON_SIZE.lg} className="text-emerald-600" />} iconBg="bg-emerald-50" />
       </div>
 
       {/* Location sharing control */}
@@ -168,12 +169,12 @@ export default function DriverDashboardPage() {
 
       {/* Map — the route line starts at the driver's own live position */}
       <div className="bg-white rounded-xl border border-gray-200 p-5" style={{ isolation: "isolate" }}>
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-          <h2 className="text-sm font-semibold text-gray-700">Delivery Map</h2>
-          <p className="text-[11px] text-gray-400">
-            {sharing
-              ? "The line shows your route to the drop-off."
-              : "Start sharing your location to see your route to the drop-off."}
+        <div className="mb-3">
+          <h2 className="font-display font-extrabold text-gray-900">Delivery Map</h2>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Your active drop-offs. {sharing
+              ? "The line shows your route from where you are now."
+              : "Start sharing your location to see your route to each drop-off."}
           </p>
         </div>
         <OrderMap
@@ -181,6 +182,7 @@ export default function DriverDashboardPage() {
           loading={loading}
           routeFrom="driver"
         />
+        <MapLegend />
       </div>
 
       {/* Lists live on /deliveries and /deliveries/history now — the dashboard

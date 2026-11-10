@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/auth";
+import { getReorderPlan, needsAttention } from "@/lib/inventory";
 
 export async function GET(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
@@ -14,7 +15,12 @@ export async function GET(req: NextRequest) {
     prisma.order.count(),
     prisma.transaction.findMany({ include: { items: true } }),
     prisma.order.findMany({ orderBy: { dateTime: "desc" }, take: 5, include: { customer: { select: { username: true } }, items: { include: { product: true } } } }),
-    prisma.product.findMany({ where: { stock: { lte: 5 } }, orderBy: { stock: "asc" }, take: 5 }),
+    // Low stock now means "at or below the product's own reorder point" (EOQ planning),
+    // not one fixed number for every product.
+    getReorderPlan().then((plan) => needsAttention(plan.rows).slice(0, 5).map((r) => ({
+      id: r.productId, name: r.name, category: r.category, unit: r.unit, stock: r.stock,
+      reorderPoint: r.reorderPoint, eoq: r.eoq, status: r.status,
+    }))),
     prisma.order.findMany({ select: { dateTime: true } }),
     prisma.user.findMany({ select: { createdAt: true } }),
     prisma.product.findMany({ select: { createdAt: true } }),

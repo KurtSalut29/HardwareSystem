@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Package, Receipt } f
 import PageHeader from "@/components/ui/PageHeader";
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
+import Pagination, { usePagination } from "@/components/ui/Pagination";
 import Image from "next/image";
 
 type TItem = { id: number; quantity: number; price: number; product: { name: string; image: string | null; subcategory: string | null } };
@@ -36,6 +37,13 @@ export default function TransactionsPage() {
 
   // Transactions for selected date
   const selectedTxns = transactions.filter((t) => toDateKey(new Date(t.dateTime)) === selectedKey);
+  const paging = usePagination(selectedTxns, 10);
+
+  function selectDate(key: string) {
+    setSelectedKey(key);
+    paging.setPage(1);
+    setExpanded(null);
+  }
 
   // Selected date label
   function selectedLabel() {
@@ -105,7 +113,7 @@ export default function TransactionsPage() {
                 const isSelected = selectedKey === key;
                 const hasTxns = txDateKeys.has(key);
                 return (
-                  <button key={i} onClick={() => setSelectedKey(key)}
+                  <button key={i} onClick={() => selectDate(key)}
                     className={`relative w-8 h-8 mx-auto flex items-center justify-center rounded-lg text-xs font-medium transition
                       ${isSelected ? "bg-blue-600 text-white" : isToday ? "bg-blue-50 text-blue-600 font-bold" : "text-gray-700 hover:bg-gray-100"}`}>
                     {day}
@@ -165,7 +173,7 @@ export default function TransactionsPage() {
                         <EmptyState icon={Receipt} title="No transactions on this date" description="Pick another date on the calendar to view its transactions." />
                       </td>
                     </tr>
-                  ) : selectedTxns.map((t) => (
+                  ) : paging.pageItems.map((t) => (
                     <React.Fragment key={t.id}>
                       <tr className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => setExpanded(expanded === t.id ? null : t.id)}>
                         <td className="py-3 px-4 text-gray-400">
@@ -215,6 +223,7 @@ export default function TransactionsPage() {
                 </tbody>
               </table>
             </div>
+            <Pagination {...paging} onChange={(p) => { paging.setPage(p); setExpanded(null); }} noun="transactions" />
           </div>
         </div>
       )}

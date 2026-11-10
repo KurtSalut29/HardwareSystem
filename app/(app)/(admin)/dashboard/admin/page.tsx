@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { DollarSign, Package, ShoppingCart, Users, AlertTriangle } from "lucide-react";
+import { DollarSign, Package, ShoppingCart, Users, AlertTriangle, TrendingUp, ClipboardList } from "lucide-react";
 import Badge from "@/components/ui/Badge";
-import Sparkline from "@/components/ui/Sparkline";
+import { SectionLabel, CardHeader, StatRail, StatRailRow, type Trend } from "@/components/dashboard/DashboardParts";
 import StockLevelBar from "@/components/ui/StockLevelBar";
 import OrderMapWidget from "@/components/OrderMapWidget";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
@@ -13,8 +13,7 @@ type Stats = { totalUsers: number; totalProducts: number; totalOrders: number; t
 type MonthlySale = { month: string; sales: number };
 type MonthlyCount = { month: string; count: number };
 type Order = { id: number; totalAmount: number; status: string; dateTime: string; customer: { username: string }; items: { product: { name: string }; quantity: number }[] };
-type LowStock = { id: number; name: string; category: string; stock: number };
-type Trend = { value: string; up: boolean };
+type LowStock = { id: number; name: string; category: string; unit: string; stock: number; reorderPoint: number; eoq: number | null; status: "out" | "reorder" | "ok" };
 
 function greeting() {
   const h = new Date().getHours();
@@ -23,7 +22,6 @@ function greeting() {
   return "Good evening";
 }
 
-const LOW_STOCK_THRESHOLD = 5; // matches the `stock <= 5` filter the /api/dashboard route already queries with
 
 // Real month-over-month change from an actual series — returns null (no badge) rather than guessing when there's
 // nothing to compare against yet (e.g. the metric was 0 last month, so a percentage would be undefined/misleading).
@@ -68,6 +66,7 @@ export default function AdminDashboardPage() {
   const ordersTrend = monthOverMonth(monthlyOrders.map((m) => ({ month: m.month, value: m.count })));
   const usersTrend = monthOverMonth(monthlyUsers.map((m) => ({ month: m.month, value: m.count })));
   const productsTrend = monthOverMonth(monthlyProducts.map((m) => ({ month: m.month, value: m.count })));
+  const sixMonthTotal = monthlySales.reduce((s, m) => s + m.sales, 0);
 
   return (
     <div className="space-y-6">
@@ -78,15 +77,17 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Growth first: this is what the branch is here to see before anything else */}
+      <SectionLabel title="Sales & stock" description="How much the store is selling, and what needs restocking." />
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         {/* Sales Chart */}
         <div className="xl:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="font-display font-extrabold text-gray-900">Sales Overview</h2>
-              <p className="text-xs text-gray-400">Last 6 months revenue</p>
-            </div>
-          </div>
+          <CardHeader
+            icon={<TrendingUp size={ICON_SIZE.sm} className="text-blue-600" />}
+            title="Sales Overview"
+            description={`Money collected each month from counter (POS) sales and delivered online orders, over the last 6 months. Total: ₱${sixMonthTotal.toLocaleString("en-PH")}.`}
+            href="/reports"
+            linkLabel="Sales reports"
+          />
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={monthlySales} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
               <defs>
@@ -106,12 +107,15 @@ export default function AdminDashboardPage() {
 
         {/* Low Stock */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle size={ICON_SIZE.sm} className="text-amber-500" />
-            <h2 className="font-display font-extrabold text-gray-900">Low Stock Alert</h2>
-          </div>
+          <CardHeader
+            icon={<AlertTriangle size={ICON_SIZE.sm} className="text-amber-500" />}
+            title="Low Stock Alert"
+            description="Products at or below their reorder point. The bar shows how much stock is left before that point; order the suggested quantity on Restocks."
+            href="/restocks"
+            linkLabel="Restocks"
+          />
           {lowStock.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">All products are well stocked.</p>
+            <p className="text-sm text-gray-400 text-center py-8">Every product is above its reorder point.</p>
           ) : (
             <div className="-mx-5 divide-y divide-gray-50">
               {lowStock.map((p) => (
@@ -119,11 +123,13 @@ export default function AdminDashboardPage() {
                   <div className="flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
-                      <p className="text-xs text-gray-400">{p.category}</p>
+                      <p className="text-xs text-gray-400">
+                        {p.category} · reorder at {p.reorderPoint}{p.eoq != null ? ` · order ${p.eoq}` : ""}
+                      </p>
                     </div>
-                    <Badge label={p.stock === 0 ? "Out" : `${p.stock} left`} variant={p.stock === 0 ? "cancelled" : "low"} />
+                    <Badge label={p.stock <= 0 ? "Out" : `${p.stock} left`} variant={p.stock <= 0 ? "cancelled" : "low"} />
                   </div>
-                  <StockLevelBar stock={p.stock} threshold={LOW_STOCK_THRESHOLD} ready={barsReady} />
+                  <StockLevelBar stock={p.stock} threshold={p.reorderPoint} ready={barsReady} />
                 </div>
               ))}
             </div>
@@ -133,12 +139,17 @@ export default function AdminDashboardPage() {
 
       {/* Map + Stat Rail — the card stretches to match the map's height so the rows can space out to fill it,
           instead of clumping at the top and leaving bare page background beside the lower half of the map. */}
+      <SectionLabel title="Deliveries & store totals" description="Orders on the road right now, and the store's running totals." />
       <div className="grid grid-cols-1 xl:grid-cols-[1.7fr_1fr] gap-4">
         <OrderMapWidget />
 
-        <div className="h-full flex flex-col bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+        <StatRail
+          title="Store totals"
+          description="All-time figures. The small chart shows the last 6 months; the % compares this month so far with all of last month."
+        >
           <StatRailRow
             title="Revenue"
+            caption="Total sales, all time"
             value={`₱${(stats?.totalRevenue ?? 0).toLocaleString("en", { minimumFractionDigits: 2 })}`}
             icon={<DollarSign size={ICON_SIZE.md} className="text-blue-600" />}
             iconBg="bg-blue-50"
@@ -148,6 +159,7 @@ export default function AdminDashboardPage() {
           />
           <StatRailRow
             title="Products"
+            caption="Items in the catalogue"
             value={stats?.totalProducts ?? 0}
             icon={<Package size={ICON_SIZE.md} />}
             iconBg="bg-[var(--accent-soft)]"
@@ -159,6 +171,7 @@ export default function AdminDashboardPage() {
           />
           <StatRailRow
             title="Orders"
+            caption="Online orders placed by customers"
             value={stats?.totalOrders ?? 0}
             icon={<ShoppingCart size={ICON_SIZE.md} className="text-blue-500" />}
             iconBg="bg-blue-50"
@@ -169,6 +182,7 @@ export default function AdminDashboardPage() {
           />
           <StatRailRow
             title="Users"
+            caption="Accounts: admin, staff, customers, drivers"
             value={stats?.totalUsers ?? 0}
             icon={<Users size={ICON_SIZE.md} className="text-gray-500" />}
             iconBg="bg-gray-100"
@@ -177,15 +191,18 @@ export default function AdminDashboardPage() {
             sparklineId="admin-users"
             sparklineValuePrefix=""
           />
-        </div>
+        </StatRail>
       </div>
 
       {/* Recent Orders */}
+      <SectionLabel title="Online orders" description="The latest orders customers placed through the shop." />
       <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display font-extrabold text-gray-900">Recent Orders</h2>
-          <a href="/orders" className="text-xs font-semibold hover:underline" style={{ color: "var(--brand)" }}>View all</a>
-        </div>
+        <CardHeader
+          icon={<ClipboardList size={ICON_SIZE.sm} className="text-blue-600" />}
+          title="Recent Orders"
+          description="The 5 newest online orders and where each one is. Open Orders to confirm, assign a driver, or mark them done."
+          href="/orders"
+        />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -223,41 +240,6 @@ export default function AdminDashboardPage() {
           </table>
         </div>
       </div>
-    </div>
-  );
-}
-
-function StatRailRow({
-  title, value, icon, iconBg, iconColor, trend, sparkline, sparklineId, sparklineValuePrefix = "₱",
-}: {
-  title: string; value: string | number; icon: React.ReactNode; iconBg: string; iconColor?: string;
-  trend?: Trend | null; sparkline?: { label: string; value: number }[]; sparklineId?: string; sparklineValuePrefix?: string;
-}) {
-  return (
-    <div className="flex-1 flex items-center gap-3 px-5 py-4">
-      <div className={`w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0 ${iconBg}`} style={iconColor ? { color: iconColor } : undefined}>
-        {icon}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{title}</p>
-        <p className="font-display text-lg font-extrabold text-gray-900 num truncate">{value}</p>
-      </div>
-      {sparkline && sparkline.length > 1 && sparklineId ? (
-        <div className="flex flex-col items-end gap-0.5 shrink-0">
-          <Sparkline gradientId={sparklineId} data={sparkline} valuePrefix={sparklineValuePrefix} />
-          {trend && (
-            <span className="text-[11px] font-semibold" style={{ color: trend.up ? "var(--good)" : "var(--bad)" }}>
-              {trend.up ? "↑" : "↓"} {trend.value}
-            </span>
-          )}
-        </div>
-      ) : (
-        trend && (
-          <span className="text-xs font-semibold shrink-0" style={{ color: trend.up ? "var(--good)" : "var(--bad)" }}>
-            {trend.up ? "↑" : "↓"} {trend.value}
-          </span>
-        )
-      )}
     </div>
   );
 }

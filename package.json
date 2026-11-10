@@ -13,6 +13,8 @@
     "lint": "eslint",
     "postinstall": "prisma generate",
     "setup": "prisma migrate deploy && prisma db seed",
+    "demo:add": "ts-node --project tsconfig.seed.json prisma/demo-data.ts",
+    "demo:remove": "ts-node --project tsconfig.seed.json prisma/demo-data.ts --remove",
     "prisma:generate": "prisma generate"
   },
   "dependencies": {

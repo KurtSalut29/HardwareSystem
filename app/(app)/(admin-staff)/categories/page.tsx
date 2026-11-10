@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Pencil, Search, Trash2, X, Check, Tag, Package, FolderX } from "lucide-react";
+import { Plus, Pencil, Search, Trash2, Check, Tag, Package, FolderX } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import Button from "@/components/ui/Button";
-import IconButton from "@/components/ui/IconButton";
+import Modal from "@/components/ui/Modal";
 import StatCard from "@/components/ui/StatCard";
 import { useToast } from "@/components/ui/ToastProvider";
+import Pagination, { usePagination } from "@/components/ui/Pagination";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 
 type Category = { id: number; name: string; description: string | null; _count?: { products: number } };
@@ -37,6 +38,7 @@ export default function CategoriesPage() {
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     (c.description ?? "").toLowerCase().includes(search.toLowerCase())
   );
+  const paging = usePagination(filtered, 10, search);
 
   const totalProductsCategorized = categories.reduce((s, c) => s + (c._count?.products ?? 0), 0);
   const emptyCategories = categories.filter((c) => (c._count?.products ?? 0) === 0).length;
@@ -102,6 +104,46 @@ export default function CategoriesPage() {
         body={<>Are you sure you want to delete <span className="font-medium text-gray-800">{deleteTarget?.name}</span>?</>}
         confirmLabel="Yes, Delete"
       />
+
+      {/* Add / Edit Category */}
+      <Modal
+        open={showForm}
+        onClose={cancelForm}
+        title={editingId ? "Edit Category" : "Add Category"}
+        size="sm"
+        footer={
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" className="flex-1" onClick={cancelForm}>Cancel</Button>
+            <Button type="submit" form="category-form" className="flex-1" loading={saving} icon={<Check size={ICON_SIZE.sm} />}>
+              {editingId ? "Save Changes" : "Add Category"}
+            </Button>
+          </div>
+        }
+      >
+        <form id="category-form" onSubmit={handleSave} className="space-y-4">
+          <div>
+            <label htmlFor="category-name" className="block text-xs font-medium text-gray-600 mb-1">Name</label>
+            <input
+              id="category-name"
+              required autoFocus
+              value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
+              placeholder="e.g. Nails, Tools, Pipes"
+            />
+          </div>
+          <div>
+            <label htmlFor="category-description" className="block text-xs font-medium text-gray-600 mb-1">Description <span className="text-gray-400">(optional)</span></label>
+            <textarea
+              id="category-description"
+              rows={3}
+              value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition resize-none"
+              placeholder="Brief description of this category..."
+            />
+          </div>
+          {error && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+        </form>
+      </Modal>
       <PageHeader
         title="Categories"
         subtitle="Organize your products into categories"
@@ -114,46 +156,9 @@ export default function CategoriesPage() {
         <StatCard title="Empty Categories" value={emptyCategories} icon={<FolderX size={ICON_SIZE.lg} className="text-gray-500" />} iconBg="bg-gray-100" />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-        {/* Add / Edit Form */}
-        {showForm && (
-          <div className="bg-white rounded-xl border border-gray-200 p-5 h-fit">
-            <div className="flex items-center justify-between mb-4">
-              <p className="font-semibold text-gray-900 text-sm">{editingId ? "Edit Category" : "New Category"}</p>
-              <IconButton icon={<X size={ICON_SIZE.sm} />} onClick={cancelForm} title="Close" />
-            </div>
-            <form onSubmit={handleSave} className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
-                <input
-                  required autoFocus
-                  value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
-                  placeholder="e.g. Nails, Tools, Pipes"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Description <span className="text-gray-300">(optional)</span></label>
-                <textarea
-                  rows={3}
-                  value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition resize-none"
-                  placeholder="Brief description of this category..."
-                />
-              </div>
-              {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-              <div className="flex gap-2 pt-1">
-                <Button type="button" variant="secondary" className="flex-1" onClick={cancelForm}>Cancel</Button>
-                <Button type="submit" className="flex-1" loading={saving} icon={<Check size={ICON_SIZE.sm} />}>
-                  {editingId ? "Save" : "Add"}
-                </Button>
-              </div>
-            </form>
-          </div>
-        )}
-
+      <div>
         {/* Categories Table */}
-        <div className={`bg-white rounded-xl border border-gray-200 ${showForm ? "xl:col-span-2" : "xl:col-span-3"}`}>
+        <div className="bg-white rounded-xl border border-gray-200">
           <div className="flex items-center gap-3 p-4 border-b border-gray-100">
             <div className="relative max-w-md flex-1">
               <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -187,7 +192,7 @@ export default function CategoriesPage() {
                       <p className="text-sm text-gray-400">No categories yet. Add one to get started.</p>
                     </td>
                   </tr>
-                ) : filtered.map((c) => (
+                ) : paging.pageItems.map((c) => (
                   <tr key={c.id} className={`hover:bg-gray-50 transition-colors ${editingId === c.id ? "bg-blue-50/40" : ""}`}>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
@@ -230,7 +235,7 @@ export default function CategoriesPage() {
                 <Tag size={ICON_SIZE.xl} className="mx-auto text-gray-200 mb-2" />
                 <p className="text-sm text-gray-400">No categories yet. Add one to get started.</p>
               </div>
-            ) : filtered.map((c) => (
+            ) : paging.pageItems.map((c) => (
               <div key={c.id} className={`p-4 ${editingId === c.id ? "bg-blue-50/40" : ""}`}>
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-white" style={{ background: "linear-gradient(155deg, var(--brand), var(--brand-ink))" }}>
@@ -257,6 +262,7 @@ export default function CategoriesPage() {
               </div>
             ))}
           </div>
+          <Pagination {...paging} onChange={paging.setPage} noun="categories" />
         </div>
       </div>
     </div>

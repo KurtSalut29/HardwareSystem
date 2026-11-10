@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ShoppingBag, ClipboardList, Clock, CheckCircle, Package, ArrowRight } from "lucide-react";
+import { ShoppingBag, ClipboardList, Clock, CheckCircle, Package } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import Link from "next/link";
 import Image from "next/image";
 import OrderMapWidget from "@/components/OrderMapWidget";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
+import { SectionLabel, CardHeader } from "@/components/dashboard/DashboardParts";
 
 type Order = { id: number; totalAmount: number; status: string; dateTime: string; items: { quantity: number; product: { name: string } }[] };
 type Category = { id: number; name: string };
@@ -35,7 +36,8 @@ export default function CustomerDashboardPage() {
 
   const pending = orders.filter((o) => o.status === "pending").length;
   const delivered = orders.filter((o) => o.status === "delivered").length;
-  const totalSpent = orders.reduce((s, o) => s + o.totalAmount, 0);
+  // Cancelled orders were never paid for, so they don't count as spending.
+  const totalSpent = orders.filter((o) => o.status !== "cancelled").reduce((s, o) => s + o.totalAmount, 0);
   const today = new Date().toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" });
 
   const inStock = products.filter((p) => p.stock > 0);
@@ -50,27 +52,28 @@ export default function CustomerDashboardPage() {
       </div>
 
       {/* Stat row — products first, since shopping is what this dashboard is for */}
+      <SectionLabel title="Your account" description="A quick look at the shop and your orders." />
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatTile title="Total Products" value={inStock.length} hint="available now" icon={<Package size={ICON_SIZE.md} style={{ color: "var(--brand)" }} />} iconBg="var(--brand-soft)" />
-        <StatTile title="Total Orders" value={orders.length} hint={`${delivered} delivered`} icon={<ClipboardList size={ICON_SIZE.md} className="text-blue-600" />} iconBg="#EFF6FF" />
-        <StatTile title="Pending" value={pending} icon={<Clock size={ICON_SIZE.md} className="text-yellow-600" />} iconBg="#FEFCE8" />
-        <StatTile title="Total Spent" value={`₱${totalSpent.toFixed(2)}`} icon={<ShoppingBag size={ICON_SIZE.md} className="text-emerald-600" />} iconBg="#ECFDF5" />
+        <StatTile title="Products Available" value={inStock.length} hint="In stock and ready to order" icon={<Package size={ICON_SIZE.md} style={{ color: "var(--brand)" }} />} iconBg="var(--brand-soft)" />
+        <StatTile title="Your Orders" value={orders.length} hint={`${delivered} delivered so far`} icon={<ClipboardList size={ICON_SIZE.md} className="text-blue-600" />} iconBg="#EFF6FF" />
+        <StatTile title="Pending" value={pending} hint="Waiting for the store to confirm" icon={<Clock size={ICON_SIZE.md} className="text-yellow-600" />} iconBg="#FEFCE8" />
+        <StatTile title="Total Spent" value={`₱${totalSpent.toFixed(2)}`} hint="All your orders, except cancelled" icon={<ShoppingBag size={ICON_SIZE.md} className="text-emerald-600" />} iconBg="#ECFDF5" />
       </div>
+
+      <SectionLabel title="Shop & track" description="Pick something to order, and follow orders already on the way." />
 
       {/* Products lead; map and order history ride along in a narrower right rail. */}
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 items-start">
 
         {/* Products */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <div>
-              <h2 className="font-display font-extrabold text-gray-900">Products</h2>
-              <p className="text-xs text-gray-400 mt-0.5">{inStock.length} items available to order</p>
-            </div>
-            <Link href="/shop" className="flex items-center gap-1 text-xs font-semibold hover:underline shrink-0" style={{ color: "var(--brand)" }}>
-              View all <ArrowRight size={ICON_SIZE.xs} />
-            </Link>
-          </div>
+          <CardHeader
+            icon={<Package size={ICON_SIZE.sm} style={{ color: "var(--brand)" }} />}
+            title="Products"
+            description={`A preview of the ${inStock.length} items in stock. Pick a category, then open the Shop to order.`}
+            href="/shop"
+            linkLabel="Open Shop"
+          />
 
           <div className="flex gap-2 overflow-x-auto pb-2 mb-4 md:flex-wrap md:overflow-visible">
             {["All", ...categories.map((c) => c.name)].map((c) => (
@@ -133,13 +136,15 @@ export default function CustomerDashboardPage() {
 
         {/* Right rail — map shrunk to a glance, then recent orders */}
         <div className="space-y-4">
-          <OrderMapWidget compact />
+          <OrderMapWidget compact title="Your Deliveries" description="Where your orders are on the map. Updates every 15 seconds." />
 
           <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-display font-extrabold text-gray-900 text-sm">Recent Orders</h2>
-              <Link href="/orders" className="text-xs font-semibold hover:underline" style={{ color: "var(--brand)" }}>View all</Link>
-            </div>
+            <CardHeader
+              title="Recent Orders"
+              description="Your 4 latest orders and their status."
+              href="/orders"
+              className="mb-3"
+            />
             <div className="space-y-2">
               {orders.slice(0, 4).map((o) => (
                 <div key={o.id} className="flex items-center gap-2.5 py-2 border-b border-gray-50 last:border-0">

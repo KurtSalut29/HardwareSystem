@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CheckCheck, ChevronLeft, ChevronRight, Package, CalendarDays, TrendingUp } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
+import Pagination, { usePagination } from "@/components/ui/Pagination";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 
 type OItem = { id: number; quantity: number; product: { name: string } };
@@ -62,6 +63,7 @@ export default function DeliveryHistoryPage() {
     ? delivered.filter((o) => toDateKey(new Date(o.dateTime)) === selectedKey)
     : delivered;
   const shownValue = shown.reduce((s, o) => s + o.totalAmount, 0);
+  const paging = usePagination(shown, 10, selectedKey);
 
   const deliveredDateKeys = new Set(delivered.map((o) => toDateKey(new Date(o.dateTime))));
 
@@ -170,8 +172,9 @@ export default function DeliveryHistoryPage() {
           ) : shown.length === 0 ? (
             <EmptyState icon={Package} title={selectedKey ? "No deliveries on this date" : "No completed deliveries yet"} />
           ) : (
+            <>
             <div className="divide-y divide-gray-50">
-              {shown.map((o) => (
+              {paging.pageItems.map((o) => (
                 <div key={o.id} className="flex items-start gap-3 px-4 py-3">
                   <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#ECFDF5" }}>
                     <CheckCheck size={ICON_SIZE.sm} className="text-emerald-600" />
@@ -188,6 +191,8 @@ export default function DeliveryHistoryPage() {
                 </div>
               ))}
             </div>
+            <Pagination {...paging} onChange={paging.setPage} noun="deliveries" />
+            </>
           )}
         </div>
       </div>

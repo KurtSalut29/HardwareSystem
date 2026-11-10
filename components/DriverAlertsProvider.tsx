@@ -5,6 +5,7 @@ import { Truck, MapPin, Package, BellRing } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
+import { playAlert } from "@/lib/sounds";
 
 export type DeliveryAlert = {
   key: string;
@@ -51,28 +52,6 @@ function writeAcknowledged(keys: string[]) {
   } catch { /* storage full or blocked — alerts just repeat next session */ }
 }
 
-/** Short two-tone chime via WebAudio, so no audio asset has to ship. */
-function playChime() {
-  try {
-    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctor) return;
-    const ctx = new Ctor();
-    [880, 1174].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      const start = ctx.currentTime + i * 0.18;
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.25, start + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(start);
-      osc.stop(start + 0.18);
-    });
-    setTimeout(() => ctx.close().catch(() => {}), 1000);
-  } catch { /* audio blocked until the driver interacts with the page — visual alert still fires */ }
-}
 
 function pushBrowserNotification(alert: DeliveryAlert) {
   if (typeof window === "undefined" || !("Notification" in window)) return;
@@ -136,7 +115,7 @@ export default function DriverAlertsProvider({ role, children }: { role: string;
     setAlerts(pending);
 
     if (freshlyArrived.length > 0 && !firstLoadRef.current) {
-      playChime();
+      playAlert("delivery");
       freshlyArrived.forEach(pushBrowserNotification);
     }
     firstLoadRef.current = false;

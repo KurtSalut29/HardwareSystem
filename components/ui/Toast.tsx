@@ -16,7 +16,7 @@ export default function Toast({ message, variant = "success" }: { message: strin
   if (!message) return null;
   const { icon, cls } = CONFIG[variant];
   return (
-    <div className={`animate-fade-in fixed top-5 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-2.5 px-5 py-3 rounded-2xl shadow-lg text-sm font-medium border ${cls}`}>
+    <div className={`animate-fade-in fixed top-5 left-1/2 -translate-x-1/2 z-[200] w-max max-w-[calc(100vw-2rem)] sm:max-w-xl flex items-center gap-2.5 px-5 py-3 rounded-2xl shadow-lg text-sm font-medium border ${cls}`}>
       {icon} {message}
     </div>
   );

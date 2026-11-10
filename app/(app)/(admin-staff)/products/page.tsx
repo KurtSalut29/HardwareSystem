@@ -9,6 +9,7 @@ import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
+import type { ReorderPlan } from "@/lib/inventory";
 import Image from "next/image";
 
 type Category = { id: number; name: string; description: string | null };
@@ -58,13 +59,19 @@ export default function ProductsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const showToast = useToast();
 
+  const [plan, setPlan] = useState<ReorderPlan | null>(null);
+
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const [pRes, cRes] = await Promise.all([fetch("/api/products"), fetch("/api/categories")]);
+    const [pRes, cRes, planRes] = await Promise.all([fetch("/api/products"), fetch("/api/categories"), fetch("/api/inventory/reorder", { cache: "no-store" })]);
     setProducts(await pRes.json());
     setCategories(await cRes.json());
+    if (planRes.ok) setPlan(await planRes.json());
     setLoading(false);
   }, []);
+
+  // Each product's reorder point and EOQ, for the stock chip and the line under the price.
+  const planBy = new Map((plan?.rows ?? []).map((r) => [r.productId, r]));
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -214,13 +221,16 @@ export default function ProductsPage() {
                   )}
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
                     {visibleItems.map((p) => {
+                      // Low means at or below this product's own reorder point (EOQ planning).
+                      const reorder = planBy.get(p.id);
+                      const reorderAt = reorder?.reorderPoint ?? 5;
                       const stockStyle =
-                        p.stock === 0
+                        p.stock <= 0
                           ? { background: "var(--bad-soft)", color: "var(--bad)" }
-                          : p.stock <= 5
+                          : p.stock <= reorderAt
                           ? { background: "var(--warn-soft)", color: "var(--warn)" }
                           : { background: "var(--good-soft)", color: "var(--good)" };
-                      const stockLabel = p.stock === 0 ? "Out of stock" : p.stock <= 5 ? `${p.stock} left` : "In stock";
+                      const stockLabel = p.stock <= 0 ? "Out of stock" : p.stock <= reorderAt ? `${p.stock} left` : "In stock";
                       return (
                         <div
                           key={p.id}
@@ -274,6 +284,11 @@ export default function ProductsPage() {
                               <span className="font-display text-base font-extrabold text-gray-900 num">₱{p.price.toFixed(2)}</span>
                               <span className="text-[11px] text-gray-400 font-medium">/{p.unit}</span>
                             </div>
+                            {reorder && (
+                              <p className="text-[10.5px] text-gray-400 mt-1 num" title="Reorder point and Economic Order Quantity, from the last 90 days of sales">
+                                Reorder at {reorder.reorderPoint} · EOQ {reorder.eoq ?? "—"}
+                              </p>
+                            )}
                           </div>
 
                           {/* Actions — labeled, not icon-only, so they're unambiguous at a glance */}
