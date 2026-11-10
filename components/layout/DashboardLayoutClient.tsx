@@ -6,6 +6,7 @@ import Navbar from "@/components/layout/Navbar";
 import PageTransition from "@/components/layout/PageTransition";
 import DriverAlertsProvider from "@/components/DriverAlertsProvider";
 import NotificationsProvider from "@/components/NotificationsProvider";
+import ReorderReminder from "@/components/inventory/ReorderReminder";
 
 export default function DashboardLayoutClient({
   children,
@@ -21,6 +22,7 @@ export default function DashboardLayoutClient({
   return (
     <DriverAlertsProvider role={role}>
       <NotificationsProvider role={role} username={username}>
+        <ReorderReminder role={role} username={username} />
         <div className="flex h-screen bg-[#f4f6f8] dashboard-bg overflow-hidden">
           <Sidebar role={role} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
           <div className="flex flex-col flex-1 min-w-0 overflow-hidden">

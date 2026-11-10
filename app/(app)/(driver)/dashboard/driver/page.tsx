@@ -10,6 +10,7 @@ import OrderMap, { OrderPin } from "@/components/OrderMap";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 import { MapLegend } from "@/components/OrderMapWidget";
 
+import DutyStatusCard from "@/components/deliveries/DutyStatusCard";
 type OItem = { id: number; quantity: number; price: number; product: { name: string } };
 type Order = {
   id: number;
@@ -128,6 +129,8 @@ export default function DriverDashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Driver Dashboard" subtitle="Your deliveries for today, your route, and live location sharing so the store and customers can follow you." />
+
+      <DutyStatusCard refreshKey={activeOrders.length} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StatCard title="Active Deliveries" subtitle="Assigned to you and not yet delivered" value={activeOrders.length} icon={<Truck size={ICON_SIZE.lg} className="text-indigo-600" />} iconBg="bg-indigo-50" />

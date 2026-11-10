@@ -11,7 +11,8 @@ export async function POST(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const payload = await verifyToken(token);
-  if (payload?.role !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Admin: GCash QR and product photos. Staff: product photos. Drivers: proof-of-delivery photos.
+  if (!payload || !["admin", "cashier", "driver"].includes(payload.role)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const formData = await req.formData();
   const file = formData.get("file") as File | null;

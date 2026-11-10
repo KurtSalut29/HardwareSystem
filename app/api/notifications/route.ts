@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { customerLabel } from "@/lib/customer";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/auth";
 import { getReorderPlan, needsAttention } from "@/lib/inventory";
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
       prisma.order.findMany({
         where: { status: "pending" },
         orderBy: { dateTime: "desc" },
-        select: { id: true, totalAmount: true, dateTime: true, fulfillmentMode: true, customer: { select: { username: true } } },
+        select: { id: true, totalAmount: true, dateTime: true, fulfillmentMode: true, customerName: true, customer: { select: { username: true } } },
       }),
       getReorderPlan(),
     ]);
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
       key: `order-${o.id}`,
       type: "new_order",
       title: "New order",
-      message: `Order #${o.id} from ${o.customer.username} · ${peso(o.totalAmount)} · ${o.fulfillmentMode === "pickup" ? "Pickup" : "Delivery"}`,
+      message: `Order #${o.id} from ${customerLabel(o)} · ${peso(o.totalAmount)} · ${o.fulfillmentMode === "pickup" ? "Pickup" : "Delivery"}`,
       href: "/orders",
       at: o.dateTime.toISOString(),
     }));

@@ -15,7 +15,10 @@ export async function GET(req: NextRequest) {
   const where = payload.role === "cashier" ? { userId: payload.id } : {};
   const transactions = await prisma.transaction.findMany({
     where,
-    include: { items: { include: { product: true } }, user: { select: { username: true } } },
+    include: {
+      items: { include: { product: { select: { name: true, image: true, subcategory: { select: { name: true } } } } } },
+      user: { select: { username: true } },
+    },
     orderBy: { dateTime: "desc" },
   });
   // Merge productName fallback for deleted products
@@ -23,7 +26,9 @@ export async function GET(req: NextRequest) {
     ...t,
     items: t.items.map((i) => ({
       ...i,
-      product: i.product ?? { name: i.productName || "Deleted Product", image: null, subcategory: null },
+      product: i.product
+        ? { ...i.product, subcategory: i.product.subcategory?.name ?? null }
+        : { name: i.productName || "Deleted Product", image: null, subcategory: null },
     })),
   }));
   return NextResponse.json(result);

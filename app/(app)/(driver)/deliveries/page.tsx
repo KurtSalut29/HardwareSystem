@@ -1,23 +1,28 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Truck, MapPin, CheckCircle2, Navigation, Phone, Package, Banknote, Smartphone, ShieldAlert } from "lucide-react";
+import { Truck, MapPin, CheckCircle2, Navigation, Package, Banknote, Smartphone, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { haversineKm, formatDistance } from "@/lib/distance";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
-import ConfirmModal from "@/components/ui/ConfirmModal";
+import ProofOfDeliveryModal from "@/components/deliveries/ProofOfDeliveryModal";
+import DutyStatusCard from "@/components/deliveries/DutyStatusCard";
+import ContactCustomer from "@/components/deliveries/ContactCustomer";
 import EmptyState from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 
+import { customerLabel, customerPhone } from "@/lib/customer";
 type OItem = { id: number; quantity: number; price: number; product: { name: string } };
 type Order = {
   id: number;
   totalAmount: number;
   status: string;
   dateTime: string;
-  customer: { username: string; contact?: string | null };
+  customer: { username: string; contact?: string | null } | null;
+  customerName?: string | null;
+  customerContact?: string | null;
   items: OItem[];
   deliveryAddress?: string | null;
   latitude?: number | null;
@@ -60,18 +65,12 @@ export default function DeliveriesPage() {
     return () => navigator.geolocation.clearWatch(id);
   }, []);
 
-  async function handleMarkDelivered() {
+  function handleDelivered() {
     if (!deliverTarget) return;
     const id = deliverTarget.id;
-    const res = await fetch("/api/orders", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status: "delivered" }),
-    });
-    if (!res.ok) { showToast("Failed to update order.", "error"); return; }
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status: "delivered" } : o)));
     setDeliverTarget(null);
-    showToast(`Order #${id} marked as delivered!`);
+    showToast(`Order #${id} marked as delivered — photo saved as proof.`);
   }
 
   // With several deliveries at once, work the closest one first. Without a GPS
@@ -101,17 +100,19 @@ export default function DeliveriesPage() {
 
   return (
     <div className="space-y-5">
-      <ConfirmModal
-        open={!!deliverTarget}
-        onClose={() => setDeliverTarget(null)}
-        onConfirm={handleMarkDelivered}
-        title="Mark this order delivered?"
-        body={deliverTarget ? <>Order #{deliverTarget.id} for {deliverTarget.customer.username} will be marked as delivered. This can&apos;t be undone from here.</> : null}
-        variant="info"
-        confirmLabel="Yes, Mark Delivered"
-      />
+      {deliverTarget && (
+        <ProofOfDeliveryModal
+          orderId={deliverTarget.id}
+          customer={customerLabel(deliverTarget)}
+          collect={balanceOf(deliverTarget)}
+          onClose={() => setDeliverTarget(null)}
+          onDelivered={handleDelivered}
+        />
+      )}
 
       <PageHeader title="My Deliveries" subtitle="Your assigned stops, closest first." />
+
+      <DutyStatusCard refreshKey={active.length} />
 
       {/* At-a-glance run summary */}
       <div className="grid grid-cols-3 gap-3">
@@ -146,7 +147,7 @@ export default function DeliveriesPage() {
                     <div className="min-w-0">
                       <p className="font-display text-base font-extrabold text-gray-900">Order #{o.id}</p>
                       <p className="text-sm text-gray-600">
-                        {o.customer.username}
+                        {customerLabel(o)}
                         {km != null && <span className="text-gray-400"> · {formatDistance(km)} away</span>}
                       </p>
                     </div>
@@ -175,19 +176,13 @@ export default function DeliveriesPage() {
                     <MapPin size={ICON_SIZE.xs} className="shrink-0 mt-0.5 text-gray-400" />
                     <span>{o.deliveryAddress || "No address recorded — contact the store."}</span>
                   </p>
-                  {o.customer.contact && (
-                    <p className="text-xs text-gray-700 flex items-center gap-1.5">
-                      <Phone size={ICON_SIZE.xs} className="shrink-0 text-gray-400" />
-                      <a href={`tel:${o.customer.contact}`} className="font-medium hover:underline" style={{ color: "var(--brand)" }}>
-                        {o.customer.contact}
-                      </a>
-                    </p>
-                  )}
                   <p className="text-xs text-gray-500 flex items-start gap-1.5">
                     <Package size={ICON_SIZE.xs} className="shrink-0 mt-0.5 text-gray-400" />
                     <span>{o.items.map((i) => `${i.product.name} ×${i.quantity}`).join(", ")}</span>
                   </p>
                 </div>
+
+                <ContactCustomer phone={customerPhone(o)} name={customerLabel(o)} orderId={o.id} />
 
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Link

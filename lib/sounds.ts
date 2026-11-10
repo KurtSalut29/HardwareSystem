@@ -103,6 +103,15 @@ function getContext(): AudioContext | null {
   return ctx;
 }
 
+/**
+ * True when the browser is still holding sound back because nobody has clicked
+ * or typed on the page since it loaded. Alerts are silent until then.
+ */
+export function audioBlocked(): boolean {
+  const c = getContext();
+  return !c || c.state !== "running";
+}
+
 /** Call from a click or key press so later alerts are allowed to make sound. */
 export function unlockAudio() {
   const c = getContext();

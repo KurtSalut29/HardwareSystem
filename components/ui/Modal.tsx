@@ -12,7 +12,7 @@ type ModalProps = {
   title?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
   closeOnBackdrop?: boolean;
 };
 
@@ -20,6 +20,7 @@ const SIZE_CLASS: Record<string, string> = {
   sm: "max-w-sm",
   md: "max-w-md",
   lg: "max-w-lg",
+  xl: "max-w-2xl",
 };
 
 export default function Modal({ open, onClose, title, children, footer, size = "md", closeOnBackdrop = true }: ModalProps) {

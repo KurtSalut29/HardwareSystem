@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search, Truck, PackagePlus, Wallet, Boxes, Package } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Plus, Search, Truck, PackagePlus, Wallet, Boxes, Package, ChevronDown, ChevronUp, SlidersHorizontal } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
-import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import StatCard from "@/components/ui/StatCard";
 import EmptyState from "@/components/ui/EmptyState";
@@ -11,10 +10,10 @@ import Pagination, { usePagination } from "@/components/ui/Pagination";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 import ReorderPlanner from "@/components/inventory/ReorderPlanner";
+import RestockModal, { type Line, type RestockProduct, newLine, lineFromPlan } from "@/components/inventory/RestockModal";
 import type { ReorderPlan, ReorderRow } from "@/lib/inventory";
 import Image from "next/image";
 
-type Product = { id: number; name: string; unit: string; stock: number; image: string | null; category: { id: number; name: string } };
 type Restock = {
   id: number;
   quantity: number;
@@ -23,14 +22,32 @@ type Restock = {
   supplierName: string | null;
   note: string | null;
   date: string;
+  batchId: number | null;
   product: { id: number; name: string; unit: string; image: string | null };
   recordedBy: { username: string };
+  batch: { id: number; supplierName: string | null; referenceNo: string | null; note: string | null; date: string; totalCost: number } | null;
 };
 
-const EMPTY_FORM = { productId: "", quantity: "", unitCost: "", supplierName: "", note: "" };
+/** One supplier delivery and its product lines. Older single-product records are their own delivery. */
+type Delivery = {
+  key: string;
+  date: string;
+  supplierName: string | null;
+  referenceNo: string | null;
+  note: string | null;
+  recordedBy: string;
+  total: number;
+  lines: Restock[];
+};
 
-// A month's worth of purchase history is a sensible default window — mirrors
-// what an owner actually wants to see first: "what have we bought recently."
+type Adjustment = {
+  id: number; change: number; stockAfter: number; reason: string; note: string | null; date: string;
+  product: { id: number; name: string; unit: string }; recordedBy: { username: string };
+};
+
+const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const qty = (n: number) => String(Math.round(n * 100) / 100);
+
 function startOfThisMonth() {
   const d = new Date();
   return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -38,13 +55,13 @@ function startOfThisMonth() {
 
 export default function RestocksPage() {
   const [restocks, setRestocks] = useState<Restock[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<RestockProduct[]>([]);
+  const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
+  const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [modalLines, setModalLines] = useState<Line[] | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [plan, setPlan] = useState<ReorderPlan | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const showToast = useToast();
@@ -55,9 +72,12 @@ export default function RestocksPage() {
   }, []);
 
   const fetchAll = useCallback(async () => {
-    const [rRes, pRes] = await Promise.all([fetch("/api/restocks"), fetch("/api/products")]);
-    setRestocks(await rRes.json());
-    setProducts(await pRes.json());
+    const [rRes, pRes, cRes, aRes] = await Promise.all([fetch("/api/restocks"), fetch("/api/products"), fetch("/api/categories"), fetch("/api/stock-adjustments")]);
+    const list = <T,>(d: unknown) => (Array.isArray(d) ? (d as T[]) : []);
+    setRestocks(list<Restock>(rRes.ok ? await rRes.json() : []));
+    setProducts(list<RestockProduct>(pRes.ok ? await pRes.json() : []));
+    setCategories(list<{ id: number; name: string }>(cRes.ok ? await cRes.json() : []));
+    setAdjustments(list<Adjustment>(aRes.ok ? await aRes.json() : []));
     setLoading(false);
   }, []);
 
@@ -69,116 +89,92 @@ export default function RestocksPage() {
 
   const planBy = useMemo(() => new Map((plan?.rows ?? []).map((r) => [r.productId, r])), [plan]);
 
-  function openAdd() {
-    setForm(EMPTY_FORM);
-    setError("");
-    setShowModal(true);
+  // Links from Products: ?new=1 opens a blank delivery, ?product=ID one with that
+  // product on it (EOQ quantity and last cost filled in once the plan arrives).
+  const [linkHandled, setLinkHandled] = useState(false);
+  if (!linkHandled && !loading && plan && typeof window !== "undefined") {
+    setLinkHandled(true);
+    const params = new URLSearchParams(window.location.search);
+    const pid = Number(params.get("product"));
+    if (pid) {
+      const row = planBy.get(pid);
+      setModalLines([row ? lineFromPlan(row) : newLine({ productId: String(pid) })]);
+    } else if (params.get("new")) {
+      setModalLines([newLine()]);
+    }
   }
+  // Drop the link's query once it has been used, so a reload doesn't reopen the form.
+  useEffect(() => {
+    if (linkHandled && window.location.search) window.history.replaceState(null, "", "/restocks");
+  }, [linkHandled]);
 
-  // "Order" in the reorder planner: the form starts with the EOQ quantity and
-  // the last price paid, both still editable.
-  function openOrder(row: ReorderRow) {
-    setForm({
-      ...EMPTY_FORM,
-      productId: String(row.productId),
-      quantity: row.eoq != null ? String(row.eoq) : "",
-      unitCost: row.costSource === "restock" ? String(row.unitCost) : "",
-    });
-    setError("");
-    setShowModal(true);
-  }
-
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    if (!form.productId) { setError("Choose a product"); return; }
-    const quantity = Number(form.quantity);
-    const unitCost = Number(form.unitCost);
-    if (!(quantity > 0)) { setError("Enter a quantity greater than zero"); return; }
-    if (!(unitCost >= 0)) { setError("Enter a valid unit cost"); return; }
-
-    setSaving(true);
-    const res = await fetch("/api/restocks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        productId: Number(form.productId),
-        quantity,
-        unitCost,
-        supplierName: form.supplierName || undefined,
-        note: form.note || undefined,
-      }),
-    });
-    setSaving(false);
-    if (!res.ok) { setError((await res.json()).error || "Failed to record purchase"); return; }
-    setShowModal(false);
-    showToast("Purchase recorded — stock updated.");
-    fetchAll();
-    fetchPlan();
-  }
+  const deliveries = useMemo<Delivery[]>(() => {
+    const map = new Map<string, Delivery>();
+    for (const r of restocks) {
+      const key = r.batchId ? `b${r.batchId}` : `r${r.id}`;
+      let d = map.get(key);
+      if (!d) {
+        d = {
+          key,
+          date: r.batch?.date ?? r.date,
+          supplierName: r.batch ? r.batch.supplierName : r.supplierName,
+          referenceNo: r.batch?.referenceNo ?? null,
+          note: r.batch ? r.batch.note : r.note,
+          recordedBy: r.recordedBy.username,
+          total: 0,
+          lines: [],
+        };
+        map.set(key, d);
+      }
+      d.lines.push(r);
+      d.total += r.totalCost;
+    }
+    return [...map.values()].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [restocks]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return restocks;
-    return restocks.filter(
-      (r) =>
-        r.product.name.toLowerCase().includes(q) ||
-        (r.supplierName ?? "").toLowerCase().includes(q) ||
-        r.recordedBy.username.toLowerCase().includes(q)
+    if (!q) return deliveries;
+    return deliveries.filter((d) =>
+      (d.supplierName ?? "").toLowerCase().includes(q) ||
+      (d.referenceNo ?? "").toLowerCase().includes(q) ||
+      (d.note ?? "").toLowerCase().includes(q) ||
+      d.recordedBy.toLowerCase().includes(q) ||
+      d.lines.some((l) => l.product.name.toLowerCase().includes(q))
     );
-  }, [restocks, search]);
+  }, [deliveries, search]);
 
-  const paging = usePagination(filtered, 10);
+  const paging = usePagination(filtered, 10, search);
+  const adjPaging = usePagination(adjustments, 8);
 
   const monthCutoff = startOfThisMonth();
   const thisMonth = restocks.filter((r) => new Date(r.date) >= monthCutoff);
   const spentThisMonth = thisMonth.reduce((s, r) => s + r.totalCost, 0);
-  const unitsThisMonth = thisMonth.reduce((s, r) => s + r.quantity, 0);
-
-  const selectedProduct = products.find((p) => p.id === Number(form.productId));
-  const selectedPlan = planBy.get(Number(form.productId));
-  const previewTotal = form.quantity && form.unitCost ? Number(form.quantity) * Number(form.unitCost) : 0;
-
-  // Grouped by category, alphabetically both ways — a long flat list of 70+
-  // products is hard to scan; grouping mirrors how the Products page itself
-  // is organized, so the admin finds things where they expect them.
-  const productsByCategory = useMemo(() => {
-    const groups = new Map<string, Product[]>();
-    for (const p of products) {
-      const key = p.category?.name ?? "Uncategorized";
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(p);
-    }
-    return [...groups.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([category, items]) => ({
-        category,
-        items: [...items].sort((a, b) => a.name.localeCompare(b.name)),
-      }));
-  }, [products]);
+  const deliveriesThisMonth = deliveries.filter((d) => new Date(d.date) >= monthCutoff).length;
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Restocks"
-        subtitle="Record hardware purchased from suppliers — every purchase logged here updates stock automatically."
-        action={<Button onClick={openAdd} icon={<Plus size={ICON_SIZE.md} />}>Record Purchase</Button>}
+        subtitle="Record supplier deliveries. Every product on a delivery is added to stock automatically."
+        action={<Button onClick={() => setModalLines([newLine()])} icon={<Plus size={ICON_SIZE.md} />}>Record Delivery</Button>}
       />
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard title="Purchases Recorded" value={restocks.length} icon={<PackagePlus size={ICON_SIZE.lg} className="text-blue-600" />} iconBg="bg-blue-50" />
-        <StatCard title="Spent This Month" value={`₱${spentThisMonth.toFixed(2)}`} icon={<Wallet size={ICON_SIZE.lg} className="text-emerald-600" />} iconBg="bg-emerald-50" />
-        <StatCard title="Units Restocked This Month" value={unitsThisMonth} icon={<Boxes size={ICON_SIZE.lg} className="text-indigo-600" />} iconBg="bg-indigo-50" />
+        <StatCard title="Deliveries Recorded" value={deliveries.length} subtitle={`${restocks.length} product lines`} icon={<Truck size={ICON_SIZE.lg} className="text-blue-600" />} iconBg="bg-blue-50" />
+        <StatCard title="Spent This Month" value={peso(spentThisMonth)} icon={<Wallet size={ICON_SIZE.lg} className="text-emerald-600" />} iconBg="bg-emerald-50" />
+        <StatCard title="Deliveries This Month" value={deliveriesThisMonth} icon={<PackagePlus size={ICON_SIZE.lg} className="text-indigo-600" />} iconBg="bg-indigo-50" />
         <StatCard title="Products Tracked" value={products.length} icon={<Package size={ICON_SIZE.lg} className="text-purple-600" />} iconBg="bg-purple-50" />
       </div>
 
       <ReorderPlanner
         plan={plan}
         isAdmin={isAdmin}
-        onOrder={openOrder}
+        onOrder={(row: ReorderRow) => setModalLines([lineFromPlan(row)])}
         onSettingsSaved={() => { fetchPlan(); showToast("EOQ settings saved — suggestions updated."); }}
       />
 
+      {/* Purchase history, one row per delivery */}
       <div className="bg-white rounded-xl border border-gray-200">
         <div className="flex items-center gap-3 p-4 border-b border-gray-100">
           <h2 className="font-display font-extrabold text-gray-900 shrink-0 hidden md:block">Purchase history</h2>
@@ -186,12 +182,12 @@ export default function RestocksPage() {
             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               value={search}
-              onChange={(e) => { setSearch(e.target.value); paging.setPage(1); }}
-              placeholder="Search by product, supplier, or who recorded it..."
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search product, supplier, DR no., or who recorded it..."
               className="w-full pl-11 pr-4 py-3 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 transition placeholder:text-gray-400"
             />
           </div>
-          <span className="text-xs text-gray-400 ml-auto shrink-0">{filtered.length} records</span>
+          <span className="text-xs text-gray-400 ml-auto shrink-0">{filtered.length} deliveries</span>
         </div>
 
         {loading ? (
@@ -199,156 +195,137 @@ export default function RestocksPage() {
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={Truck}
-            title={restocks.length === 0 ? "No purchases recorded yet" : "No matches"}
-            description={restocks.length === 0 ? "Log a supplier delivery to start tracking where your stock comes from." : "Try a different search."}
+            title={restocks.length === 0 ? "No deliveries recorded yet" : "No matches"}
+            description={restocks.length === 0 ? "Record a supplier delivery to start tracking where your stock comes from." : "Try a different search."}
           />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Product</th>
-                  <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Supplier</th>
-                  <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Qty</th>
-                  <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Unit Cost</th>
+                  <th className="w-8" />
+                  <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Delivery</th>
+                  <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Products</th>
                   <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Total</th>
                   <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">Recorded by</th>
                   <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {paging.pageItems.map((r) => (
-                  <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                          {r.product.image ? (
-                            <Image src={r.product.image} alt={r.product.name} width={32} height={32} className="w-full h-full object-cover" />
-                          ) : (
-                            <Package size={14} className="text-gray-300" />
-                          )}
-                        </div>
-                        <span className="font-medium text-gray-900 truncate">{r.product.name}</span>
-                      </div>
+                {paging.pageItems.map((d) => {
+                  const open = expanded === d.key;
+                  return (
+                    <React.Fragment key={d.key}>
+                      <tr className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => setExpanded(open ? null : d.key)}>
+                        <td className="pl-4 text-gray-400">{open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</td>
+                        <td className="py-3 px-4">
+                          <p className="font-medium text-gray-900">{d.supplierName || "Supplier not recorded"}</p>
+                          <p className="text-[11px] text-gray-400">{d.referenceNo ? `DR ${d.referenceNo}` : d.note || "—"}</p>
+                        </td>
+                        <td className="py-3 px-4 text-gray-600">
+                          {d.lines.length === 1
+                            ? <span className="truncate">{d.lines[0].product.name} <span className="text-gray-400">× {qty(d.lines[0].quantity)} {d.lines[0].product.unit}</span></span>
+                            : <span>{d.lines.length} products <span className="text-gray-400">· {d.lines.slice(0, 2).map((l) => l.product.name).join(", ")}{d.lines.length > 2 ? "…" : ""}</span></span>}
+                        </td>
+                        <td className="py-3 px-4 text-right font-semibold text-gray-900 num whitespace-nowrap">{peso(d.total)}</td>
+                        <td className="py-3 px-4 text-gray-500 hidden sm:table-cell">{d.recordedBy}</td>
+                        <td className="py-3 px-4 text-gray-400 text-xs hidden sm:table-cell whitespace-nowrap">
+                          {new Date(d.date).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
+                        </td>
+                      </tr>
+                      {open && (
+                        <tr className="bg-gray-50/60">
+                          <td colSpan={6} className="px-4 sm:px-8 py-3">
+                            <ul className="divide-y divide-gray-100 bg-white rounded-xl border border-gray-100">
+                              {d.lines.map((l) => (
+                                <li key={l.id} className="flex items-center gap-3 px-3 py-2">
+                                  <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+                                    {l.product.image ? <Image src={l.product.image} alt="" width={32} height={32} className="w-full h-full object-cover" /> : <Package size={14} className="text-gray-300" />}
+                                  </div>
+                                  <span className="flex-1 min-w-0 truncate font-medium text-gray-900">{l.product.name}</span>
+                                  <span className="text-xs text-gray-500 num whitespace-nowrap">{qty(l.quantity)} {l.product.unit} × {peso(l.unitCost)}</span>
+                                  <span className="text-sm font-semibold text-gray-900 num w-24 text-right">{peso(l.totalCost)}</span>
+                                </li>
+                              ))}
+                            </ul>
+                            {d.note && d.referenceNo && <p className="text-[11px] text-gray-500 mt-2">Note: {d.note}</p>}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+            <Pagination {...paging} onChange={paging.setPage} noun="deliveries" />
+          </div>
+        )}
+      </div>
+
+      {/* Stock adjustments: every non-sale, non-purchase change, with its reason */}
+      <div className="bg-white rounded-xl border border-gray-200">
+        <div className="flex items-start gap-3 p-4 border-b border-gray-100">
+          <SlidersHorizontal size={ICON_SIZE.md} className="text-gray-400 mt-0.5 shrink-0" />
+          <div>
+            <h2 className="font-display font-extrabold text-gray-900">Stock adjustments</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Damaged, lost, returned, or corrected after a count. Made from Products → Stock.</p>
+          </div>
+        </div>
+        {adjustments.length === 0 ? (
+          <EmptyState icon={Boxes} title="No adjustments yet" description="Stock has only changed through sales and deliveries." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50">
+                  <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Product</th>
+                  <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Change</th>
+                  <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Reason</th>
+                  <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">By</th>
+                  <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {adjPaging.pageItems.map((a) => (
+                  <tr key={a.id}>
+                    <td className="py-2.5 px-4">
+                      <p className="font-medium text-gray-900">{a.product.name}</p>
+                      <p className="text-[11px] text-gray-400">now {qty(a.stockAfter)} {a.product.unit}</p>
                     </td>
-                    <td className="py-3 px-4 text-gray-500">{r.supplierName || "—"}</td>
-                    <td className="py-3 px-4 text-right text-gray-700">{r.quantity}{r.product.unit === "kg" ? " kg" : ""}</td>
-                    <td className="py-3 px-4 text-right text-gray-500">₱{r.unitCost.toFixed(2)}</td>
-                    <td className="py-3 px-4 text-right font-semibold text-gray-900">₱{r.totalCost.toFixed(2)}</td>
-                    <td className="py-3 px-4 text-gray-500 hidden sm:table-cell">{r.recordedBy.username}</td>
-                    <td className="py-3 px-4 text-gray-400 text-xs hidden sm:table-cell">
-                      {new Date(r.date).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
+                    <td className="py-2.5 px-4 text-right font-semibold num whitespace-nowrap" style={{ color: a.change < 0 ? "var(--bad)" : "var(--good)" }}>
+                      {a.change > 0 ? "+" : ""}{qty(a.change)} {a.product.unit}
+                    </td>
+                    <td className="py-2.5 px-4 text-gray-600">
+                      {a.reason}
+                      {a.note && <p className="text-[11px] text-gray-400">{a.note}</p>}
+                    </td>
+                    <td className="py-2.5 px-4 text-gray-500 hidden sm:table-cell">{a.recordedBy.username}</td>
+                    <td className="py-2.5 px-4 text-gray-400 text-xs hidden sm:table-cell whitespace-nowrap">
+                      {new Date(a.date).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <Pagination {...paging} onChange={paging.setPage} noun="purchases" />
+            <Pagination {...adjPaging} onChange={adjPaging.setPage} noun="adjustments" />
           </div>
         )}
       </div>
 
-      <Modal
-        open={showModal}
-        onClose={() => setShowModal(false)}
-        title="Record a Purchase"
-        footer={
-          <div className="flex gap-2">
-            <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowModal(false)}>Cancel</Button>
-            <Button type="submit" form="restock-form" className="flex-1" loading={saving}>Record Purchase</Button>
-          </div>
-        }
-      >
-        <form id="restock-form" onSubmit={handleSave} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Product</label>
-            <select
-              required
-              value={form.productId}
-              onChange={(e) => setForm((p) => ({ ...p, productId: e.target.value }))}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition bg-white"
-            >
-              <option value="">Select a product</option>
-              {productsByCategory.map(({ category, items }) => (
-                <optgroup key={category} label={category}>
-                  {items.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} — {p.stock} {p.unit} in stock</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Quantity {selectedProduct ? `(${selectedProduct.unit})` : ""}
-              </label>
-              <input
-                required type="number" step="0.01" min="0.01" value={form.quantity}
-                onChange={(e) => setForm((p) => ({ ...p, quantity: e.target.value }))}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Unit Cost (₱)</label>
-              <input
-                required type="number" step="0.01" min="0" value={form.unitCost}
-                onChange={(e) => setForm((p) => ({ ...p, unitCost: e.target.value }))}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
-                placeholder="0.00"
-              />
-            </div>
-          </div>
-
-          {selectedPlan && (
-            <div className="rounded-lg px-3 py-2 text-xs flex flex-wrap items-center gap-x-3 gap-y-1" style={{ background: "var(--bg-muted)", color: "var(--text-secondary)" }}>
-              <span>
-                {selectedPlan.eoq != null
-                  ? <>Suggested order (EOQ): <b>{selectedPlan.eoq} {selectedPlan.unit}</b></>
-                  : <>No sales yet, so there&apos;s no EOQ suggestion</>}
-              </span>
-              <span>Reorder at: <b>{selectedPlan.reorderPoint}</b></span>
-              {selectedPlan.eoq != null && form.quantity !== String(selectedPlan.eoq) && (
-                <button type="button" className="ml-auto font-semibold hover:underline" style={{ color: "var(--brand)" }}
-                  onClick={() => setForm((p) => ({ ...p, quantity: String(selectedPlan.eoq) }))}>
-                  Use {selectedPlan.eoq}
-                </button>
-              )}
-            </div>
-          )}
-
-          {previewTotal > 0 && (
-            <div className="bg-blue-50 rounded-lg px-3 py-2 flex justify-between text-sm">
-              <span className="text-blue-600">Total cost</span>
-              <span className="font-bold text-blue-700">₱{previewTotal.toFixed(2)}</span>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Supplier <span className="text-gray-400">(optional)</span></label>
-            <input
-              value={form.supplierName}
-              onChange={(e) => setForm((p) => ({ ...p, supplierName: e.target.value }))}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
-              placeholder="e.g. ABC Steel Supply"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Note <span className="text-gray-400">(optional)</span></label>
-            <input
-              value={form.note}
-              onChange={(e) => setForm((p) => ({ ...p, note: e.target.value }))}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
-              placeholder="Delivery receipt no., remarks, etc."
-            />
-          </div>
-
-          {error && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-        </form>
-      </Modal>
+      <RestockModal
+        open={modalLines !== null}
+        initialLines={modalLines ?? []}
+        products={products}
+        categories={categories}
+        planBy={planBy}
+        onClose={() => setModalLines(null)}
+        onSaved={({ lines, total }) => {
+          setModalLines(null);
+          showToast(`Delivery recorded: ${lines} product${lines === 1 ? "" : "s"}, ${peso(total)}. Stock updated.`);
+          fetchAll();
+          fetchPlan();
+        }}
+      />
     </div>
   );
 }

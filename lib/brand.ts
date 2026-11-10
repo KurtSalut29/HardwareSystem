@@ -3,6 +3,7 @@
 // not "RM Hardware Store", and not the old generic "HardwareStore".
 export const STORE_NAME = "RM Hardware";
 export const STORE_TAGLINE = "Building materials & hardware supply";
+export const STORE_ADDRESS = "Brgy. Sanggalang, Biliran, Biliran";
 
 // Earlier versions seeded the store_name setting with the generic default, and
 // that value got written back whenever the admin saved the store's map pin. Any

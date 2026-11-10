@@ -12,12 +12,14 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 import Image from "next/image";
 
+import { customerLabel } from "@/lib/customer";
+import ReceiptModal, { type ReceiptData } from "@/components/receipts/Receipt";
 type Category = { id: number; name: string };
 type Product = { id: number; name: string; category: Category; subcategory: string | null; price: number; unit: string; stock: number; image: string | null; description: string | null };
 // `orderQty` is how much of the line came from a customer's online order (stock already reserved).
 type CartItem = Product & { quantity: number; fromOrder?: boolean; orderQty?: number };
 type OItem = { id: number; quantity: number; price: number; product: { name: string }; productId: number };
-type Order = { id: number; totalAmount: number; status: string; dateTime: string; customer: { username: string }; items: OItem[] };
+type Order = { id: number; totalAmount: number; status: string; dateTime: string; customer: { username: string } | null; customerName?: string | null; customerContact?: string | null; items: OItem[] };
 type PendingEntry = { orderId: number; customer: string; quantity: number; orderItemId: number; totalItems: number };
 type ActiveTab = "products" | "orders";
 
@@ -36,6 +38,7 @@ export default function POSPage() {
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("All");
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [saleReceipt, setSaleReceipt] = useState<ReceiptData | null>(null);
   // Online orders loaded into the cart, linked to the sale at checkout.
   const [loadedOrderIds, setLoadedOrderIds] = useState<number[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -77,7 +80,7 @@ export default function POSPage() {
     const totalItems = order.items.reduce((s, i) => s + i.quantity, 0);
     for (const item of order.items) {
       const existing = productOrderMap.get(item.productId) ?? [];
-      existing.push({ orderId: order.id, customer: order.customer.username, quantity: item.quantity, orderItemId: item.id, totalItems });
+      existing.push({ orderId: order.id, customer: customerLabel(order), quantity: item.quantity, orderItemId: item.id, totalItems });
       productOrderMap.set(item.productId, existing);
     }
   }
@@ -145,6 +148,16 @@ export default function POSPage() {
     });
     setLoading(false);
     if (!res.ok) { showToast((await res.json().catch(() => ({ error: "Checkout failed" }))).error, "error"); return; }
+    const sale = await res.json();
+    // The receipt is built from what was just rung up, so it opens instantly.
+    setSaleReceipt({
+      number: `Sale #${sale.id}`,
+      date: sale.dateTime ?? new Date().toISOString(),
+      fulfillment: "Walk-in",
+      items: cart.map((i) => ({ name: i.name, quantity: i.quantity, unit: i.unit, price: i.price })),
+      total: sale.totalAmount ?? total,
+      payment: [{ label: "Payment", value: paymentMethod }],
+    });
     setCart([]); setLoadedOrderIds([]); setCartOpen(false); setShowCheckoutConfirm(false); showToast("Transaction completed successfully!"); fetchAll();
   }
 
@@ -157,7 +170,8 @@ export default function POSPage() {
 
   async function fulfillOrder(orderId: number, product: Product, quantity: number) {
     addToCart(product, quantity, true);
-    const customerName = orders.find((o) => o.id === orderId)?.customer.username;
+    const found = orders.find((o) => o.id === orderId);
+    const customerName = found ? customerLabel(found) : "customer";
     const res = await fetch("/api/orders", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: orderId, status: "confirmed" }) });
     if (!res.ok) return;
     setLoadedOrderIds((prev) => (prev.includes(orderId) ? prev : [...prev, orderId]));
@@ -175,7 +189,7 @@ export default function POSPage() {
     if (!res.ok) return;
     setLoadedOrderIds((prev) => (prev.includes(order.id) ? prev : [...prev, order.id]));
     setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, status: "confirmed" } : o));
-    showToast(`Order #${order.id} from ${order.customer.username} loaded to cart`);
+    showToast(`Order #${order.id} from ${customerLabel(order)} loaded to cart`);
     setCartOpen(true);
   }
 
@@ -407,7 +421,7 @@ export default function POSPage() {
                 <div className="flex items-center gap-2">
                   <Clock size={ICON_SIZE.sm} className="text-amber-500" />
                   <span className="font-semibold text-gray-900 text-sm">Order #{order.id}</span>
-                  <span className="text-xs text-gray-500">— {order.customer.username}</span>
+                  <span className="text-xs text-gray-500">— {customerLabel(order)}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-gray-900">₱{order.totalAmount.toFixed(2)}</span>
@@ -499,6 +513,7 @@ export default function POSPage() {
         </div>
       </Drawer>
 
+      {saleReceipt && <ReceiptModal title="Sale complete" data={saleReceipt} onClose={() => setSaleReceipt(null)} />}
       <ConfirmModal
         open={showCheckoutConfirm}
         onClose={() => setShowCheckoutConfirm(false)}

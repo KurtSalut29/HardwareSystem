@@ -22,7 +22,7 @@ export async function GET() {
         stock: true,
         image: true,
         description: true,
-        subcategory: true,
+        subcategory: { select: { name: true } },
         categoryId: true,
         category: { select: { id: true, name: true } },
       },
@@ -36,6 +36,6 @@ export async function GET() {
     // Stock is exposed only as an in/out flag — browsers don't need exact
     // on-hand quantities, and it keeps the landing page honest about
     // availability without leaking inventory levels publicly.
-    products: products.map(({ stock, ...p }) => ({ ...p, inStock: stock > 0 })),
+    products: products.map(({ stock, subcategory, ...p }) => ({ ...p, subcategory: subcategory?.name ?? null, inStock: stock > 0 })),
   });
 }

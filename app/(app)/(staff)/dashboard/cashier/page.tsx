@@ -10,8 +10,9 @@ import OrderMapWidget from "@/components/OrderMapWidget";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 import type { ReorderPlan } from "@/lib/inventory";
 
+import { customerLabel } from "@/lib/customer";
 type Transaction = { id: number; totalAmount: number; paymentMethod: string; dateTime: string; items: { quantity: number; product: { name: string } }[] };
-type Order = { id: number; totalAmount: number; status: string; dateTime: string; customer: { username: string }; items: { quantity: number; product: { name: string } }[]; fulfillmentMode?: string; driverId?: number | null };
+type Order = { id: number; totalAmount: number; status: string; dateTime: string; customer: { username: string } | null; customerName?: string | null; customerContact?: string | null; items: { quantity: number; product: { name: string } }[]; fulfillmentMode?: string; driverId?: number | null };
 
 function greeting() {
   const h = new Date().getHours();
@@ -144,10 +145,10 @@ export default function CashierDashboardPage() {
               {pendingOrders.slice(0, 4).map((o) => (
                 <div key={o.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
                   <span className="w-7 h-7 rounded-md bg-gray-100 flex items-center justify-center font-display font-bold text-[11px] text-gray-500 shrink-0">
-                    {o.customer.username.charAt(0).toUpperCase()}
+                    {customerLabel(o).charAt(0).toUpperCase()}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">Order #{o.id} — {o.customer.username}</p>
+                    <p className="text-sm font-medium text-gray-900 truncate">Order #{o.id} — {customerLabel(o)}</p>
                     <p className="text-xs text-gray-400 truncate">{o.items.map((i) => `${i.product.name} ×${i.quantity}`).join(", ")}</p>
                   </div>
                   <p className="text-sm font-bold text-gray-900 num shrink-0">₱{o.totalAmount.toFixed(2)}</p>

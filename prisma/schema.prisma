@@ -8,26 +8,44 @@ datasource db {
 }
 
 model User {
-  id            Int           @id @default(autoincrement())
-  username      String        @unique
-  password      String
-  role          String
-  contact       String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  orders        Order[]       @relation("CustomerOrders")
-  driverOrders  Order[]       @relation("DriverOrders")
-  transactions  Transaction[]
-  reports       Report[]      @relation("AuthoredReports")
-  restocks      Restock[]     @relation("RecordedRestocks")
-  handledOrders Order[]       @relation("HandledOrders")
+  id               Int               @id @default(autoincrement())
+  username         String            @unique
+  password         String
+  role             String
+  contact          String?
+  // Drivers only: false while off duty (break, day off), so no delivery is assigned to them.
+  onDuty           Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  orders           Order[]           @relation("CustomerOrders")
+  driverOrders     Order[]           @relation("DriverOrders")
+  transactions     Transaction[]
+  reports          Report[]          @relation("AuthoredReports")
+  restocks         Restock[]         @relation("RecordedRestocks")
+  handledOrders    Order[]           @relation("HandledOrders")
+  restockBatches   RestockBatch[]    @relation("RecordedRestockBatches")
+  stockAdjustments StockAdjustment[] @relation("RecordedStockAdjustments")
 }
 
 model Category {
-  id          Int       @id @default(autoincrement())
-  name        String    @unique
-  description String?
-  products    Product[]
+  id            Int           @id @default(autoincrement())
+  name          String        @unique
+  description   String?
+  products      Product[]
+  subcategories Subcategory[]
+}
+
+// A managed sub-group inside a category (e.g. Fasteners → Nails, Screws). Kept
+// as its own table so a name is typed once and picked from a list after that,
+// instead of free text that drifts ("Nails", "nails", "Nail").
+model Subcategory {
+  id         Int       @id @default(autoincrement())
+  name       String
+  categoryId Int
+  category   Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  products   Product[]
+
+  @@unique([categoryId, name])
 }
 
 model Product {
@@ -35,7 +53,8 @@ model Product {
   name             String
   categoryId       Int
   category         Category          @relation(fields: [categoryId], references: [id])
-  subcategory      String?
+  subcategoryId    Int?
+  subcategory      Subcategory?      @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
   price            Float
   unit             String            @default("pc")
   stock            Float             @default(0)
@@ -45,6 +64,7 @@ model Product {
   orderItems       OrderItem[]
   transactionItems TransactionItem[]
   restocks         Restock[]
+  stockAdjustments StockAdjustment[]
 }
 
 model Transaction {
@@ -54,6 +74,9 @@ model Transaction {
   paymentMethod String
   dateTime      DateTime          @default(now())
   type          String
+  // Delivery charge included in totalAmount, kept apart so reports can tell
+  // product sales from delivery income.
+  deliveryFee   Float             @default(0)
   user          User              @relation(fields: [userId], references: [id])
   items         TransactionItem[]
   // Online orders this sale settles: the one an "Online" sale was created for on
@@ -74,9 +97,17 @@ model TransactionItem {
 
 model Order {
   id                      Int          @id @default(autoincrement())
-  customerId              Int
+  // Null for an order staff took by phone or at the counter for someone without
+  // an account; customerName / customerContact hold who it is for.
+  customerId              Int?
+  customerName            String?
+  customerContact         String?
   status                  String       @default("pending")
+  // Products plus deliveryFee: what the customer pays.
+  // Why the admin changed the computed delivery fee on this order, if they did.
+  deliveryFeeNote         String?
   totalAmount             Float
+  deliveryFee             Float        @default(0)
   dateTime                DateTime     @default(now())
   fulfillmentMode         String       @default("delivery")
   paymentMethod           String       @default("Cash")
@@ -101,7 +132,10 @@ model Order {
   // The sale this order was recorded as. Set once, so an order is never counted
   // in the reports twice — whether it was rung up at the POS or delivered.
   transactionId           Int?
-  customer                User         @relation("CustomerOrders", fields: [customerId], references: [id])
+  // Proof of delivery: the driver's photo at handover, and when it happened.
+  proofImage              String?
+  deliveredAt             DateTime?
+  customer                User?        @relation("CustomerOrders", fields: [customerId], references: [id], onDelete: Restrict)
   driver                  User?        @relation("DriverOrders", fields: [driverId], references: [id])
   handledBy               User?        @relation("HandledOrders", fields: [handledById], references: [id], onDelete: SetNull)
   transaction             Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
@@ -127,17 +161,56 @@ model OrderItem {
 // on the product form) leaves no record of where the stock came from or what
 // it cost.
 model Restock {
-  id           Int      @id @default(autoincrement())
+  id           Int           @id @default(autoincrement())
   productId    Int
   quantity     Float
   unitCost     Float
   totalCost    Float
   supplierName String?
   note         String?
+  date         DateTime      @default(now())
+  recordedById Int
+  // The supplier delivery this line came in with. Null for purchases recorded
+  // one product at a time before deliveries were grouped.
+  batchId      Int?
+  product      Product       @relation(fields: [productId], references: [id])
+  recordedBy   User          @relation("RecordedRestocks", fields: [recordedById], references: [id])
+  batch        RestockBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@index([productId, date])
+  @@index([batchId])
+}
+
+// One delivery from a supplier — usually one delivery receipt (DR) with many
+// products on it. Each product on it is a Restock line.
+model RestockBatch {
+  id           Int       @id @default(autoincrement())
+  supplierName String?
+  referenceNo  String?
+  note         String?
+  date         DateTime  @default(now())
+  totalCost    Float
+  recordedById Int
+  recordedBy   User      @relation("RecordedRestockBatches", fields: [recordedById], references: [id])
+  items        Restock[]
+
+  @@index([date])
+}
+
+// A stock change that isn't a sale or a purchase: damaged, lost, returned, or a
+// correction after a physical count. Recorded with a reason so every change to
+// stock has a trail.
+model StockAdjustment {
+  id           Int      @id @default(autoincrement())
+  productId    Int
+  change       Float
+  stockAfter   Float
+  reason       String
+  note         String?
   date         DateTime @default(now())
   recordedById Int
-  product      Product  @relation(fields: [productId], references: [id])
-  recordedBy   User     @relation("RecordedRestocks", fields: [recordedById], references: [id])
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  recordedBy   User     @relation("RecordedStockAdjustments", fields: [recordedById], references: [id])
 
   @@index([productId, date])
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/auth";
+import { flattenProduct, productInclude } from "@/lib/catalog";
 
 async function getRole(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
@@ -19,30 +20,36 @@ export async function GET(req: NextRequest) {
   if (!role) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const products = await prisma.product.findMany({
     orderBy: { name: "asc" },
-    include: { category: true },
+    include: productInclude,
   });
-  return NextResponse.json(products);
+  return NextResponse.json(products.map(flattenProduct));
 }
 
 export async function POST(req: NextRequest) {
   if (!canManage(await getRole(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const { name, categoryId, subcategory, price, unit, stock, image, description } = await req.json();
+    const { name, categoryId, subcategoryId, price, unit, stock, image, description } = await req.json();
     if (!name || !categoryId || price == null) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+    const sub = await checkSubcategory(subcategoryId, Number(categoryId));
+    if (sub === false) return NextResponse.json({ error: "That subcategory belongs to another category" }, { status: 400 });
+    const initialStock = Number(stock) || 0;
+    if (initialStock < 0) return NextResponse.json({ error: "Opening stock can't be negative" }, { status: 400 });
     const product = await prisma.product.create({
       data: {
         name,
         categoryId: Number(categoryId),
-        subcategory: subcategory || null,
+        subcategoryId: sub,
         price: Number(price),
         unit: unit || "pc",
-        stock: Number(stock) || 0,
+        // Opening stock is set once, when the product is added. After that,
+        // stock only changes through purchases, sales and recorded adjustments.
+        stock: initialStock,
         image: image || null,
         description: description || null,
       },
-      include: { category: true },
+      include: productInclude,
     });
-    return NextResponse.json(product, { status: 201 });
+    return NextResponse.json(flattenProduct(product), { status: 201 });
   } catch {
     return NextResponse.json({ error: "Failed to create product" }, { status: 500 });
   }
@@ -51,27 +58,37 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   if (!canManage(await getRole(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const { id, name, categoryId, subcategory, price, unit, stock, image, description } = await req.json();
+    // Stock is deliberately not editable here: use a purchase (Restocks) or a
+    // stock adjustment, so every change has a record.
+    const { id, name, categoryId, subcategoryId, price, unit, image, description } = await req.json();
     if (!id) return NextResponse.json({ error: "Missing product ID" }, { status: 400 });
+    const sub = await checkSubcategory(subcategoryId, Number(categoryId));
+    if (sub === false) return NextResponse.json({ error: "That subcategory belongs to another category" }, { status: 400 });
     const product = await prisma.product.update({
       where: { id: Number(id) },
       data: {
         name,
         categoryId: Number(categoryId),
-        subcategory: subcategory || null,
+        subcategoryId: sub,
         price: Number(price),
         unit: unit || "pc",
-        stock: Number(stock),
         image: image || null,
         description: description || null,
       },
-      include: { category: true },
+      include: productInclude,
     });
-    return NextResponse.json(product);
+    return NextResponse.json(flattenProduct(product));
   } catch (e) {
     console.error("PUT /api/products error:", e);
     return NextResponse.json({ error: "Failed to update product" }, { status: 500 });
   }
+}
+
+/** The subcategory id to save, null for none, or false if it isn't in the product's category. */
+async function checkSubcategory(raw: unknown, categoryId: number): Promise<number | null | false> {
+  if (raw == null || raw === "") return null;
+  const sub = await prisma.subcategory.findUnique({ where: { id: Number(raw) } });
+  return sub && sub.categoryId === categoryId ? sub.id : false;
 }
 
 export async function DELETE(req: NextRequest) {

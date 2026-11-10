@@ -13,8 +13,15 @@ export async function GET(req: NextRequest) {
   const payload = await getPayload(req);
   if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const storeLat = parseFloat(process.env.STORE_LAT ?? "11.4573");
-  const storeLng = parseFloat(process.env.STORE_LNG ?? "124.5638");
+  // Distances are measured from the store pin the admin saved (the same one the
+  // map draws), falling back to the same default the store-location API uses.
+  const pinRows = await prisma.setting.findMany({ where: { key: { in: ["store_lat", "store_lng"] } } });
+  const pin = (key: string) => {
+    const n = parseFloat(pinRows.find((r) => r.key === key)?.value ?? "");
+    return Number.isFinite(n) ? n : null;
+  };
+  const storeLat = pin("store_lat") ?? parseFloat(process.env.STORE_LAT ?? "11.4573");
+  const storeLng = pin("store_lng") ?? parseFloat(process.env.STORE_LNG ?? "124.5638");
 
   const baseWhere = {
     latitude: { not: null },

@@ -7,13 +7,14 @@ import EmptyState from "@/components/ui/EmptyState";
 import Pagination, { usePagination } from "@/components/ui/Pagination";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 
+import { customerLabel } from "@/lib/customer";
 type OItem = { id: number; quantity: number; product: { name: string } };
 type Order = {
   id: number;
   totalAmount: number;
   status: string;
   dateTime: string;
-  customer: { username: string };
+  customer: { username: string } | null; customerName?: string | null; customerContact?: string | null;
   items: OItem[];
   deliveryAddress?: string | null;
 };
@@ -180,7 +181,7 @@ export default function DeliveryHistoryPage() {
                     <CheckCheck size={ICON_SIZE.sm} className="text-emerald-600" />
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900">Order #{o.id} — {o.customer.username}</p>
+                    <p className="text-sm font-semibold text-gray-900">Order #{o.id} — {customerLabel(o)}</p>
                     {o.deliveryAddress && <p className="text-xs text-gray-500 truncate">{o.deliveryAddress}</p>}
                     <p className="text-[11px] text-gray-400 truncate">{o.items.map((i) => `${i.product.name} ×${i.quantity}`).join(", ")}</p>
                   </div>

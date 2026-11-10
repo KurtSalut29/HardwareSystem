@@ -3,7 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ui/ToastProvider";
 import type { ToastVariant } from "@/components/ui/Toast";
-import { loudestOf, playAlert, unlockAudio } from "@/lib/sounds";
+import { audioBlocked, isSoundOn, loudestOf, playAlert, unlockAudio } from "@/lib/sounds";
+import { showDesktop } from "@/lib/desktopNotify";
 import { SOUND_FOR, type AppNotification, type NotificationType } from "@/lib/notifications";
 
 type NotificationsValue = {
@@ -99,10 +100,15 @@ export default function NotificationsProvider({ role, username, children }: { ro
     const sound = loudestOf(fresh.map((n) => SOUND_FOR[n.type]));
     if (sound) playAlert(sound);
     const first = fresh[0];
+    // The browser keeps a page silent until someone clicks on it; say so, or
+    // staff think the alert sound is broken.
+    const muted = sound && isSoundOn() && audioBlocked() ? " (Sound is blocked until you click anywhere on the page.)" : "";
     showToast(
-      fresh.length === 1 ? `${first.title}: ${first.message}` : `${fresh.length} new notifications`,
+      (fresh.length === 1 ? `${first.title}: ${first.message}` : `${fresh.length} new notifications`) + muted,
       TOAST_VARIANT[first.type],
     );
+    // Also pop up from the system tray when this tab is in the background.
+    for (const n of fresh.slice(0, 3)) showDesktop({ title: n.title, body: n.message, tag: n.key, href: n.href });
   }, [showToast]);
 
   useEffect(() => {

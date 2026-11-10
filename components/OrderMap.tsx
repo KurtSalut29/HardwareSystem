@@ -1,6 +1,6 @@
 import dynamic from 'next/dynamic';
 
-export type { OrderPin } from './OrderMapInner';
+export type { OrderPin, MapFocus } from './OrderMapInner';
 
 const OrderMap = dynamic(() => import('./OrderMapInner'), {
   ssr: false,

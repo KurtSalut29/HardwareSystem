@@ -2,7 +2,7 @@
 
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, useMap } from 'react-leaflet';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { BILIRAN_CENTER, BILIRAN_LEAFLET_BOUNDS } from '@/lib/biliran';
@@ -70,6 +70,29 @@ const driverIcon = L.divIcon({
   popupAnchor: [0, -15],
 });
 
+const isFinished = (status: string) => status === 'delivered' || status === 'cancelled';
+
+function orderPopup(pin: OrderPin) {
+  return (
+    <div className="text-sm space-y-1 min-w-[160px]">
+      <p><strong>Order #{pin.id}</strong></p>
+      <p className="flex items-center gap-1">
+        <span style={{ background: STATUS_COLORS[pin.status] ?? STATUS_COLORS.confirmed }}
+          className="inline-block w-2 h-2 rounded-full shrink-0" />
+        <span className="capitalize">{pin.status.replace(/_/g, ' ')}</span>
+      </p>
+      {pin.deliveryAddress && <p className="text-xs text-gray-500 flex items-start gap-1"><MapPin size={12} className="shrink-0 mt-0.5" /> {pin.deliveryAddress}</p>}
+      {pin.customerUsername && <p className="text-xs text-gray-500 flex items-center gap-1"><User size={12} className="shrink-0" /> {pin.customerUsername}</p>}
+      {pin.distanceLabel && (
+        <div className="mt-1 pt-1 border-t border-gray-100 text-xs text-gray-600 space-y-0.5">
+          <p className="flex items-center gap-1"><Route size={12} className="shrink-0" /> {pin.distanceLabel} from store</p>
+          <p className="flex items-center gap-1"><Clock size={12} className="shrink-0" /> {pin.durationLabel} travel time</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function timeAgo(iso?: string | null): string | null {
   if (!iso) return null;
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
@@ -107,7 +130,20 @@ type OrderMapProps = {
   /** Where each route line starts. 'store' is the dispatch view; 'driver' draws
    *  from the driver's own live position, which is what they need while driving. */
   routeFrom?: 'store' | 'driver';
+  /** Fly to this point (e.g. "Show on map" for a driver). `key` changes on every request. */
+  focus?: MapFocus | null;
 };
+
+export type MapFocus = { lat: number; lng: number; key: number; label: string; detail?: string };
+
+/** Pans the map to the requested point and opens its popup. */
+function FlyTo({ focus }: { focus: MapFocus }) {
+  const map = useMap();
+  useEffect(() => {
+    map.flyTo([focus.lat, focus.lng], Math.max(map.getZoom(), 15), { duration: 0.8 });
+  }, [map, focus.key, focus.lat, focus.lng]);
+  return null;
+}
 
 const BILIRAN_ZOOM = 11;
 
@@ -137,7 +173,7 @@ async function fetchRoute(
 
 export default function OrderMapInner({
   pins, loading, height = '350px', linkToOrders,
-  storeLat, storeLng, storeName = STORE_NAME, routeFrom = 'store'
+  storeLat, storeLng, storeName = STORE_NAME, routeFrom = 'store', focus
 }: OrderMapProps) {
   // Road routes keyed by pin id. `key` records which origin the line was drawn
   // from, so a driver route is refetched once they've actually moved.
@@ -248,26 +284,22 @@ export default function OrderMapInner({
           />
         );
       })}
-      {pins.map((pin) => (
-        <Marker key={pin.id} position={[pin.latitude, pin.longitude]} icon={createPinIcon(pin.status)}>
-          <Popup>
-            <div className="text-sm space-y-1 min-w-[160px]">
-              <p><strong>Order #{pin.id}</strong></p>
-              <p className="flex items-center gap-1">
-                <span style={{ background: STATUS_COLORS[pin.status] ?? STATUS_COLORS.confirmed }}
-                  className="inline-block w-2 h-2 rounded-full shrink-0" />
-                <span className="capitalize">{pin.status.replace(/_/g, ' ')}</span>
-              </p>
-              {pin.deliveryAddress && <p className="text-xs text-gray-500 flex items-start gap-1"><MapPin size={12} className="shrink-0 mt-0.5" /> {pin.deliveryAddress}</p>}
-              {pin.customerUsername && <p className="text-xs text-gray-500 flex items-center gap-1"><User size={12} className="shrink-0" /> {pin.customerUsername}</p>}
-              {pin.distanceLabel && (
-                <div className="mt-1 pt-1 border-t border-gray-100 text-xs text-gray-600 space-y-0.5">
-                  <p className="flex items-center gap-1"><Route size={12} className="shrink-0" /> {pin.distanceLabel} from store</p>
-                  <p className="flex items-center gap-1"><Clock size={12} className="shrink-0" /> {pin.durationLabel} travel time</p>
-                </div>
-              )}
-            </div>
-          </Popup>
+      {/* Finished orders (delivered, cancelled) are small dots: the delivery history
+          stays visible without burying the orders that still need attention. */}
+      {pins.filter((pin) => isFinished(pin.status)).map((pin) => (
+        <CircleMarker
+          key={pin.id}
+          center={[pin.latitude, pin.longitude]}
+          radius={5}
+          pathOptions={{ color: 'white', weight: 1.5, fillColor: STATUS_COLORS[pin.status] ?? STATUS_COLORS.confirmed, fillOpacity: 0.9 }}
+        >
+          <Popup>{orderPopup(pin)}</Popup>
+        </CircleMarker>
+      ))}
+      {/* Active orders are full pins, drawn on top. */}
+      {pins.filter((pin) => !isFinished(pin.status)).map((pin) => (
+        <Marker key={pin.id} position={[pin.latitude, pin.longitude]} icon={createPinIcon(pin.status)} zIndexOffset={500}>
+          <Popup>{orderPopup(pin)}</Popup>
         </Marker>
       ))}
       {pins
@@ -285,6 +317,20 @@ export default function OrderMapInner({
             </Popup>
           </Marker>
         ))}
+      {focus && (
+        <>
+          <FlyTo focus={focus} />
+          <Marker key={`focus-${focus.key}`} position={[focus.lat, focus.lng]} icon={driverIcon} zIndexOffset={1000}
+            eventHandlers={{ add: (e) => setTimeout(() => e.target.openPopup(), 900) }}>
+            <Popup>
+              <div className="text-sm space-y-1 min-w-[140px]">
+                <p className="flex items-center gap-1.5"><Truck size={14} className="shrink-0" /><strong>{focus.label}</strong></p>
+                {focus.detail && <p className="text-xs text-gray-500">{focus.detail}</p>}
+              </div>
+            </Popup>
+          </Marker>
+        </>
+      )}
     </>
   );
 

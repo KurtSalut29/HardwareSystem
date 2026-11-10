@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { Search, ChevronDown, ChevronUp, CheckCircle, XCircle, Clock, CheckCheck, Receipt, Printer, MapPin, ChevronLeft, ChevronRight, Truck, Ban, Smartphone, ShieldCheck, ShieldAlert, Upload, Calendar as CalendarIcon, AlertTriangle, Store, Route, CreditCard } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Search, ChevronDown, ChevronUp, CheckCircle, XCircle, Clock, CheckCheck, Receipt, Plus, Camera, Phone, MapPin, ChevronLeft, ChevronRight, Truck, Ban, Smartphone, ShieldCheck, ShieldAlert, Upload, Calendar as CalendarIcon, AlertTriangle, Store, Route, CreditCard, X } from "lucide-react";
 import Image from "next/image";
 import PageHeader from "@/components/ui/PageHeader";
 import Modal from "@/components/ui/Modal";
@@ -10,19 +10,30 @@ import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
 import Pagination from "@/components/ui/Pagination";
 import { useToast } from "@/components/ui/ToastProvider";
-import OrderMap, { OrderPin } from "@/components/OrderMap";
+import OrderMap, { OrderPin, MapFocus } from "@/components/OrderMap";
 import LocationPicker, { PickedLocation } from "@/components/LocationPicker";
 import { ORDER_STATUSES } from "@/lib/orderStatus";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 import { STORE_NAME } from "@/lib/brand";
+import ReceiptModal from "@/components/receipts/Receipt";
+import NewOrderModal from "@/components/orders/NewOrderModal";
+import DeliveryFeeSettingsModal from "@/components/orders/DeliveryFeeSettingsModal";
+import { orderReceipt } from "@/lib/receipts";
+import { customerLabel, customerPhone, isWalkIn } from "@/lib/customer";
+import OrderStatusModal from "@/components/orders/OrderStatusModal";
+import DriversPanel, { DriverStatusChip, type DriverInfo } from "@/components/orders/DriversPanel";
+import { driverOption, canTakeOrder } from "@/lib/driverStatus";
+import { nextStepText } from "@/lib/orderFlow";
 
-type OItem = { id: number; quantity: number; price: number; product: { name: string } };
+type OItem = { id: number; quantity: number; price: number; product: { name: string; unit?: string } };
 type Order = {
   id: number;
   totalAmount: number;
   status: string;
   dateTime: string;
-  customer: { username: string };
+  customer: { username: string; contact?: string | null } | null;
+  customerName?: string | null;
+  customerContact?: string | null;
   items: OItem[];
   deliveryAddress?: string | null;
   latitude?: number | null;
@@ -35,6 +46,13 @@ type Order = {
   gcashReference?: string | null;
   paymentVerified?: boolean;
   amountPaid?: number;
+  assignedAt?: string | null;
+  transaction?: { dateTime: string } | null;
+  deliveryFee?: number;
+  deliveryFeeNote?: string | null;
+  transactionId?: number | null;
+  proofImage?: string | null;
+  deliveredAt?: string | null;
 };
 
 type StorePayment = { gcashName: string | null; gcashNumber: string | null; gcashQr: string | null };
@@ -71,7 +89,7 @@ function SetLocationModal({ order, onClose, onSaved }: { order: Order; onClose: 
   return (
     <Modal open onClose={onClose} title={`Delivery Location — Order #${order.id}`}>
       <div className="space-y-4">
-        <p className="text-xs text-gray-400 -mt-2">Customer: {order.customer.username}</p>
+        <p className="text-xs text-gray-400 -mt-2">Customer: {customerLabel(order)}</p>
         <LocationPicker value={pickedLocation} onChange={setPickedLocation} />
         {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
         <Button onClick={handleSave} loading={saving} disabled={!pickedLocation} className="w-full">
@@ -218,128 +236,6 @@ function GcashSettingsModal({ current, onClose, onSaved }: {
   );
 }
 
-function ReceiptModal({ order, onClose }: { order: Order; onClose: () => void }) {
-  return (
-    <Modal open onClose={onClose} title="Order Receipt" size="sm">
-      <div>
-        {/* Receipt Body */}
-        <div id="receipt-print" className="space-y-4">
-          {/* Store */}
-          <div className="text-center">
-            <p className="font-bold text-gray-900 text-base">{STORE_NAME}</p>
-            <p className="text-xs text-gray-400 mt-0.5">Official Receipt</p>
-          </div>
-
-          <div className="border-t border-dashed border-gray-200" />
-
-          {/* Order Info */}
-          <div className="space-y-1 text-xs">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Order #</span>
-              <span className="font-semibold text-gray-800">{order.id}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Customer</span>
-              <span className="font-semibold text-gray-800">{order.customer.username}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Date</span>
-              <span className="font-semibold text-gray-800">{new Date(order.dateTime).toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Status</span>
-              <span className={`font-semibold ${order.status === "delivered" ? "text-green-600" : "text-blue-600"}`}>
-                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-              </span>
-            </div>
-          </div>
-
-          <div className="border-t border-dashed border-gray-200" />
-
-          {/* Items */}
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-gray-700">Items</p>
-            {order.items.map((i) => (
-              <div key={i.id} className="flex justify-between text-xs">
-                <span className="text-gray-600">{i.product.name} <span className="text-gray-400">× {i.quantity}</span></span>
-                <span className="font-medium text-gray-800">₱{(i.price * i.quantity).toFixed(2)}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="border-t border-dashed border-gray-200" />
-
-          {/* Total */}
-          <div className="flex justify-between items-center">
-            <span className="font-bold text-gray-900">Total</span>
-            <span className="font-bold text-lg text-gray-900">₱{order.totalAmount.toFixed(2)}</span>
-          </div>
-
-          {/* Payment */}
-          <div className="space-y-1 text-xs">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Paid via</span>
-              <span className="font-semibold text-gray-800">{order.paymentMethod ?? "Cash"}</span>
-            </div>
-            {order.paymentMethod === "GCash" && (
-              <>
-                {order.gcashNumber && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">GCash No.</span>
-                    <span className="font-semibold text-gray-800">{order.gcashNumber}</span>
-                  </div>
-                )}
-                {order.gcashReference && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Ref. No.</span>
-                    <span className="font-semibold text-gray-800">{order.gcashReference}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Payment</span>
-                  <span className={`font-semibold ${order.paymentVerified ? "text-green-600" : "text-yellow-600"}`}>
-                    {order.paymentVerified ? "Verified" : "Unverified"}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Amount paid</span>
-                  <span className="font-semibold text-gray-800">₱{(order.amountPaid ?? 0).toFixed(2)}</span>
-                </div>
-                {order.totalAmount - (order.amountPaid ?? 0) > 0.005 && (
-                  <div className="flex justify-between">
-                    <span className="font-bold" style={{ color: "var(--warn)" }}>Balance due</span>
-                    <span className="font-bold" style={{ color: "var(--warn)" }}>
-                      ₱{(order.totalAmount - (order.amountPaid ?? 0)).toFixed(2)}
-                    </span>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          <p className="text-center text-[10px] text-gray-400 pt-1">Thank you for your purchase!</p>
-        </div>
-
-        {/* Print */}
-        <Button
-          onClick={() => {
-            const content = document.getElementById("receipt-print")?.innerHTML ?? "";
-            const win = window.open("", "_blank", "width=400,height=600");
-            if (!win) return;
-            win.document.write(`<html><head><title>Receipt</title><style>body{font-family:sans-serif;padding:20px;max-width:320px;margin:auto}hr{border:none;border-top:1px dashed #ccc;margin:12px 0}.flex{display:flex;justify-content:space-between;font-size:12px;margin:4px 0}.bold{font-weight:700}.center{text-align:center}.total{font-size:16px;font-weight:700}</style></head><body>${content}</body></html>`);
-            win.document.close();
-            win.print();
-          }}
-          icon={<Printer size={ICON_SIZE.sm} />}
-          className="w-full mt-4"
-        >
-          Print Receipt
-        </Button>
-      </div>
-    </Modal>
-  );
-}
-
 const STATUSES = [...ORDER_STATUSES];
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; bg: string; text: string; border: string }> = {
@@ -368,7 +264,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 
-type Driver = { id: number; username: string; activeCount: number };
+type Driver = DriverInfo;
 
 /** Driver picker sized for a table cell. Lives in the fixed "Next Step" column,
  *  so assigning is always in the same place on every row that needs it. */
@@ -392,11 +288,14 @@ function AssignDriverSelect({ drivers, onAssign, reassign = false }: {
         }`}
       >
         <option value="">{reassign ? "Reassign" : "Assign Driver"}</option>
-        {drivers.map((d) => (
-          <option key={d.id} value={d.id} className="bg-white text-gray-900 font-medium">
-            {d.username} ({d.activeCount} active)
-          </option>
-        ))}
+        {drivers.map((d) => {
+          const o = driverOption(d);
+          return (
+            <option key={d.id} value={d.id} disabled={o.disabled} className="bg-white text-gray-900 font-medium">
+              {o.label}
+            </option>
+          );
+        })}
       </select>
       <Truck size={11} className={`absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none ${reassign ? "text-gray-400" : "text-white"}`} />
       <ChevronDown size={11} className={`absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none ${reassign ? "text-gray-400" : "text-white/80"}`} />
@@ -425,10 +324,16 @@ function NextStepCell({ order, drivers, canAssign, onStatus, onAssign }: {
   }
   if (order.status === "confirmed" && !isPickup && !order.driverId) {
     if (!canAssign) {
+      const free = drivers.filter((d) => canTakeOrder(d.availability ?? "available")).length;
       return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg whitespace-nowrap"
-          style={{ background: "var(--warn-soft)", color: "var(--warn)" }}>
-          <Truck size={11} /> Staff to assign
+        <span className="inline-flex flex-col items-end gap-0.5">
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg whitespace-nowrap"
+            style={{ background: "var(--warn-soft)", color: "var(--warn)" }}>
+            <Truck size={11} /> Staff to assign
+          </span>
+          <span className="text-[10.5px] whitespace-nowrap" style={{ color: free ? "var(--good)" : "var(--text-muted)" }}>
+            {drivers.length === 0 ? "No drivers yet" : free ? `${free} driver${free === 1 ? "" : "s"} free` : "All drivers busy"}
+          </span>
         </span>
       );
     }
@@ -481,8 +386,18 @@ export default function OrdersPage() {
   const [showMap, setShowMap] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [drivers, setDrivers] = useState<{ id: number; username: string; activeCount: number }[]>([]);
+  const [drivers, setDrivers] = useState<DriverInfo[]>([]);
+  /** The driver list failed to load, so an empty list doesn't mean "no drivers". */
+  const [driversError, setDriversError] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const [mapFocus, setMapFocus] = useState<MapFocus | null>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const staffRef = useRef(false);
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
+  const [statusOrderId, setStatusOrderId] = useState<number | null>(null);
+  const [showNewOrder, setShowNewOrder] = useState(false);
+  const [showFeeEditor, setShowFeeEditor] = useState(false);
+  const [proofView, setProofView] = useState<Order | null>(null);
 
   const today = new Date();
   const [calYear, setCalYear] = useState(today.getFullYear());
@@ -490,6 +405,25 @@ export default function OrdersPage() {
   const [selectedKey, setSelectedKey] = useState<string | null>(null); // null = show all
 
   const PER_PAGE = 10;
+
+  async function refreshDrivers() {
+    try {
+      const res = await fetch("/api/drivers");
+      if (res.ok) { setDrivers(await res.json()); setDriversError(false); }
+      else setDriversError(true);
+    } catch { setDriversError(true); /* keep the last list */ }
+  }
+
+  function showDriverOnMap(d: DriverInfo) {
+    if (!d.lastLocation) return;
+    const onRoad = d.activeOrders?.map((o) => `#${o.id}`).join(", ");
+    setShowMap(true);
+    setMapFocus({
+      lat: d.lastLocation.lat, lng: d.lastLocation.lng, key: Date.now(), label: d.username,
+      detail: onRoad ? `Delivering ${onRoad}` : "Last known location",
+    });
+    requestAnimationFrame(() => mapRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
 
   async function refreshPins() {
     setPinsLoading(true);
@@ -511,8 +445,8 @@ export default function OrdersPage() {
       setRole(me.role ?? "");
       setLoading(false);
       if (me.role === "admin" || me.role === "cashier") {
-        const dRes = await fetch("/api/drivers");
-        if (dRes.ok) setDrivers(await dRes.json());
+        staffRef.current = true;
+        refreshDrivers();
       }
       try {
         const locData = locRes.ok ? await locRes.json() : [];
@@ -530,6 +464,8 @@ export default function OrdersPage() {
 
     // Silent background poll so driver movement shows up without a loading flicker
     const interval = setInterval(async () => {
+      setNow(Date.now());
+      if (staffRef.current) refreshDrivers();
       try {
         const res = await fetch("/api/orders/locations");
         if (res.ok) {
@@ -556,6 +492,7 @@ export default function OrdersPage() {
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
     // Sync pin color immediately — no refresh needed
     setPins((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
+    if (isStaff) refreshDrivers();
     notifyStatus(status);
   }
 
@@ -572,13 +509,31 @@ export default function OrdersPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, driverId }),
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      showToast((await res.json().catch(() => ({}))).error ?? "Couldn't assign the driver.", "error");
+      refreshDrivers();
+      return;
+    }
     const updated = await res.json();
     const driver = driverId ? drivers.find((d) => d.id === driverId) ?? null : null;
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, driverId: updated.driverId, driver, status: updated.status } : o)));
     setPins((prev) => prev.map((p) => (p.id === id ? { ...p, status: updated.status } : p)));
+    refreshDrivers();
     if (driver) showToast(`${driver.username} was notified about Order #${id}.`, "success");
     else notifyStatus(updated.status);
+  }
+
+  /** Admin: change one order's delivery fee, with the reason shown on the order. */
+  async function adjustFee(id: number, fee: number, note: string) {
+    const res = await fetch("/api/orders", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, deliveryFee: fee, deliveryFeeNote: note }),
+    });
+    if (!res.ok) { showToast((await res.json().catch(() => ({}))).error ?? "Couldn't change the fee.", "error"); return false; }
+    const u = await res.json();
+    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, deliveryFee: u.deliveryFee, deliveryFeeNote: u.deliveryFeeNote, totalAmount: u.totalAmount, amountPaid: u.amountPaid } : o)));
+    showToast(`Order #${id}: delivery fee is now ₱${Number(u.deliveryFee).toFixed(2)}.`);
+    return true;
   }
 
   /** Record that the outstanding balance on a partly-paid order has been collected. */
@@ -605,9 +560,17 @@ export default function OrdersPage() {
   }
 
   const isStaff = role === "admin" || role === "cashier";
+  // Finished orders need no hint, except a delivered one still owing a balance.
+  const showNextText = (o: Order) =>
+    o.status !== "cancelled" &&
+    (o.status !== "delivered" || (isStaff && o.paymentMethod === "GCash" && o.totalAmount - (o.amountPaid ?? 0) > 0.005));
   // Dispatch moved to the cashier; the admin keeps confirm/cancel/payment duties.
   const canAssign = role === "cashier";
   const outForDeliveryCount = orders.filter((o) => o.status === "out_for_delivery").length;
+  const statusOrder = statusOrderId != null ? orders.find((o) => o.id === statusOrderId) ?? null : null;
+  const canCancelOrder = (o: Order) =>
+    (role === "customer" && (o.status === "pending" || o.status === "confirmed")) ||
+    (isStaff && o.status !== "delivered" && o.status !== "cancelled");
 
   // Tabs are a *filter over the one list* — never a second copy of it.
   const matchesFilter = (o: Order, f: string) => {
@@ -629,7 +592,7 @@ export default function OrdersPage() {
   ];
 
   const filtered = orders.filter((o) => {
-    const matchSearch = o.customer.username.toLowerCase().includes(search.toLowerCase()) || String(o.id).includes(search);
+    const matchSearch = customerLabel(o).toLowerCase().includes(search.toLowerCase()) || String(o.id).includes(search);
     const matchDate = selectedKey ? toDateKey(new Date(o.dateTime)) === selectedKey : true;
     return matchSearch && matchDate && matchesFilter(o, statusFilter);
   });
@@ -679,7 +642,41 @@ export default function OrdersPage() {
 
   return (
     <div className="space-y-5">
-      {receipt && <ReceiptModal order={receipt} onClose={() => setReceipt(null)} />}
+      {receipt && <ReceiptModal title="Order receipt" data={orderReceipt(receipt)} onClose={() => setReceipt(null)} />}
+      {showNewOrder && (
+        <NewOrderModal
+          onClose={() => setShowNewOrder(false)}
+          onCreated={async (created) => {
+            setShowNewOrder(false);
+            const res = await fetch("/api/orders");
+            const list: Order[] = res.ok ? await res.json() : [];
+            setOrders(list);
+            refreshPins();
+            const fresh = list.find((o) => o.id === created.id);
+            if (fresh) setReceipt(fresh);
+            showToast(`Order #${created.id} created — it's confirmed and ready to prepare.`);
+          }}
+        />
+      )}
+      {showFeeEditor && (
+        <DeliveryFeeSettingsModal onClose={() => setShowFeeEditor(false)} onSaved={() => { setShowFeeEditor(false); showToast("Delivery settings saved. New orders use them right away."); refreshDrivers(); }} />
+      )}
+      {statusOrder && (
+        <OrderStatusModal
+          order={statusOrder}
+          viewer={isStaff ? "staff" : "customer"}
+          drivers={drivers}
+          canAssign={canAssign}
+          canCancel={canCancelOrder(statusOrder)}
+          onClose={() => setStatusOrderId(null)}
+          onStatus={updateStatus}
+          onAssign={assignDriver}
+          onSettle={settleBalance}
+          onCancel={() => { setCancelTarget(statusOrder); setStatusOrderId(null); }}
+          onViewProof={() => { setProofView(statusOrder); setStatusOrderId(null); }}
+          onAdjustFee={role === "admin" ? adjustFee : undefined}
+        />
+      )}
       {locationOrder && (
         <SetLocationModal
           order={locationOrder}
@@ -710,6 +707,19 @@ export default function OrdersPage() {
         />
       )}
 
+      {proofView?.proofImage && (
+        <Modal open onClose={() => setProofView(null)} title={`Proof of delivery — Order #${proofView.id}`} size="lg">
+          <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-gray-50 border border-gray-200">
+            <Image src={proofView.proofImage} alt={`Order #${proofView.id} at the drop-off`} fill sizes="512px" className="object-contain" />
+          </div>
+          <p className="text-xs text-gray-500 mt-3">
+            Delivered to {customerLabel(proofView)}
+            {proofView.deliveredAt && <> on {new Date(proofView.deliveredAt).toLocaleString("en-PH", { month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })}</>}
+            {proofView.driver && <> by {proofView.driver.username}</>}.
+          </p>
+        </Modal>
+      )}
+
       <ConfirmModal
         open={!!cancelTarget}
         onClose={() => setCancelTarget(null)}
@@ -722,17 +732,28 @@ export default function OrdersPage() {
 
       <PageHeader
         title="Orders"
-        subtitle="Online orders from customers"
-        action={role === "admin" ? (
-          <button onClick={() => setShowGcashEditor(true)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-blue-600 bg-white hover:bg-blue-50 border border-gray-200 px-3 py-2 rounded-xl transition shadow-sm">
-            <Smartphone size={ICON_SIZE.xs} /> {storePayment?.gcashNumber ? "GCash Details" : "Set Up GCash"}
-          </button>
+        subtitle={isStaff ? "Online orders, plus orders you take by phone or at the counter" : "Your orders and where they are"}
+        action={isStaff ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {role === "admin" && (
+              <>
+                <button onClick={() => setShowFeeEditor(true)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-blue-600 bg-white hover:bg-blue-50 border border-gray-200 px-3 py-2 rounded-xl transition shadow-sm">
+                  <Truck size={ICON_SIZE.xs} /> Delivery Settings
+                </button>
+                <button onClick={() => setShowGcashEditor(true)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-blue-600 bg-white hover:bg-blue-50 border border-gray-200 px-3 py-2 rounded-xl transition shadow-sm">
+                  <Smartphone size={ICON_SIZE.xs} /> {storePayment?.gcashNumber ? "GCash Details" : "Set Up GCash"}
+                </button>
+              </>
+            )}
+            <Button onClick={() => setShowNewOrder(true)} icon={<Plus size={ICON_SIZE.sm} />}>New Order</Button>
+          </div>
         ) : undefined}
       />
 
       {/* Map — collapsed by default so the workflow owns the top of the page */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden" style={{ isolation: 'isolate' }}>
+      <div ref={mapRef} className="bg-white rounded-xl border border-gray-200 overflow-hidden scroll-mt-4" style={{ isolation: 'isolate' }}>
         <button onClick={() => setShowMap((v) => !v)}
           className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-gray-50 transition text-left">
           <MapPin size={ICON_SIZE.sm} className="text-gray-400 shrink-0" />
@@ -762,16 +783,20 @@ export default function OrdersPage() {
               storeLat={storeLocation?.lat}
               storeLng={storeLocation?.lng}
               storeName={storeLocation?.name}
+              focus={mapFocus}
             />
           </div>
         )}
       </div>
 
+      {isStaff && <DriversPanel drivers={drivers} now={now} onShowOnMap={showDriverOnMap} loadError={driversError} onRetry={refreshDrivers} />}
+
       {/* One list. Tabs filter it, search is always on screen. */}
       <div className="flex flex-col md:flex-row gap-5 items-start">
 
-        {/* Calendar sidebar — off by default so the table gets the full width */}
-        <div className={`bg-white rounded-xl border border-gray-200 p-5 w-full md:w-72 md:shrink-0 ${showCalendar ? "" : "hidden"}`}>
+        {/* Date picker: a modal, so the table always keeps the full width */}
+        <Modal open={showCalendar} onClose={() => setShowCalendar(false)} title="Show orders from" size="sm">
+          <div>
           <div className="flex items-center justify-between mb-4">
             <button onClick={prevMonth} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition">
               <ChevronLeft size={ICON_SIZE.sm} />
@@ -796,7 +821,8 @@ export default function OrdersPage() {
               const isSelected = selectedKey === key;
               const hasOrders = orderDateKeys.has(key);
               return (
-                <button key={i} onClick={() => { setSelectedKey(isSelected ? null : key); setPage(1); }}
+                <button key={i} onClick={() => { setSelectedKey(isSelected ? null : key); setPage(1); setShowCalendar(false); }}
+                  aria-label={`${MONTHS[calMonth]} ${day}, ${calYear}${hasOrders ? " (has orders)" : ""}`} aria-pressed={isSelected}
                   className={`relative w-8 h-8 mx-auto flex items-center justify-center rounded-lg text-xs font-medium transition
                     ${isSelected ? "bg-blue-600 text-white" : isToday ? "bg-blue-50 text-blue-600 font-bold" : "text-gray-700 hover:bg-gray-100"}`}>
                   {day}
@@ -812,8 +838,9 @@ export default function OrdersPage() {
           </div>
 
           <div className="mt-4 pt-4 border-t border-gray-100 space-y-1.5">
+            <p className="text-[11px] text-gray-400">A dot marks days with orders. Pick a day to see only its orders.</p>
             <div className="flex justify-between text-xs">
-              <span className="text-gray-500">Orders</span>
+              <span className="text-gray-500">{selectedKey ? "Orders that day" : "Orders"}</span>
               <span className="font-semibold text-gray-900">{filtered.length}</span>
             </div>
             <div className="flex justify-between text-xs">
@@ -821,13 +848,14 @@ export default function OrdersPage() {
               <span className="font-semibold text-blue-600">₱{filtered.reduce((s, o) => s + o.totalAmount, 0).toFixed(2)}</span>
             </div>
             {selectedKey && (
-              <button onClick={() => { setSelectedKey(null); setPage(1); }}
+              <button onClick={() => { setSelectedKey(null); setPage(1); setShowCalendar(false); }}
                 className="w-full mt-2 text-xs text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg py-1.5 transition border border-gray-200">
                 Clear filter — show all
               </button>
             )}
           </div>
         </div>
+        </Modal>
 
         {/* Orders table */}
         <div className="flex-1 min-w-0 max-w-full bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -835,15 +863,21 @@ export default function OrdersPage() {
             <span className="font-semibold text-gray-900 text-sm">{selectedLabel()}</span>
             <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-medium">{filtered.length} orders</span>
             <div className="flex items-center gap-2 ml-auto w-full sm:w-auto">
-              <button onClick={() => setShowCalendar((v) => !v)}
-                className={`flex items-center gap-1.5 shrink-0 text-xs font-semibold px-3 py-2 rounded-lg border transition whitespace-nowrap ${
-                  selectedKey || showCalendar
-                    ? "bg-blue-50 text-blue-600 border-blue-200"
-                    : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
-                }`}>
-                <CalendarIcon size={ICON_SIZE.xs} />
-                {selectedKey ? selectedLabel() : "Any date"}
-              </button>
+              <div className={`flex items-center shrink-0 rounded-lg border transition ${
+                selectedKey ? "bg-blue-50 text-blue-600 border-blue-200" : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+              }`}>
+                <button onClick={() => setShowCalendar(true)} aria-haspopup="dialog"
+                  className="flex items-center gap-1.5 text-xs font-semibold pl-3 pr-3 py-2 whitespace-nowrap">
+                  <CalendarIcon size={ICON_SIZE.xs} />
+                  {selectedKey ? selectedLabel() : "Any date"}
+                </button>
+                {selectedKey && (
+                  <button onClick={() => { setSelectedKey(null); setPage(1); }} aria-label="Clear date — show all orders" title="Show all dates"
+                    className="pr-2.5 -ml-1.5 py-2 hover:text-blue-800">
+                    <X size={ICON_SIZE.xs} />
+                  </button>
+                )}
+              </div>
               <div className="relative flex-1 sm:flex-none">
                 <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
@@ -916,19 +950,41 @@ export default function OrdersPage() {
                             : <Truck size={ICON_SIZE.sm} className="text-gray-400 shrink-0" aria-label="Delivery" />}
                           #{o.id}
                         </span>
-                        <p className="text-xs text-gray-400 sm:hidden">{o.customer.username}</p>
+                        <p className="text-xs text-gray-400 sm:hidden">{customerLabel(o)}</p>
                       </td>
-                      <td className="py-3 px-4 text-gray-600 hidden sm:table-cell">{o.customer.username}</td>
+                      <td className="py-3 px-4 text-gray-600 hidden sm:table-cell">
+                        {customerLabel(o)}
+                        {isWalkIn(o) && <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 align-middle">WALK-IN</span>}
+                      </td>
                       <td className="py-3 px-4 font-semibold text-gray-900">₱{o.totalAmount.toFixed(2)}</td>
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1.5">
-                          <StatusBadge status={o.status} />
+                          <button onClick={() => setStatusOrderId(o.id)} title="View order progress" aria-label={`Order #${o.id} progress`}
+                            className="rounded-full transition hover:ring-2 hover:ring-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+                            <StatusBadge status={o.status} />
+                          </button>
                           {o.paymentMethod === "GCash" && !o.paymentVerified && o.status !== "cancelled" && (
                             <span title="GCash payment not verified yet">
                               <ShieldAlert size={13} style={{ color: "var(--warn)" }} />
                             </span>
                           )}
                         </div>
+                        {isStaff && o.fulfillmentMode !== "pickup" && o.driverId && (o.status === "confirmed" || o.status === "out_for_delivery") && (() => {
+                          const d = drivers.find((x) => x.id === o.driverId);
+                          return (
+                            <p className="mt-1 flex items-center gap-1.5 text-[11px] text-gray-500">
+                              <Truck size={11} className="text-gray-400 shrink-0" />
+                              <span className="font-medium text-gray-700 truncate max-w-[110px]">{d?.username ?? o.driver?.username ?? "Driver"}</span>
+                              {d && <DriverStatusChip driver={d} />}
+                            </p>
+                          );
+                        })()}
+                        {showNextText(o) && (
+                          <button onClick={() => setStatusOrderId(o.id)}
+                            className="block text-left mt-1 text-[11px] leading-snug text-gray-500 hover:text-blue-600 max-w-[240px] transition">
+                            <span className="font-semibold" style={{ color: "var(--brand)" }}>Next:</span> {nextStepText(o, isStaff ? "staff" : "customer")}
+                          </button>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-gray-400 text-xs hidden xl:table-cell whitespace-nowrap w-px">
                         {new Date(o.dateTime).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
@@ -949,8 +1005,7 @@ export default function OrdersPage() {
                               <MapPin size={ICON_SIZE.xs} />
                             </button>
                           )}
-                          {((role === "customer" && (o.status === "pending" || o.status === "confirmed")) ||
-                            (isStaff && o.status !== "delivered" && o.status !== "cancelled")) && (
+                          {canCancelOrder(o) && (
                             <button onClick={() => setCancelTarget(o)} title="Cancel order" aria-label="Cancel order"
                               className="w-7 h-7 flex items-center justify-center text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition">
                               <Ban size={ICON_SIZE.xs} />
@@ -986,12 +1041,32 @@ export default function OrdersPage() {
                                 </div>
                               ) : null;
                             })()}
-                            <div className="mt-2 pt-2 border-t border-gray-200 flex gap-4">
+                            <div className="mt-2 pt-2 border-t border-gray-200 flex flex-wrap gap-x-4 gap-y-1">
                               <span className="text-gray-500 inline-flex items-center gap-1">
                                 {o.fulfillmentMode === "pickup" ? <><Store size={12} /> Pickup at Store</> : <><Truck size={12} /> Delivery</>}
                               </span>
+                              {o.fulfillmentMode !== "pickup" && (
+                                <span className="text-gray-500">Delivery fee <span className="font-medium text-gray-700">{o.deliveryFee ? `₱${o.deliveryFee.toFixed(2)}` : "free"}</span>
+                                  {o.deliveryFeeNote && <span className="text-gray-400"> (changed: {o.deliveryFeeNote})</span>}</span>
+                              )}
                               {o.paymentMethod && <span className="text-gray-500 inline-flex items-center gap-1"><CreditCard size={12} /> {o.paymentMethod}</span>}
+                              {customerPhone(o) && isStaff && (
+                                <a href={`tel:${customerPhone(o)}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 font-medium hover:underline" style={{ color: "var(--brand)" }}>
+                                  <Phone size={12} /> {customerPhone(o)}
+                                </a>
+                              )}
                             </div>
+                            {o.proofImage && (
+                              <div className="mt-2 pt-2 border-t border-gray-200 flex items-center gap-3">
+                                <button onClick={(e) => { e.stopPropagation(); setProofView(o); }} className="relative w-14 h-14 rounded-lg overflow-hidden border border-gray-200 shrink-0" aria-label="View proof of delivery photo">
+                                  <Image src={o.proofImage} alt="Proof of delivery" fill sizes="56px" className="object-cover" />
+                                </button>
+                                <span className="text-gray-500">
+                                  <span className="inline-flex items-center gap-1 font-semibold text-gray-700"><Camera size={12} /> Proof of delivery</span>
+                                  {o.deliveredAt && <span className="block">{new Date(o.deliveredAt).toLocaleString("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}{o.driver ? ` · ${o.driver.username}` : ""}</span>}
+                                </span>
+                              </div>
+                            )}
 
                             {o.paymentMethod === "GCash" && (
                               <div className="mt-2 pt-2 border-t border-gray-200 flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -1061,7 +1136,11 @@ export default function OrdersPage() {
                                   className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white"
                                 >
                                   <option value="">— Unassigned —</option>
-                                  {drivers.map((d) => <option key={d.id} value={d.id}>{d.username} ({d.activeCount} active)</option>)}
+                                  {drivers.map((d) => {
+                                    const opt = driverOption(d);
+                                    // The driver already on this order stays selectable.
+                                    return <option key={d.id} value={d.id} disabled={opt.disabled && d.id !== o.driverId}>{opt.label}</option>;
+                                  })}
                                 </select>
                               </div>
                             ) : o.driver ? (
@@ -1071,6 +1150,7 @@ export default function OrdersPage() {
                                   Driver: <span className="font-medium text-gray-700">{o.driver.username}</span>
                                   {o.driver.contact && <span className="text-gray-400"> · {o.driver.contact}</span>}
                                 </span>
+                                {(() => { const d = drivers.find((x) => x.id === o.driverId); return d ? <DriverStatusChip driver={d} /> : null; })()}
                               </div>
                             ) : null}
                             {/* Manual status override for the rare case the

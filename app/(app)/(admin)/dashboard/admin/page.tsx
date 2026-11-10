@@ -9,10 +9,11 @@ import StockLevelBar from "@/components/ui/StockLevelBar";
 import OrderMapWidget from "@/components/OrderMapWidget";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 
+import { customerLabel } from "@/lib/customer";
 type Stats = { totalUsers: number; totalProducts: number; totalOrders: number; totalRevenue: number };
 type MonthlySale = { month: string; sales: number };
 type MonthlyCount = { month: string; count: number };
-type Order = { id: number; totalAmount: number; status: string; dateTime: string; customer: { username: string }; items: { product: { name: string }; quantity: number }[] };
+type Order = { id: number; totalAmount: number; status: string; dateTime: string; customer: { username: string } | null; customerName?: string | null; customerContact?: string | null; items: { product: { name: string }; quantity: number }[] };
 type LowStock = { id: number; name: string; category: string; unit: string; stock: number; reorderPoint: number; eoq: number | null; status: "out" | "reorder" | "ok" };
 
 function greeting() {
@@ -80,7 +81,7 @@ export default function AdminDashboardPage() {
       <SectionLabel title="Sales & stock" description="How much the store is selling, and what needs restocking." />
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         {/* Sales Chart */}
-        <div className="xl:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
+        <div className="xl:col-span-2 bg-white rounded-xl border border-gray-200 p-5 flex flex-col">
           <CardHeader
             icon={<TrendingUp size={ICON_SIZE.sm} className="text-blue-600" />}
             title="Sales Overview"
@@ -88,7 +89,9 @@ export default function AdminDashboardPage() {
             href="/reports"
             linkLabel="Sales reports"
           />
-          <ResponsiveContainer width="100%" height={220}>
+          {/* The chart fills whatever height the row gives the card, so no blank band is left under it. */}
+          <div className="flex-1 min-h-[220px]">
+          <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={monthlySales} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
@@ -98,11 +101,12 @@ export default function AdminDashboardPage() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₱${v}`} />
+              <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={52} tickFormatter={(v) => (v >= 1000000 ? `₱${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `₱${Math.round(v / 1000)}k` : `₱${v}`)} />
               <Tooltip formatter={(v) => [`₱${Number(v).toLocaleString()}`, "Sales"]} contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }} />
               <Area type="monotone" dataKey="sales" stroke="#1E4FD8" strokeWidth={2.5} fill="url(#salesGrad)" dot={{ r: 3, fill: "#1E4FD8", strokeWidth: 0 }} activeDot={{ r: 5, fill: "#12327F", strokeWidth: 2, stroke: "#fff" }} />
             </AreaChart>
           </ResponsiveContainer>
+          </div>
         </div>
 
         {/* Low Stock */}
@@ -222,9 +226,9 @@ export default function AdminDashboardPage() {
                   <td className="py-3 px-4 text-gray-600">
                     <div className="flex items-center gap-2">
                       <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center font-display font-bold text-[10px] text-gray-500 shrink-0">
-                        {o.customer.username.charAt(0).toUpperCase()}
+                        {customerLabel(o).charAt(0).toUpperCase()}
                       </span>
-                      {o.customer.username}
+                      {customerLabel(o)}
                     </div>
                   </td>
                   <td className="py-3 px-4 text-gray-400 text-xs hidden md:table-cell">{o.items.map((i) => `${i.product.name} ×${i.quantity}`).join(", ")}</td>

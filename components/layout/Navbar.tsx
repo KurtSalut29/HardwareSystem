@@ -12,6 +12,7 @@ import { useNotifications } from "@/components/NotificationsProvider";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 import { roleLabel } from "@/lib/roles";
 import { isSoundOn, playAlert, setSoundOn, subscribeSound, unlockAudio, type AlertSound } from "@/lib/sounds";
+import { desktopPermission, requestDesktop } from "@/lib/desktopNotify";
 
 type BellType = "new_order" | "low_stock" | "out_of_stock" | "order_update" | "delivery";
 type BellItem = { id: string; type: BellType; title: string; message: string; href?: string; unread: boolean };
@@ -63,6 +64,8 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
   const { items: feed, unread: feedUnread, isUnread, markAllRead } = useNotifications();
   const soundOn = useSyncExternalStore(subscribeSound, isSoundOn, () => true);
   const [newWhenOpened, setNewWhenOpened] = useState<Set<string>>(new Set());
+  // Bumped after the browser's permission prompt so the settings row re-reads it.
+  const [, setDesktopAsked] = useState(0);
 
   // Live clock — set on mount only, so server/client markup matches (avoids hydration mismatch)
   useEffect(() => {
@@ -221,6 +224,7 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
         <div className="relative" ref={settingsRef}>
           <button
             onClick={() => setShowSettings(!showSettings)}
+            aria-label="Settings" aria-expanded={showSettings}
             className="w-9 h-9 flex items-center justify-center rounded-xl transition"
             style={{ background: showSettings ? "var(--bg-muted)" : "transparent", color: "var(--text-muted)" }}
           >
@@ -296,6 +300,30 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
                   </button>
                 </div>
               </div>
+
+              {/* Desktop alerts: pop up even when this tab is in the background */}
+              {role !== "driver" && (() => {
+                const perm = desktopPermission();
+                return (
+                  <div className="px-4 py-3 border-t border-gray-100">
+                    <p className="text-[10px] uppercase tracking-widest font-bold mb-1" style={{ color: "var(--text-faint)" }}>Desktop alerts</p>
+                    <p className="text-[11px] mb-2" style={{ color: "var(--text-muted)" }}>Pop up from the taskbar when you&apos;re on another tab or app.</p>
+                    {perm === "granted" ? (
+                      <p className="text-xs font-semibold" style={{ color: "var(--good)" }}>On for this browser</p>
+                    ) : perm === "denied" ? (
+                      <p className="text-[11px]" style={{ color: "var(--warn)" }}>Blocked. Allow notifications for this site from the lock icon in the address bar.</p>
+                    ) : perm === "unsupported" ? (
+                      <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>This browser doesn&apos;t support them.</p>
+                    ) : (
+                      <button type="button" onClick={async () => { unlockAudio(); await requestDesktop(); setDesktopAsked((n) => n + 1); }}
+                        className="w-full py-2 rounded-xl border text-xs font-semibold transition hover:bg-gray-50"
+                        style={{ borderColor: "var(--brand)", color: "var(--brand-ink)" }}>
+                        Turn on desktop alerts
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>

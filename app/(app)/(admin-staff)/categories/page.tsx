@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Pencil, Search, Trash2, Check, Tag, Package, FolderX } from "lucide-react";
+import { Plus, Pencil, Search, Trash2, Check, Tag, Package, FolderX, Layers } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import Button from "@/components/ui/Button";
@@ -10,8 +10,9 @@ import StatCard from "@/components/ui/StatCard";
 import { useToast } from "@/components/ui/ToastProvider";
 import Pagination, { usePagination } from "@/components/ui/Pagination";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
+import SubcategoryManager, { type Subcategory } from "@/components/categories/SubcategoryManager";
 
-type Category = { id: number; name: string; description: string | null; _count?: { products: number } };
+type Category = { id: number; name: string; description: string | null; _count?: { products: number }; subcategories: Subcategory[] };
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -23,12 +24,15 @@ export default function CategoriesPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
+  const [subsFor, setSubsFor] = useState<number | null>(null);
+  const subsCategory = subsFor != null ? categories.find((c) => c.id === subsFor) ?? null : null;
   const showToast = useToast();
 
   const fetchCategories = useCallback(async () => {
     setLoading(true);
     const res = await fetch("/api/categories");
-    setCategories(await res.json());
+    const data = res.ok ? await res.json() : [];
+    setCategories(Array.isArray(data) ? data : []);
     setLoading(false);
   }, []);
 
@@ -36,7 +40,8 @@ export default function CategoriesPage() {
 
   const filtered = categories.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
-    (c.description ?? "").toLowerCase().includes(search.toLowerCase())
+    (c.description ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    c.subcategories.some((s) => s.name.toLowerCase().includes(search.toLowerCase()))
   );
   const paging = usePagination(filtered, 10, search);
 
@@ -104,6 +109,10 @@ export default function CategoriesPage() {
         body={<>Are you sure you want to delete <span className="font-medium text-gray-800">{deleteTarget?.name}</span>?</>}
         confirmLabel="Yes, Delete"
       />
+
+      {subsCategory && (
+        <SubcategoryManager category={subsCategory} onClose={() => setSubsFor(null)} onChanged={fetchCategories} />
+      )}
 
       {/* Add / Edit Category */}
       <Modal
@@ -177,7 +186,7 @@ export default function CategoriesPage() {
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Category</th>
-                  <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Description</th>
+                  <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Subcategories</th>
                   <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Products</th>
                   <th className="py-2.5 px-4" />
                 </tr>
@@ -199,11 +208,14 @@ export default function CategoriesPage() {
                         <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white" style={{ background: "linear-gradient(155deg, var(--brand), var(--brand-ink))" }}>
                           <Tag size={ICON_SIZE.sm} />
                         </div>
-                        <span className="font-display font-bold text-gray-900">{c.name}</span>
+                        <div className="min-w-0">
+                          <span className="font-display font-bold text-gray-900">{c.name}</span>
+                          {c.description && <p className="text-[11px] text-gray-400 truncate max-w-[220px]">{c.description}</p>}
+                        </div>
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-gray-400 text-xs max-w-xs">
-                      {c.description ?? <span className="text-gray-200">—</span>}
+                    <td className="py-3 px-4 max-w-sm">
+                      <SubChips subs={c.subcategories} onManage={() => setSubsFor(c.id)} />
                     </td>
                     <td className="py-3 px-4">
                       <span className="text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap" style={{ background: "var(--brand-soft)", color: "var(--brand-ink)" }}>
@@ -212,6 +224,9 @@ export default function CategoriesPage() {
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-1.5 justify-end">
+                        <button onClick={() => setSubsFor(c.id)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition whitespace-nowrap">
+                          <Layers size={ICON_SIZE.xs} /> Subcategories
+                        </button>
                         <button onClick={() => openEdit(c)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition">
                           <Pencil size={ICON_SIZE.xs} /> Edit
                         </button>
@@ -251,7 +266,11 @@ export default function CategoriesPage() {
                     {c.description && <p className="text-xs text-gray-400 mt-0.5">{c.description}</p>}
                   </div>
                 </div>
+                <div className="mt-2.5"><SubChips subs={c.subcategories} onManage={() => setSubsFor(c.id)} /></div>
                 <div className="flex gap-2 mt-3">
+                  <button onClick={() => setSubsFor(c.id)} className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
+                    <Layers size={ICON_SIZE.xs} /> Subcategories
+                  </button>
                   <button onClick={() => openEdit(c)} className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition">
                     <Pencil size={ICON_SIZE.xs} /> Edit
                   </button>
@@ -265,6 +284,24 @@ export default function CategoriesPage() {
           <Pagination {...paging} onChange={paging.setPage} noun="categories" />
         </div>
       </div>
+    </div>
+  );
+}
+
+/** The category's subcategories as chips, with a shortcut to manage them. */
+function SubChips({ subs, onManage }: { subs: Subcategory[]; onManage: () => void }) {
+  const shown = subs.slice(0, 4);
+  if (subs.length === 0) {
+    return <button onClick={onManage} className="text-[11px] font-semibold text-blue-600 hover:underline">+ Add subcategories</button>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {shown.map((s) => (
+        <span key={s.id} className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 whitespace-nowrap">{s.name}</span>
+      ))}
+      {subs.length > shown.length && (
+        <button onClick={onManage} className="text-[11px] font-semibold px-2 py-0.5 rounded-full text-blue-600 bg-blue-50 hover:bg-blue-100">+{subs.length - shown.length} more</button>
+      )}
     </div>
   );
 }

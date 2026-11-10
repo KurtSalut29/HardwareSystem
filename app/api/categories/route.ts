@@ -18,7 +18,10 @@ export async function GET(req: NextRequest) {
   if (!role) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const categories = await prisma.category.findMany({
     orderBy: { name: "asc" },
-    include: { _count: { select: { products: true } } },
+    include: {
+      _count: { select: { products: true } },
+      subcategories: { orderBy: { name: "asc" }, include: { _count: { select: { products: true } } } },
+    },
   });
   return NextResponse.json(categories);
 }

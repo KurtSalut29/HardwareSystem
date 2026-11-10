@@ -2,17 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import OrderMap, { OrderPin } from './OrderMap';
-import { Store, Truck } from 'lucide-react';
+import { Store, Truck, MapPin } from 'lucide-react';
 import { STATUS_COLORS } from '@/lib/orderStatus';
 
-/** What each marker on the map means. Pin colors follow the order status, same as the status badges. */
-const LEGEND: { label: string; color?: string; icon?: typeof Store }[] = [
+/** What each marker on the map means. Colors follow the order status, same as the status badges:
+ *  orders still in progress are pins, finished ones (delivered, cancelled) are small dots. */
+const LEGEND: { label: string; color?: string; icon?: typeof Store; shape?: 'pin' | 'dot' }[] = [
   { label: 'Store', icon: Store },
   { label: 'Driver', icon: Truck },
-  { label: 'Pending', color: STATUS_COLORS.pending },
-  { label: 'Confirmed', color: STATUS_COLORS.confirmed },
-  { label: 'Out for delivery', color: STATUS_COLORS.out_for_delivery },
-  { label: 'Delivered', color: STATUS_COLORS.delivered },
+  { label: 'Pending', color: STATUS_COLORS.pending, shape: 'pin' },
+  { label: 'Confirmed', color: STATUS_COLORS.confirmed, shape: 'pin' },
+  { label: 'Out for delivery', color: STATUS_COLORS.out_for_delivery, shape: 'pin' },
+  { label: 'Delivered', color: STATUS_COLORS.delivered, shape: 'dot' },
+  { label: 'Cancelled', color: STATUS_COLORS.cancelled, shape: 'dot' },
 ];
 
 export function MapLegend({ compact = false }: { compact?: boolean }) {
@@ -24,6 +26,8 @@ export function MapLegend({ compact = false }: { compact?: boolean }) {
             <span aria-hidden className="w-4 h-4 rounded-full inline-flex items-center justify-center text-white" style={{ background: '#1E4FD8' }}>
               <item.icon size={10} strokeWidth={2.4} />
             </span>
+          ) : item.shape === 'pin' ? (
+            <MapPin aria-hidden size={14} strokeWidth={2} style={{ color: 'white', fill: item.color }} className="drop-shadow-[0_0_0.5px_rgba(0,0,0,0.5)]" />
           ) : (
             <span aria-hidden className="w-2.5 h-2.5 rounded-full border border-white shadow-[0_0_0_1px_rgba(0,0,0,0.08)]" style={{ background: item.color }} />
           )}

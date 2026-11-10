@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Calculator, SlidersHorizontal, PackagePlus, ChevronDown } from "lucide-react";
+import { Calculator, SlidersHorizontal, PackagePlus, ChevronDown, Info } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import Pagination, { usePagination } from "@/components/ui/Pagination";
@@ -16,6 +16,18 @@ const STATUS_STYLE = {
   reorder: { label: "Reorder now", fg: "var(--warn)", bg: "var(--warn-soft)" },
   ok: { label: "OK", fg: "var(--good)", bg: "var(--good-soft)" },
 } as const;
+
+/** Column heading with a one-line plain explanation under it. */
+function Th({ label, hint, className = "" }: { label: string; hint: string; className?: string }) {
+  return (
+    <th className={`text-right py-2.5 px-4 align-bottom ${className}`}>
+      <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{label}</span>
+      <span className="block text-[10px] font-normal text-gray-400 normal-case tracking-normal leading-tight mt-0.5">{hint}</span>
+    </th>
+  );
+}
+
+const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
 
 export function StatusChip({ status }: { status: ReorderRow["status"] }) {
   const s = STATUS_STYLE[status];
@@ -114,16 +126,27 @@ export default function ReorderPlanner({
         <p className="text-sm text-gray-400 py-10 text-center">Nothing needs ordering right now. Every product is above its reorder point.</p>
       ) : (
         <div>
+        {/* How to read the table, in one line */}
+        <div className="flex items-start gap-2 px-4 py-2.5 text-xs text-gray-600 border-b border-gray-100" style={{ background: "var(--info-soft)" }}>
+          <Info size={ICON_SIZE.sm} className="shrink-0 mt-px" style={{ color: "var(--brand)" }} />
+          <p>
+            <b>How to read:</b> when <b>In stock</b> falls to <b>Reorder at</b>, buy the <b>Order qty</b>.
+            {" "}<b>Days left</b> shows how soon it runs out, so the fewer days, the more urgent.
+          </p>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Product</th>
-                <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">In stock</th>
-                <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden md:table-cell" title="Average units sold per day">Sold / day</th>
-                <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide" title="Order again when stock falls to this">Reorder at</th>
-                <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide" title="Economic Order Quantity: how many to order">Order qty</th>
-                <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden md:table-cell" title="Days until stock runs out at the current pace">Days left</th>
+                <th className="text-left py-2.5 px-4 align-bottom">
+                  <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Product</span>
+                  <span className="block text-[10px] font-normal text-gray-400 mt-0.5">and its stock status</span>
+                </th>
+                <Th label="In stock" hint="on hand now" />
+                <Th label="Sold / day" hint={`average, last ${plan.windowDays} days`} className="hidden md:table-cell" />
+                <Th label="Reorder at" hint="order when stock hits this" />
+                <Th label="Order qty" hint="EOQ: how many to buy" />
+                <Th label="Days left" hint="before it runs out" className="hidden md:table-cell" />
                 <th className="py-2.5 px-4" aria-label="Action" />
               </tr>
             </thead>
@@ -139,15 +162,26 @@ export default function ReorderPlanner({
                   </td>
                   <td className="py-2.5 px-4 text-right font-semibold num whitespace-nowrap" style={{ color: STATUS_STYLE[r.status].fg }}>
                     {qty(r.stock)} <span className="text-[11px] font-normal text-gray-400">{r.unit}</span>
+                    {r.daysLeft != null && r.status !== "out" && (
+                      <span className="block md:hidden text-[10px] font-normal text-gray-400">{days(r.daysLeft)} left</span>
+                    )}
                   </td>
-                  <td className="py-2.5 px-4 text-right text-gray-500 num hidden md:table-cell">{r.dailyDemand > 0 ? qty(r.dailyDemand) : "—"}</td>
+                  <td className="py-2.5 px-4 text-right text-gray-500 num hidden md:table-cell whitespace-nowrap">
+                    {r.dailyDemand > 0 ? <>{qty(r.dailyDemand)} <span className="text-[11px] text-gray-400">{r.unit}</span></> : <span title="No sales in this period">—</span>}
+                  </td>
                   <td className="py-2.5 px-4 text-right text-gray-700 num" title={r.reorderBasis === "default" ? "No sales yet: a fixed minimum is used" : undefined}>
-                    {r.reorderPoint}{r.reorderBasis === "default" && <span className="text-[10px] text-gray-400"> *</span>}
+                    {r.reorderPoint} <span className="text-[11px] text-gray-400">{r.unit}</span>{r.reorderBasis === "default" && <span className="text-[10px] text-gray-400"> *</span>}
                   </td>
                   <td className="py-2.5 px-4 text-right font-bold text-gray-900 num" title={r.costSource === "price" ? "No purchase cost recorded yet: selling price used as an estimate" : undefined}>
-                    {r.eoq ?? "—"}{r.eoq != null && r.costSource === "price" && <span className="text-[10px] font-normal text-gray-400"> est.</span>}
+                    {r.eoq ?? <span className="font-normal text-gray-400" title="No sales yet, so there is no demand to base an order on">—</span>}
+                    {r.eoq != null && <span className="text-[11px] font-normal text-gray-400"> {r.unit}</span>}
+                    {r.eoq != null && r.costSource === "price" && <span className="text-[10px] font-normal text-gray-400"> est.</span>}
                   </td>
-                  <td className="py-2.5 px-4 text-right text-gray-500 num hidden md:table-cell">{r.daysLeft == null ? "—" : r.daysLeft}</td>
+                  <td className="py-2.5 px-4 text-right num hidden md:table-cell whitespace-nowrap"
+                    style={{ color: r.daysLeft != null && r.daysLeft <= (s?.leadTimeDays ?? 0) ? "var(--bad)" : undefined }}
+                    title={r.daysLeft != null && r.daysLeft <= (s?.leadTimeDays ?? 0) ? "Runs out before a new order could arrive" : undefined}>
+                    {r.status === "out" ? <span className="font-semibold">Out now</span> : r.daysLeft == null ? <span className="text-gray-400">—</span> : <span className={r.daysLeft <= (s?.leadTimeDays ?? 0) ? "font-semibold" : "text-gray-500"}>{days(r.daysLeft)}</span>}
+                  </td>
                   <td className="py-2.5 px-4 text-right">
                     <Button size="sm" variant={r.status === "ok" ? "secondary" : "primary"} onClick={() => onOrder(r)} icon={<PackagePlus size={ICON_SIZE.sm} />}>
                       <span className="whitespace-nowrap">{r.eoq != null ? `Order ${r.eoq}` : "Order"}</span>
@@ -179,7 +213,8 @@ export default function ReorderPlanner({
               <p className="font-bold text-gray-900 mb-1">Reorder point = sold per day × (lead time + safety days)</p>
               <p>Lead time: <b>{s.leadTimeDays} {s.leadTimeDays === 1 ? "day" : "days"}</b> from ordering until stock arrives.</p>
               <p>Safety stock: <b>{s.safetyDays} {s.safetyDays === 1 ? "day" : "days"}</b> of extra sales, for late deliveries or busy days.</p>
-              <p className="mt-1 text-gray-400">* No sales yet: reorder at 5. <i>est.</i> No purchase recorded yet: the selling price stands in for the unit cost.</p>
+              <p className="mt-1 text-gray-400">* No sales yet: reorder at 5. <i>est.</i> No purchase recorded yet: the selling price stands in for the unit cost. — No sales in the last {plan.windowDays} days, so no order quantity yet.</p>
+              <p className="mt-1 text-gray-400">Days left in <span style={{ color: "var(--bad)" }} className="font-semibold">red</span>: it runs out within the {days(s.leadTimeDays)} a new order takes to arrive.</p>
             </div>
           </div>
         </details>

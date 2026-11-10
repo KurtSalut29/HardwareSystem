@@ -11,6 +11,9 @@ import Image from "next/image";
 import LocationPicker, { PickedLocation } from "@/components/LocationPicker";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 import { STORE_NAME } from "@/lib/brand";
+import AddToCartModal from "@/components/shop/AddToCartModal";
+import { quoteDelivery, describeQuote, type DeliverySettings } from "@/lib/deliveryFee";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Category = { id: number; name: string };
 type Product = { id: number; name: string; category: Category; categoryId: number; subcategory: string | null; price: number; unit: string; stock: number; image: string | null; description: string | null };
@@ -19,11 +22,6 @@ type StorePayment = { gcashName: string | null; gcashNumber: string | null; gcas
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const stepFor = (unit: string) => (unit === "kg" ? 0.25 : 1);
-const KG_PRESETS: { label: string; value: number }[] = [
-  { label: "¼ kg", value: 0.25 },
-  { label: "½ kg", value: 0.5 },
-  { label: "1 kg", value: 1 },
-];
 
 // Must mirror the server-side rules in /api/orders.
 const GCASH_NUMBER_RE = /^09\d{9}$/;
@@ -46,7 +44,9 @@ export default function ShopPage() {
   const [fulfillmentMode, setFulfillmentMode] = useState<"delivery" | "pickup">("delivery");
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [storeInfo, setStoreInfo] = useState<{ lat: number; lng: number; name: string } | null>(null);
-  const [kgInputs, setKgInputs] = useState<Record<number, string>>({});
+  const [pickProduct, setPickProduct] = useState<Product | null>(null);
+  const [fees, setFees] = useState<{ settings: DeliverySettings; store: { lat: number; lng: number } } | null>(null);
+  const showToast = useToast();
   const [showReview, setShowReview] = useState(false);
   const [storePayment, setStorePayment] = useState<StorePayment | null>(null);
   const [gcashNumber, setGcashNumber] = useState("");
@@ -66,6 +66,7 @@ export default function ShopPage() {
   useEffect(() => {
     fetch("/api/store-location").then((r) => (r.ok ? r.json() : null)).then(setStoreInfo).catch(() => {});
     fetch("/api/store-payment").then((r) => (r.ok ? r.json() : null)).then(setStorePayment).catch(() => {});
+    fetch("/api/delivery-settings").then((r) => (r.ok ? r.json() : null)).then(setFees).catch(() => {});
   }, []);
 
   const filtered = products.filter((p) => {
@@ -113,7 +114,12 @@ export default function ShopPage() {
     setCart((prev) => prev.map((i) => i.id === id ? { ...i, quantity: rounded } : i));
   }
 
-  const total = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  // Delivery fee, shown before ordering. The server computes the same figure
+  // from the same settings when the order is placed.
+  const quote = fulfillmentMode === "delivery" && pickedLocation && fees ? quoteDelivery(fees.settings, fees.store, pickedLocation) : null;
+  const deliveryFee = quote && !quote.tooFar ? quote.fee : 0;
+  const total = round2(subtotal + deliveryFee);
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
 
   const gcashNumberValid = GCASH_NUMBER_RE.test(gcashNumber);
@@ -142,6 +148,10 @@ export default function ShopPage() {
     if (!cart.length) return;
     if (fulfillmentMode === "delivery" && !pickedLocation) {
       setError("Please set a delivery location.");
+      return;
+    }
+    if (quote?.tooFar) {
+      setError("That location is beyond our delivery area. Choose pickup instead.");
       return;
     }
     if (paymentMethod === "GCash") {
@@ -184,6 +194,22 @@ export default function ShopPage() {
 
   return (
     <div className="space-y-5">
+      {pickProduct && (
+        <AddToCartModal
+          product={pickProduct}
+          siblings={pickProduct.subcategory
+            ? products.filter((x) => x.id !== pickProduct.id && x.categoryId === pickProduct.categoryId && x.subcategory === pickProduct.subcategory)
+            : []}
+          inCart={cart.find((i) => i.id === pickProduct.id)?.quantity ?? 0}
+          onSwitch={(x) => setPickProduct(x as Product)}
+          onAdd={(x, qty) => {
+            addToCart(x as Product, qty);
+            setPickProduct(null);
+            showToast(`${x.name} × ${qty} ${x.unit} added to cart`);
+          }}
+          onClose={() => setPickProduct(null)}
+        />
+      )}
       <PageHeader
         title="Shop"
         subtitle="Browse and order hardware products"
@@ -309,45 +335,10 @@ export default function ShopPage() {
                               <span className="text-[11px] text-gray-400 font-medium">per {p.unit}</span>
                             </div>
 
-                            {p.unit === "kg" ? (
-                              <div className="mt-2 space-y-1.5">
-                                {inCart && <p className="text-[11px] text-blue-600 font-semibold text-center">In cart: {inCart.quantity} kg</p>}
-                                <div className="grid grid-cols-3 gap-1">
-                                  {KG_PRESETS.map((preset) => (
-                                    <button key={preset.value} type="button"
-                                      onClick={() => setKgInputs((prev) => ({ ...prev, [p.id]: String(preset.value) }))}
-                                      className="bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg py-1 text-[11px] font-semibold transition">
-                                      {preset.label}
-                                    </button>
-                                  ))}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <input
-                                    type="number" step="0.01" min="0.01" placeholder="kg"
-                                    value={kgInputs[p.id] ?? ""}
-                                    onChange={(e) => setKgInputs((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                                    className="w-14 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const qty = round2(parseFloat(kgInputs[p.id] ?? "0"));
-                                      if (!qty || qty <= 0) return;
-                                      addToCart(p, qty);
-                                      setKgInputs((prev) => ({ ...prev, [p.id]: "" }));
-                                    }}
-                                    disabled={p.stock === 0}
-                                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg py-1.5 text-[11px] font-semibold transition">
-                                    Add to Cart
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <button onClick={() => addToCart(p)} disabled={p.stock === 0}
-                                className="mt-2 w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg py-1.5 text-xs font-semibold transition">
-                                {inCart ? `In cart (${inCart.quantity})` : "Add to Cart"}
-                              </button>
-                            )}
+                            <button onClick={() => setPickProduct(p)} disabled={p.stock === 0}
+                              className="mt-2 w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg py-1.5 text-xs font-semibold transition">
+                              {p.stock === 0 ? "Out of stock" : inCart ? `In cart (${inCart.quantity}) · Add more` : "Add to Cart"}
+                            </button>
                           </div>
                         </div>
                       );
@@ -369,9 +360,18 @@ export default function ShopPage() {
         title={<><ShoppingCart size={ICON_SIZE.md} /> Your Cart</>}
         footer={cart.length > 0 ? (
           <div className="p-5 space-y-3">
-            <div className="flex justify-between font-bold text-gray-800">
-              <span>Total</span>
-              <span className="text-lg">₱{total.toFixed(2)}</span>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between text-gray-500"><span>Subtotal</span><span className="num">₱{subtotal.toFixed(2)}</span></div>
+              {fulfillmentMode === "delivery" && (
+                <div className="flex justify-between text-gray-500">
+                  <span>Delivery fee</span>
+                  <span className="num">{quote ? (quote.tooFar ? "Too far" : quote.fee === 0 ? "Free" : `₱${quote.fee.toFixed(2)}`) : "Pin your location"}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-bold text-gray-800 pt-1">
+                <span>Total</span>
+                <span className="text-lg num">₱{total.toFixed(2)}</span>
+              </div>
             </div>
             {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
             <Button onClick={openReview} disabled={!gcashReady} className="w-full">
@@ -428,6 +428,19 @@ export default function ShopPage() {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Delivery Location</label>
                 <LocationPicker value={pickedLocation} onChange={setPickedLocation} />
+                {quote && fees && (
+                  <div className="mt-2 rounded-lg px-3 py-2 text-xs flex justify-between gap-3" style={{ background: quote.tooFar ? "var(--bad-soft)" : "var(--info-soft)" }}>
+                    <span className="text-gray-600">
+                      {quote.tooFar ? `About ${quote.roadKm.toFixed(0)} km away — beyond our ${fees.settings.maxKm} km delivery area. Choose pickup instead.` : describeQuote(quote, fees.settings)}
+                    </span>
+                    {!quote.tooFar && <span className="font-bold text-gray-900 whitespace-nowrap num">{quote.fee === 0 ? "Free" : `₱${quote.fee}`}</span>}
+                  </div>
+                )}
+                {!pickedLocation && fees && (
+                  <p className="text-[11px] text-gray-400 mt-1.5">
+                    Delivery is free within {fees.settings.freeKm} km of the store, then ₱{fees.settings.ratePerKm} per km. Pin your location to see the fee.
+                  </p>
+                )}
               </div>
             ) : (
               <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5 text-xs text-blue-700">
@@ -588,9 +601,17 @@ export default function ShopPage() {
               </div>
             ))}
           </div>
-          <div className="border-t border-dashed border-gray-200 pt-3 flex justify-between font-bold text-gray-900">
-            <span>Total</span>
-            <span>₱{total.toFixed(2)}</span>
+          <div className="border-t border-dashed border-gray-200 pt-3 space-y-1">
+            {fulfillmentMode === "delivery" && (
+              <>
+                <div className="flex justify-between text-sm text-gray-500"><span>Subtotal</span><span className="num">₱{subtotal.toFixed(2)}</span></div>
+                <div className="flex justify-between text-sm text-gray-500"><span>Delivery fee</span><span className="num">{deliveryFee === 0 ? "Free" : `₱${deliveryFee.toFixed(2)}`}</span></div>
+              </>
+            )}
+            <div className="flex justify-between font-bold text-gray-900">
+              <span>Total</span>
+              <span className="num">₱{total.toFixed(2)}</span>
+            </div>
           </div>
           <div className="bg-gray-50 rounded-lg px-3 py-2.5 text-xs text-gray-600 space-y-1">
             <p className="flex items-start gap-1.5">

@@ -4,23 +4,28 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, MapPin, Phone, Package, CheckCircle2, Navigation, Crosshair,
+  ArrowLeft, MapPin, Package, CheckCircle2, Navigation, Crosshair,
   Banknote, ShieldAlert, Smartphone, Route as RouteIcon, CornerUpLeft, CornerUpRight, ArrowUp, Flag,
 } from "lucide-react";
 import Button from "@/components/ui/Button";
-import ConfirmModal from "@/components/ui/ConfirmModal";
+import ContactCustomer from "@/components/deliveries/ContactCustomer";
+import ProofOfDeliveryModal from "@/components/deliveries/ProofOfDeliveryModal";
 import { useToast } from "@/components/ui/ToastProvider";
 import NavigationMap from "@/components/NavigationMap";
 import { fetchDrivingRoute, RouteStep } from "@/lib/route";
 import { haversineKm, formatDistance, formatDuration, estimateMinutes } from "@/lib/distance";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 
+import { customerLabel, customerPhone } from "@/lib/customer";
 type OItem = { id: number; quantity: number; price: number; product: { name: string } };
 type Order = {
   id: number;
   totalAmount: number;
   status: string;
-  customer: { username: string; contact?: string | null };
+  customer: { username: string; contact?: string | null } | null;
+  customerName?: string | null;
+  customerContact?: string | null;
+  amountPaid?: number;
   items: OItem[];
   deliveryAddress?: string | null;
   latitude?: number | null;
@@ -134,13 +139,8 @@ export default function DeliveryNavigationPage() {
     return () => { cancelled = true; };
   }, [pos, order?.latitude, order?.longitude]);
 
-  async function markDelivered() {
-    const res = await fetch("/api/orders", {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: orderId, status: "delivered" }),
-    });
-    if (!res.ok) { showToast("Failed to update order.", "error"); return; }
-    showToast("Order #" + orderId + " marked as delivered!");
+  function onDelivered() {
+    showToast("Order #" + orderId + " marked as delivered — photo saved as proof.");
     router.push("/deliveries");
   }
 
@@ -168,28 +168,21 @@ export default function DeliveryNavigationPage() {
 
   return (
     <div className="space-y-4">
-      <ConfirmModal
-        open={confirmDeliver}
-        onClose={() => setConfirmDeliver(false)}
-        onConfirm={markDelivered}
-        title="Mark this order delivered?"
-        body={<>Order #{order.id} for {order.customer.username} will be marked as delivered.</>}
-        variant="info"
-        confirmLabel="Yes, Mark Delivered"
-      />
+      {confirmDeliver && (
+        <ProofOfDeliveryModal
+          orderId={order.id}
+          customer={customerLabel(order)}
+          collect={collectCash ? order.totalAmount : Math.max(0, Math.round((order.totalAmount - (order.amountPaid ?? 0)) * 100) / 100)}
+          onClose={() => setConfirmDeliver(false)}
+          onDelivered={onDelivered}
+        />
+      )}
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <Link href="/deliveries" className="inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: "var(--brand)" }}>
           <ArrowLeft size={ICON_SIZE.sm} /> My Deliveries
         </Link>
         <div className="flex items-center gap-2">
-          {order.customer.contact && (
-            <a href={"tel:" + order.customer.contact}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border transition hover:bg-blue-50"
-              style={{ borderColor: "var(--brand)", color: "var(--brand)" }}>
-              <Phone size={ICON_SIZE.xs} /> Call customer
-            </a>
-          )}
           <Button onClick={() => setConfirmDeliver(true)} size="sm" className="!bg-emerald-600 hover:!bg-emerald-700" icon={<CheckCircle2 size={ICON_SIZE.xs} />}>
             Mark Delivered
           </Button>
@@ -201,7 +194,7 @@ export default function DeliveryNavigationPage() {
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="min-w-0">
             <p className="font-display text-lg font-extrabold text-gray-900">Order #{order.id}</p>
-            <p className="text-sm text-gray-600">{order.customer.username}</p>
+            <p className="text-sm text-gray-600">{customerLabel(order)}</p>
             <p className="text-xs text-gray-500 flex items-start gap-1.5 mt-1">
               <MapPin size={ICON_SIZE.xs} className="shrink-0 mt-0.5 text-gray-400" />
               {order.deliveryAddress || "No address recorded"}
@@ -238,6 +231,8 @@ export default function DeliveryNavigationPage() {
             <p className="text-xs text-gray-600 line-clamp-2">{order.items.map((i) => i.product.name + " ×" + i.quantity).join(", ")}</p>
           </div>
         </div>
+
+        <ContactCustomer phone={customerPhone(order)} name={customerLabel(order)} orderId={order.id} className="mt-3" />
       </div>
 
       {geoError && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{geoError}</p>}

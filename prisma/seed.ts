@@ -118,7 +118,16 @@ async function main() {
     if (existing) {
       p = await prisma.product.update({ where: { id: existing.id }, data: { stock: product.stock, price: product.price } });
     } else {
-      p = await prisma.product.create({ data: product });
+      // Subcategories are managed rows; create each one the first time it's used.
+      const { subcategory, ...rest } = product as typeof product & { subcategory?: string | null };
+      const sub = subcategory
+        ? await prisma.subcategory.upsert({
+            where: { categoryId_name: { categoryId: rest.categoryId, name: subcategory } },
+            update: {},
+            create: { categoryId: rest.categoryId, name: subcategory },
+          })
+        : null;
+      p = await prisma.product.create({ data: { ...rest, subcategoryId: sub?.id ?? null } });
     }
     createdProducts[product.name] = p.id;
     console.log(`✓ Product: ${product.name}`);

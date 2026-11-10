@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Plus, Search, Pencil, Trash2, ChevronDown, ChevronRight, ImageIcon, PackageSearch } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, ChevronDown, ChevronRight, ImageIcon, PackageSearch, Boxes, PackagePlus } from "lucide-react";
+import Link from "next/link";
+import StockModal from "@/components/inventory/StockModal";
 import PageHeader from "@/components/ui/PageHeader";
 import Modal from "@/components/ui/Modal";
 import ConfirmModal from "@/components/ui/ConfirmModal";
@@ -12,10 +14,11 @@ import { ICON_SIZE } from "@/lib/constants/icon-size";
 import type { ReorderPlan } from "@/lib/inventory";
 import Image from "next/image";
 
-type Category = { id: number; name: string; description: string | null };
+type Subcategory = { id: number; name: string };
+type Category = { id: number; name: string; description: string | null; subcategories?: Subcategory[] };
 type Product = {
   id: number; name: string; categoryId: number; category: Category;
-  subcategory: string | null; price: number; unit: string; stock: number;
+  subcategory: string | null; subcategoryId: number | null; price: number; unit: string; stock: number;
   image: string | null; description: string | null;
 };
 
@@ -39,7 +42,7 @@ const UNITS = [
   { value: "sack", label: "per sack" },
 ];
 
-const EMPTY_FORM = { id: 0, name: "", categoryId: "", subcategory: "", price: "", unit: "pc", stock: "", description: "", image: "" };
+const EMPTY_FORM = { id: 0, name: "", categoryId: "", subcategoryId: "", price: "", unit: "pc", stock: "", description: "", image: "" };
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -56,6 +59,8 @@ export default function ProductsPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [stockTarget, setStockTarget] = useState<Product | null>(null);
+  const [newSub, setNewSub] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const showToast = useToast();
 
@@ -75,9 +80,24 @@ export default function ProductsPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const subcategories = [...new Set(
-    products.filter((p) => String(p.categoryId) === form.categoryId && p.subcategory).map((p) => p.subcategory!)
-  )];
+  // The chosen category's managed subcategories, for the dropdown.
+  const subcategories = categories.find((c) => String(c.id) === form.categoryId)?.subcategories ?? [];
+  const editingProduct = editing ? products.find((p) => p.id === form.id) ?? null : null;
+
+  async function addSubcategory() {
+    const name = (newSub ?? "").trim();
+    if (!name || !form.categoryId) return;
+    const res = await fetch("/api/subcategories", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ categoryId: Number(form.categoryId), name }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { setError(data.error ?? "Couldn't add the subcategory"); return; }
+    const cRes = await fetch("/api/categories");
+    if (cRes.ok) setCategories(await cRes.json());
+    setForm((p) => ({ ...p, subcategoryId: String(data.id) }));
+    setNewSub(null); setError("");
+  }
 
   const filtered = products.filter((p) => {
     const q = search.toLowerCase();
@@ -103,18 +123,18 @@ export default function ProductsPage() {
   }
 
   function openAdd() {
-    setForm(EMPTY_FORM); setEditing(false); setError(""); setImagePreview(null); setShowModal(true);
+    setForm(EMPTY_FORM); setEditing(false); setError(""); setImagePreview(null); setNewSub(null); setShowModal(true);
   }
 
   function openEdit(p: Product) {
     setForm({
       id: p.id, name: p.name, categoryId: String(p.categoryId),
-      subcategory: p.subcategory ?? "", price: String(p.price),
+      subcategoryId: p.subcategoryId ? String(p.subcategoryId) : "", price: String(p.price),
       unit: p.unit || "pc", stock: String(p.stock),
       description: p.description ?? "", image: p.image ?? "",
     });
     setImagePreview(p.image ?? null);
-    setEditing(true); setError(""); setShowModal(true);
+    setEditing(true); setError(""); setNewSub(null); setShowModal(true);
   }
 
   async function handleImageUpload(file: File) {
@@ -134,7 +154,13 @@ export default function ProductsPage() {
     const method = editing ? "PUT" : "POST";
     const res = await fetch("/api/products", {
       method, headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, categoryId: Number(form.categoryId), price: Number(form.price), stock: Number(form.stock) }),
+      body: JSON.stringify({
+        ...form,
+        categoryId: Number(form.categoryId),
+        subcategoryId: form.subcategoryId ? Number(form.subcategoryId) : null,
+        price: Number(form.price),
+        ...(editing ? {} : { stock: Number(form.stock) || 0 }),
+      }),
     });
     if (!res.ok) { setError((await res.json().catch(() => ({ error: "Something went wrong" }))).error); return; }
     setShowModal(false);
@@ -158,7 +184,14 @@ export default function ProductsPage() {
         title="Products"
         subtitle="Manage inventory by category"
         action={
-          <Button onClick={openAdd} icon={<Plus size={ICON_SIZE.md} />}>Add Product</Button>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/restocks?new=1"
+              className="inline-flex items-center gap-2 rounded-[10px] font-semibold py-2.5 px-4 text-sm bg-white border text-gray-700 hover:bg-gray-50 transition"
+              style={{ borderColor: "var(--border)" }}>
+              <PackagePlus size={ICON_SIZE.md} /> Add Inventory
+            </Link>
+            <Button onClick={openAdd} icon={<Plus size={ICON_SIZE.md} />}>Add New Product</Button>
+          </div>
         }
       />
 
@@ -292,14 +325,18 @@ export default function ProductsPage() {
                           </div>
 
                           {/* Actions — labeled, not icon-only, so they're unambiguous at a glance */}
-                          <div className="flex gap-2 p-2.5 border-t border-gray-100">
+                          <div className="flex gap-1.5 p-2.5 border-t border-gray-100">
                             <button onClick={() => openEdit(p)}
-                              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition">
+                              className="flex-1 flex items-center justify-center gap-1 py-2 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition">
                               <Pencil size={13} /> Edit
                             </button>
-                            <button onClick={() => setDeleteTarget(p)}
-                              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition">
-                              <Trash2 size={13} /> Delete
+                            <button onClick={() => setStockTarget(p)}
+                              className="flex-1 flex items-center justify-center gap-1 py-2 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
+                              <Boxes size={13} /> Stock
+                            </button>
+                            <button onClick={() => setDeleteTarget(p)} aria-label={`Delete ${p.name}`} title="Delete"
+                              className="w-9 shrink-0 flex items-center justify-center py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition">
+                              <Trash2 size={13} />
                             </button>
                           </div>
                         </div>
@@ -312,6 +349,14 @@ export default function ProductsPage() {
           </div>
         ))}
       </div>
+
+      {stockTarget && (
+        <StockModal
+          product={products.find((x) => x.id === stockTarget.id) ?? stockTarget}
+          onClose={() => setStockTarget(null)}
+          onAdjusted={fetchAll}
+        />
+      )}
 
       {/* Delete Confirmation */}
       <ConfirmModal
@@ -375,7 +420,7 @@ export default function ProductsPage() {
                 {/* Category */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
-                  <select required value={form.categoryId} onChange={(e) => setForm((p) => ({ ...p, categoryId: e.target.value, subcategory: "" }))}
+                  <select required value={form.categoryId} onChange={(e) => { setForm((p) => ({ ...p, categoryId: e.target.value, subcategoryId: "" })); setNewSub(null); }}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition bg-white">
                     <option value="">Select category</option>
                     {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -384,14 +429,25 @@ export default function ProductsPage() {
 
                 {/* Subcategory */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Type / Subcategory <span className="text-gray-400">(optional)</span></label>
-                  <input value={form.subcategory} onChange={(e) => setForm((p) => ({ ...p, subcategory: e.target.value }))}
-                    list="subcategory-suggestions"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
-                    placeholder="e.g. Roofing Nails" />
-                  <datalist id="subcategory-suggestions">
-                    {subcategories.map((s) => <option key={s} value={s} />)}
-                  </datalist>
+                  <label htmlFor="product-subcategory" className="block text-xs font-medium text-gray-600 mb-1">Subcategory <span className="text-gray-400">(optional)</span></label>
+                  {newSub === null ? (
+                    <select id="product-subcategory" value={form.subcategoryId} disabled={!form.categoryId}
+                      onChange={(e) => e.target.value === "__new" ? setNewSub("") : setForm((p) => ({ ...p, subcategoryId: e.target.value }))}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition bg-white disabled:bg-gray-50 disabled:text-gray-400">
+                      <option value="">{form.categoryId ? "None" : "Pick a category first"}</option>
+                      {subcategories.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      {form.categoryId && <option value="__new">+ New subcategory…</option>}
+                    </select>
+                  ) : (
+                    <div className="flex gap-1.5">
+                      <input autoFocus value={newSub} onChange={(e) => setNewSub(e.target.value)} placeholder="e.g. Roofing Nails" maxLength={60}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSubcategory(); } if (e.key === "Escape") { e.preventDefault(); setNewSub(null); } }}
+                        aria-label="New subcategory name"
+                        className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition" />
+                      <button type="button" onClick={addSubcategory} className="px-3 rounded-xl text-xs font-semibold text-white" style={{ background: "var(--brand)" }}>Add</button>
+                      <button type="button" onClick={() => setNewSub(null)} className="px-2.5 rounded-xl text-xs font-semibold text-gray-500 bg-gray-100">Cancel</button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Price + Unit side by side */}
@@ -416,14 +472,25 @@ export default function ProductsPage() {
                   )}
                 </div>
 
-                {/* Stock */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Stock <span className="text-gray-400">({form.unit})</span></label>
-                  <input required type="number" min="0" step={form.unit === "kg" ? "0.01" : "1"} value={form.stock}
-                    onChange={(e) => setForm((p) => ({ ...p, stock: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
-                    placeholder="0" />
-                </div>
+                {/* Stock: set once when the product is added; later changes go through
+                    a purchase or a recorded adjustment, so each one leaves a trail. */}
+                {editing ? (
+                  <div className="col-span-2 rounded-xl border border-gray-100 px-3 py-2.5 flex flex-wrap items-center gap-2" style={{ background: "var(--bg-muted)" }}>
+                    <span className="text-xs text-gray-500">Stock on hand</span>
+                    <span className="font-semibold text-gray-900 num">{editingProduct?.stock ?? form.stock} {form.unit}</span>
+                    <button type="button" onClick={() => { if (editingProduct) { setShowModal(false); setStockTarget(editingProduct); } }}
+                      className="ml-auto text-xs font-semibold text-blue-600 hover:underline">Add inventory or adjust →</button>
+                  </div>
+                ) : (
+                  <div>
+                    <label htmlFor="product-stock" className="block text-xs font-medium text-gray-600 mb-1">Opening stock <span className="text-gray-400">({form.unit})</span></label>
+                    <input id="product-stock" type="number" min="0" step={form.unit === "kg" ? "0.01" : "1"} value={form.stock}
+                      onChange={(e) => setForm((p) => ({ ...p, stock: e.target.value }))}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
+                      placeholder="0" />
+                    <p className="text-[10.5px] text-gray-400 mt-1">What&apos;s on the shelf today. Later stock comes in through Add Inventory.</p>
+                  </div>
+                )}
 
                 {/* Description */}
                 <div className="col-span-2">
