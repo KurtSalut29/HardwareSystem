@@ -240,6 +240,13 @@ The system isn't running. Start it again with `npm start` (see [Everyday use](#e
 **Screens still look old after an update**
 Close every RM Hardware window and tab, then open it again. If it still looks old, press **Ctrl + Shift + R** on the page.
 
+**Forgot a password (even the admin's)**
+Passwords are stored scrambled, so they can't be looked up — set a new one instead. Run this in the project folder, with the account's username or email:
+```
+node scripts/reset-password.mjs admin
+```
+Type the new password twice (it isn't shown while you type), then type `YES`. To reset an account on the online (deployed) system, first run `set DATABASE_URL=...` with the online database's URL in the same Command Prompt window. The script shows which database it will change before saving.
+
 **Saving a receipt as a PDF**
 Click **Print receipt**, then choose **Save as PDF** as the printer. The receipt is sized for 80 mm receipt printers and also prints fine on regular paper.
 
