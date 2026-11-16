@@ -1,9 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Archivo } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ToastProvider } from "@/components/ui/ToastProvider";
 import { STORE_NAME } from "@/lib/brand";
+import PwaSetup from "@/components/pwa/PwaSetup";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -20,12 +21,25 @@ const archivo = Archivo({
 export const metadata: Metadata = {
   title: STORE_NAME,
   description: `${STORE_NAME} — hardware store management system`,
+  applicationName: STORE_NAME,
+  // Installed on iPhone/iPad: full-screen app with the store's name and icon.
+  appleWebApp: { capable: true, title: STORE_NAME, statusBarStyle: "default" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
+  formatDetection: { telephone: false },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FFFFFF" },
+    { media: "(prefers-color-scheme: dark)", color: "#0B1020" },
+  ],
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body className={`${inter.variable} ${archivo.variable} antialiased`}>
+        <PwaSetup />
         <ThemeProvider>
           <ToastProvider>{children}</ToastProvider>
         </ThemeProvider>

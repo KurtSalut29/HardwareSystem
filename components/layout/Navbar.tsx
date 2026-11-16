@@ -15,6 +15,7 @@ import { useNotifications } from "@/components/NotificationsProvider";
 import { roleLabel } from "@/lib/roles";
 import { isSoundOn, playAlert, setSoundOn, subscribeSound, unlockAudio, type AlertSound } from "@/lib/sounds";
 import { desktopPermission, requestDesktop } from "@/lib/desktopNotify";
+import InstallAppCard from "@/components/pwa/InstallAppCard";
 
 type BellType = "new_order" | "new_customer" | "low_stock" | "out_of_stock" | "order_update" | "delivery";
 type BellItem = { id: string; type: BellType; title: string; message: string; href?: string; unread: boolean };
@@ -326,6 +327,9 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
                     </div>
                   );
                 })()}
+
+                {/* Install as an app (home screen / taskbar) */}
+                <InstallAppCard labelClass={SECTION_LABEL} />
               </div>
             )}
           </div>
