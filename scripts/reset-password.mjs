@@ -70,11 +70,20 @@ try {
     : await prisma.user.findUnique({ where: { username: who } });
   if (!user) {
     console.error(`No account "${who}" in the database at ${host}.`);
+    // Show who can sign in to the back office, so the right name can be used.
+    const staff = await prisma.user.findMany({ where: { role: { in: ["admin", "cashier"] } }, select: { username: true, email: true, role: true }, orderBy: { role: "asc" } });
+    if (staff.length) {
+      console.error("\nAdmin and staff accounts in this database:");
+      for (const s of staff) console.error(`  ${s.username.padEnd(20)} ${(s.email ?? "(no email — sign in with the username)").padEnd(40)} ${s.role === "cashier" ? "staff" : s.role}`);
+    }
     process.exit(1);
   }
 
   console.log(`\nDatabase: ${host}${host === "localhost" ? "  (this laptop)" : "  (online)"}`);
-  console.log(`Account:  ${user.username}${user.email ? ` <${user.email}>` : ""} — ${user.role === "cashier" ? "staff" : user.role}\n`);
+  console.log(`Account:  ${user.username}${user.email ? ` <${user.email}>` : ""} — ${user.role === "cashier" ? "staff" : user.role}`);
+  console.log(user.email
+    ? `Sign in with:  ${user.email}  (or the username ${user.username})\n`
+    : `This account has no email on file — sign in with the username:  ${user.username}\n`);
 
   let password = "";
   for (;;) {
@@ -91,8 +100,13 @@ try {
     console.log("Nothing was changed.");
     process.exit(0);
   }
-  await prisma.user.update({ where: { id: user.id }, data: { password: await bcrypt.hash(password, 10) } });
+  // Also lift any "too many wrong passwords" pause from the failed tries.
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { password: await bcrypt.hash(password, 10), failedLogins: 0, lockedUntil: null },
+  });
   console.log(`\nDone. ${user.username} can now log in with the new password.`);
+  console.log(user.email ? `Sign in with ${user.email} or ${user.username}.` : `Sign in with the username ${user.username} (not an email).`);
 } finally {
   rl.close();
   await prisma.$disconnect();
