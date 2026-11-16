@@ -6,6 +6,7 @@ import { isOrderStatus } from "@/lib/orderStatus";
 import { liveQuote } from "@/lib/deliveryQuote";
 import { getDeliverySettings } from "@/lib/deliverySettings";
 import { canTakeOrder, driverAvailability, unavailableReason } from "@/lib/driverStatus";
+import { checkDriverForNewDelivery } from "@/lib/driverAssign";
 
 const FULFILLMENT_MODES = ["delivery", "pickup"];
 // Card was dropped — online customers pay cash on delivery/pickup or via GCash.
@@ -38,6 +39,7 @@ export async function GET(req: NextRequest) {
       // Drivers need the customer's number to call ahead on a delivery.
       customer: { select: { username: true, contact: true } },
       driver: { select: { username: true, contact: true } },
+      handledBy: { select: { username: true } },
       // When the sale was recorded: the delivered/picked-up time on the timeline.
       transaction: { select: { dateTime: true } },
     },
@@ -76,6 +78,7 @@ export async function POST(req: NextRequest) {
     customerId: rawCustomerId,
     customerName: rawCustomerName,
     customerContact: rawCustomerContact,
+    driverId: rawDriverId,
   } = await req.json();
   if (!Array.isArray(items) || !items.length) return NextResponse.json({ error: "No items" }, { status: 400 });
   if (!FULFILLMENT_MODES.includes(fulfillmentMode)) return NextResponse.json({ error: "Invalid fulfillment mode" }, { status: 400 });
@@ -119,6 +122,18 @@ export async function POST(req: NextRequest) {
   }
 
   const isPickup = fulfillmentMode === "pickup";
+
+  // Staff may hand a delivery to a driver as they take the order. The same
+  // availability rule as dispatching from the order list applies.
+  let driverId: number | null = null;
+  if (rawDriverId != null && rawDriverId !== "") {
+    if (!isStaff) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (isPickup) return NextResponse.json({ error: "Pickup orders cannot be assigned a driver" }, { status: 400 });
+    const check = await checkDriverForNewDelivery(rawDriverId);
+    if ("error" in check) return NextResponse.json({ error: check.error }, { status: check.status });
+    driverId = check.id;
+  }
+
   let latitude: number | null = isPickup ? null : providedLat ?? null;
   let longitude: number | null = isPickup ? null : providedLng ?? null;
   let geocodingFailed = false;
@@ -189,7 +204,8 @@ export async function POST(req: NextRequest) {
           deliveryFee,
           fulfillmentMode,
           paymentMethod,
-          ...(isStaff ? { status: "confirmed", handledById: payload.id } : {}),
+          ...(isStaff ? { status: driverId ? "out_for_delivery" : "confirmed", handledById: payload.id } : {}),
+          ...(driverId ? { driverId, assignedAt: new Date() } : {}),
           ...(isGcash ? { gcashNumber, gcashReference } : {}),
           amountPaid,
           ...(!isPickup && (deliveryAddress || latitude != null) ? { deliveryAddress: deliveryAddress || null, latitude, longitude } : {}),

@@ -15,32 +15,26 @@ export type ReceiptOrder = OrderCustomer & {
   gcashReference?: string | null;
   paymentVerified?: boolean;
   amountPaid?: number;
+  deliveryFeeNote?: string | null;
+  driver?: { username: string } | null;
+  handledBy?: { username: string } | null;
+  deliveredAt?: string | null;
+  transaction?: { dateTime: string } | null;
   items: { quantity: number; price: number; product: { name: string; unit?: string } }[];
 };
-
-const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** An order as a receipt: items, delivery fee, payment and any balance still due. */
 export function orderReceipt(o: ReceiptOrder): ReceiptData {
   const pickup = o.fulfillmentMode === "pickup";
-  const payment: ReceiptData["payment"] = [{ label: "Payment", value: o.paymentMethod ?? "Cash" }];
+  const payment: ReceiptData["payment"] = [{ label: "Payment method", value: o.paymentMethod === "Cash" || !o.paymentMethod ? (pickup ? "Cash" : "Cash on delivery") : o.paymentMethod }];
   if (o.paymentMethod === "GCash") {
     if (o.gcashNumber) payment.push({ label: "GCash No.", value: o.gcashNumber });
     if (o.gcashReference) payment.push({ label: "Ref. No.", value: o.gcashReference });
     payment.push({ label: "GCash payment", value: o.paymentVerified ? "Verified" : "Not verified yet", tone: o.paymentVerified ? "good" : "warn" });
-    const paid = o.amountPaid ?? 0;
-    payment.push({ label: "Amount paid", value: peso(paid) });
-    const bal = Math.round((o.totalAmount - paid) * 100) / 100;
-    if (bal > 0.005) payment.push({ label: "Balance due", value: peso(bal), tone: "warn" });
-  } else if (o.status !== "delivered" && o.status !== "cancelled") {
-    // Cash, maybe with a downpayment staff recorded (e.g. half).
-    const paid = o.amountPaid ?? 0;
-    const bal = Math.max(0, Math.round((o.totalAmount - paid) * 100) / 100);
-    if (paid > 0) payment.push({ label: bal > 0 ? "Downpayment" : "Amount paid", value: peso(paid), tone: "good" });
-    if (bal > 0) payment.push({ label: pickup ? "Balance at pickup" : "Balance on delivery", value: peso(bal), tone: paid > 0 ? "warn" : undefined });
-  } else if (o.status === "delivered") {
-    payment.push({ label: "Amount paid", value: peso(o.totalAmount), tone: "good" });
   }
+  // A delivered cash order was paid in full at the door.
+  const amountPaid = o.status === "delivered" && o.paymentMethod !== "GCash" ? o.totalAmount : o.amountPaid ?? 0;
+  const done = o.status === "delivered";
   return {
     number: `Order #${o.id}`,
     date: o.dateTime,
@@ -48,10 +42,16 @@ export function orderReceipt(o: ReceiptOrder): ReceiptData {
     contact: customerPhone(o),
     fulfillment: pickup ? "Pickup" : "Delivery",
     address: pickup ? null : o.deliveryAddress ?? null,
-    status: isOrderStatus(o.status) ? STATUS_LABELS[o.status] : o.status,
+    driver: pickup ? null : o.driver?.username ?? null,
+    servedBy: o.handledBy?.username ?? null,
+    status: isOrderStatus(o.status) ? (pickup && o.status === "delivered" ? "Picked up" : STATUS_LABELS[o.status]) : o.status,
+    completedAt: done ? o.deliveredAt ?? o.transaction?.dateTime ?? null : null,
     items: o.items.map((i) => ({ name: i.product.name, quantity: i.quantity, unit: i.product.unit, price: i.price })),
     deliveryFee: o.deliveryFee ?? 0,
+    deliveryFeeNote: pickup ? null : o.deliveryFeeNote ?? null,
     total: o.totalAmount,
     payment,
+    amountPaid: o.status === "cancelled" && !amountPaid ? null : amountPaid,
+    balanceLabel: pickup ? "Balance at pickup" : "Balance on delivery",
   };
 }

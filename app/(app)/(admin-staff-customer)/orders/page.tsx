@@ -21,6 +21,7 @@ import { ICON_SIZE } from "@/lib/constants/icon-size";
 import { STORE_NAME } from "@/lib/brand";
 import ReceiptModal from "@/components/receipts/Receipt";
 import NewOrderModal from "@/components/orders/NewOrderModal";
+import SwitchToDeliveryModal from "@/components/orders/SwitchToDeliveryModal";
 import DeliveryFeeSettingsModal from "@/components/orders/DeliveryFeeSettingsModal";
 import { orderReceipt } from "@/lib/receipts";
 import { customerLabel, customerPhone, isWalkIn } from "@/lib/customer";
@@ -375,6 +376,7 @@ export default function OrdersPage() {
   const showToast = useToast();
   const [receipt, setReceipt] = useState<Order | null>(null);
   const [locationOrder, setLocationOrder] = useState<Order | null>(null);
+  const [switchOrder, setSwitchOrder] = useState<Order | null>(null);
   const [storeLocation, setStoreLocation] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [showStoreEditor, setShowStoreEditor] = useState(false);
   const [storePayment, setStorePayment] = useState<StorePayment | null>(null);
@@ -699,7 +701,12 @@ export default function OrdersPage() {
             refreshPins();
             const fresh = list.find((o) => o.id === created.id);
             if (fresh) setReceipt(fresh);
-            showToast(`Order #${created.id} created — it's confirmed and ready to prepare.`);
+            if (created.driver) {
+              refreshDrivers();
+              showToast(`Order #${created.id} created and handed to ${created.driver.username}.`);
+            } else {
+              showToast(`Order #${created.id} created — it's confirmed and ready to prepare.`);
+            }
           }}
         />
       )}
@@ -721,6 +728,23 @@ export default function OrdersPage() {
           onViewProof={() => { setProofView(statusOrder); setStatusOrderId(null); }}
           onAdjustFee={role === "admin" ? adjustFee : undefined}
           onRecordPayment={isStaff ? recordPayment : undefined}
+        />
+      )}
+      {switchOrder && (
+        <SwitchToDeliveryModal
+          order={switchOrder}
+          customer={customerLabel(switchOrder)}
+          drivers={drivers.map((d) => ({ id: d.id, username: d.username, activeCount: d.activeCount, maxActive: d.maxActive ?? 1, availability: d.availability ?? "available" }))}
+          driversFailed={driversError && drivers.length === 0}
+          onClose={() => setSwitchOrder(null)}
+          onSwitched={async (r) => {
+            setSwitchOrder(null);
+            const res = await fetch("/api/orders");
+            if (res.ok) setOrders(await res.json());
+            refreshPins();
+            refreshDrivers();
+            showToast(r.driver ? `Order #${r.id} is now a delivery — ${r.driver.username} was notified.` : `Order #${r.id} is now a delivery. Assign a driver when it's ready.`, "success");
+          }}
         />
       )}
       {locationOrder && (
@@ -1099,7 +1123,12 @@ export default function OrdersPage() {
 
                       <DetailBlock title={isPickup ? "Pickup" : "Delivery"} icon={isPickup ? <Store className="size-3.5" /> : <Truck className="size-3.5" />}>
                         {isPickup ? (
-                          <p className="text-ink-3">The customer collects this at the store — no driver needed.</p>
+                          <>
+                            <p className="text-ink-3">The customer collects this at the store — no driver needed.</p>
+                            {isStaff && (o.status === "pending" || o.status === "confirmed") && !o.transactionId && (
+                              <p className="text-[12px] text-ink-4">Customer wants it delivered instead? Use <b className="text-ink-3">Change to delivery</b> below.</p>
+                            )}
+                          </>
                         ) : (
                           <>
                             <p className="flex items-start gap-1.5">
@@ -1220,6 +1249,11 @@ export default function OrdersPage() {
                         {(o.status === "confirmed" || o.status === "delivered" || o.status === "out_for_delivery") && (
                           <button type="button" onClick={() => setReceipt(o)} className={DETAIL_BTN}>
                             <Receipt className="size-3.5" /> Receipt
+                          </button>
+                        )}
+                        {isStaff && isPickup && (o.status === "pending" || o.status === "confirmed") && !o.transactionId && (
+                          <button type="button" onClick={() => setSwitchOrder(o)} className={DETAIL_BTN}>
+                            <Truck className="size-3.5" /> Change to delivery
                           </button>
                         )}
                         {isStaff && !isPickup && (

@@ -230,9 +230,13 @@ export default function POSPage() {
       number: `Sale #${sale.id}`,
       date: sale.dateTime ?? new Date().toISOString(),
       fulfillment: "Walk-in",
+      servedBy: sale.user?.username ?? null,
+      status: "Completed",
       items: cart.map((i) => ({ name: i.name, quantity: i.quantity, unit: i.unit, price: i.price })),
       total: sale.totalAmount ?? total,
-      payment: [{ label: "Payment", value: paymentMethod }],
+      payment: [{ label: "Payment method", value: paymentMethod }],
+      amountPaid: sale.totalAmount ?? total,
+      notes: loadedOrderIds.length ? [`Includes online ${loadedOrderIds.length === 1 ? "order" : "orders"} ${loadedOrderIds.map((id) => `#${id}`).join(", ")}`] : undefined,
     });
     setCart([]); setLoadedOrderIds([]); setCartOpen(false); setShowCheckoutConfirm(false); showToast("Transaction completed successfully!"); fetchAll();
   }

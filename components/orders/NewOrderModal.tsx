@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Store, Truck, Banknote, Smartphone, UserRound, UserPlus, ClipboardPlus } from "lucide-react";
+import { Plus, Trash2, Store, Truck, Banknote, Smartphone, UserRound, UserPlus, ClipboardPlus, Info } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import LocationPicker, { type PickedLocation } from "@/components/LocationPicker";
@@ -10,6 +10,7 @@ import { useDeliveryQuote } from "@/lib/useDeliveryQuote";
 import { PAY_NOW_OPTIONS, payNowAmount, type PayNow } from "@/lib/payment";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 import Alert from "@/components/ui/Alert";
+import DriverPicker, { type DriverPick } from "@/components/orders/DriverPicker";
 
 type Product = { id: number; name: string; price: number; unit: string; stock: number; category: { name: string } | null };
 type Customer = { id: number; username: string; contact: string | null };
@@ -46,15 +47,19 @@ function Section({ n, title, children }: { n: number; title: string; children: R
 /**
  * Staff take an order for a customer who called, texted or came to the counter:
  * who it's for (an account, or just a name and number), what they want, pickup
- * or delivery (with the drop-off pin and its fee), and how they pay. The order is
- * created already confirmed, and its receipt opens right after.
+ * or delivery (with the drop-off pin, its fee and, optionally, the driver), and how
+ * they pay. The order is created already confirmed (or out for delivery when a
+ * driver is picked), and its receipt opens right after.
  */
 export default function NewOrderModal({ onClose, onCreated }: {
   onClose: () => void;
-  onCreated: (order: { id: number }) => void;
+  onCreated: (order: { id: number; driver?: { username: string } | null }) => void;
 }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [drivers, setDrivers] = useState<DriverPick[]>([]);
+  const [driversFailed, setDriversFailed] = useState(false);
+  const [driverId, setDriverId] = useState("");
 
   const [who, setWho] = useState<"walkin" | "account">("walkin");
   const [customerId, setCustomerId] = useState("");
@@ -75,11 +80,12 @@ export default function NewOrderModal({ onClose, onCreated }: {
 
   useEffect(() => {
     let live = true;
-    Promise.all([fetch("/api/products"), fetch("/api/customers")]).then(async ([p, c]) => {
+    Promise.all([fetch("/api/products"), fetch("/api/customers"), fetch("/api/drivers")]).then(async ([p, c, d]) => {
       if (!live) return;
       if (p.ok) setProducts(await p.json());
       if (c.ok) setCustomers(await c.json());
-    }).catch(() => {});
+      if (d.ok) setDrivers(await d.json()); else setDriversFailed(true);
+    }).catch(() => { if (live) setDriversFailed(true); });
     return () => { live = false; };
   }, []);
 
@@ -134,6 +140,7 @@ export default function NewOrderModal({ onClose, onCreated }: {
         items: lines.map((l) => ({ productId: l.productId, quantity: Number(l.quantity) })),
         fulfillmentMode: mode,
         ...(mode === "delivery" && location ? { deliveryAddress: location.address, latitude: location.lat, longitude: location.lng } : {}),
+        ...(mode === "delivery" && driverId ? { driverId: Number(driverId) } : {}),
         paymentMethod: payment,
         ...(payment === "GCash" ? { gcashNumber, gcashReference } : {}),
         amountPaid: paidNow ?? 0,
@@ -227,17 +234,24 @@ export default function NewOrderModal({ onClose, onCreated }: {
             { value: "pickup", label: "Pickup at store", icon: <Store size={13} /> },
             { value: "delivery", label: "Delivery", icon: <Truck size={13} /> },
           ]} />
+          {mode === "pickup" && (
+            <p className="flex items-start gap-1.5 rounded-lg bg-subtle px-3 py-2 text-[12px] text-ink-3">
+              <Info className="mt-0.5 size-3.5 shrink-0 text-ink-4" />
+              <span>If the customer later wants it delivered, open the order and use <b className="text-ink-2">Change to delivery</b> — you can pin the location and pick a driver there.</span>
+            </p>
+          )}
           {mode === "delivery" && (
             <div className="space-y-2">
               <LocationPicker value={location} onChange={setLocation} />
               {location && delivery.loading && <p className="rounded-lg px-3 py-2 text-xs text-ink-3 animate-pulse bg-recess">Checking the road distance…</p>}
-              {location && !delivery.loading && delivery.error && <p className="rounded-lg px-3 py-2 text-xs bg-bad-soft text-bad">{delivery.error}</p>}
+              {location && !delivery.loading && delivery.error && <Alert tone="bad" compact>{delivery.error}</Alert>}
               {quote && delivery.settings && (
-                <div className="rounded-lg px-3 py-2 text-xs flex justify-between gap-3" style={{ background: quote.tooFar ? "var(--bad-soft)" : "var(--info-soft)" }}>
+                <div className={`flex justify-between gap-3 rounded-lg px-3 py-2 text-xs ${quote.tooFar ? "bg-bad-soft" : "bg-info-soft"}`}>
                   <span className="text-ink-2">{quote.tooFar ? `About ${quote.roadKm.toFixed(0)} km — beyond the ${delivery.settings.maxKm} km delivery area` : describeQuote(quote, delivery.settings)}</span>
                   <span className="font-bold text-ink num whitespace-nowrap">{quote.fee === 0 ? "Free" : peso(quote.fee)}</span>
                 </div>
               )}
+              <DriverPicker drivers={drivers} value={driverId} onChange={setDriverId} loadFailed={driversFailed} />
             </div>
           )}
         </Section>

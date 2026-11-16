@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
         type: "POS",
         items: { create: items.map((i: { productId: number; quantity: number; price: number; productName: string }) => ({ productId: i.productId, productName: i.productName ?? "", quantity: i.quantity, price: i.price })) },
       },
-      include: { items: true },
+      include: { items: true, user: { select: { username: true } } },
     });
     if (linkedOrderIds.length) {
       await tx.order.updateMany({
