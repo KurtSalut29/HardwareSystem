@@ -80,8 +80,8 @@ async function main() {
     { name: "Hacksaw", categoryId: catIds["Tools"], subcategory: "Saws", price: 220, stock: 25, unit: "pc", description: "Hacksaw with 12-inch blade", image: null },
 
     // Plumbing
-    { name: "PVC Pipe 1/2\" x 3m", categoryId: catIds["Plumbing"], subcategory: "Pipes", price: 85, stock: 200, unit: "length", description: "PVC pressure pipe, 1/2 inch x 3 meters", image: "https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=400&q=80" },
-    { name: "PVC Pipe 3/4\" x 3m", categoryId: catIds["Plumbing"], subcategory: "Pipes", price: 110, stock: 150, unit: "length", description: "PVC pressure pipe, 3/4 inch x 3 meters", image: "https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=400&q=80" },
+    { name: "PVC Pipe 1/2\" x 3m", categoryId: catIds["Plumbing"], subcategory: "Pipes", price: 85, stock: 200, unit: "length", description: "PVC pressure pipe, 1/2 inch x 3 meters" },
+    { name: "PVC Pipe 3/4\" x 3m", categoryId: catIds["Plumbing"], subcategory: "Pipes", price: 110, stock: 150, unit: "length", description: "PVC pressure pipe, 3/4 inch x 3 meters" },
     { name: "PVC Elbow 1/2\"", categoryId: catIds["Plumbing"], subcategory: "Fittings", price: 12, stock: 300, unit: "pc", description: "PVC 90-degree elbow, 1/2 inch", image: null },
     { name: "Gate Valve 1/2\"", categoryId: catIds["Plumbing"], subcategory: "Valves", price: 120, stock: 80, unit: "pc", description: "Brass gate valve, 1/2 inch", image: null },
     { name: "Ball Valve 3/4\"", categoryId: catIds["Plumbing"], subcategory: "Valves", price: 185, stock: 60, unit: "pc", description: "Brass ball valve, 3/4 inch", image: null },
