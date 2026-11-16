@@ -9,6 +9,7 @@ import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { balanceDue, nextStepText, orderTimeline, type FlowOrder, type Viewer } from "@/lib/orderFlow";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
+import PaymentCard from "@/components/orders/PaymentCard";
 
 export type StatusModalOrder = FlowOrder & OrderCustomer & {
   id: number; proofImage?: string | null; deliveredAt?: string | null;
@@ -29,7 +30,7 @@ function when(iso?: string | null) {
  * change notifies the customer (and the driver) right away.
  */
 export default function OrderStatusModal({
-  order, viewer, drivers, canAssign, canCancel, onClose, onStatus, onAssign, onSettle, onCancel, onViewProof, onAdjustFee,
+  order, viewer, drivers, canAssign, canCancel, onClose, onStatus, onAssign, onSettle, onCancel, onViewProof, onAdjustFee, onRecordPayment,
 }: {
   order: StatusModalOrder;
   viewer: Viewer;
@@ -44,6 +45,8 @@ export default function OrderStatusModal({
   onViewProof?: () => void;
   /** Admin only: change this order's delivery fee, with a reason. */
   onAdjustFee?: (id: number, fee: number, note: string) => Promise<boolean>;
+  /** Staff: set how much the customer has paid so far (full, half downpayment, …). */
+  onRecordPayment?: (id: number, amount: number) => Promise<boolean>;
 }) {
   const [pending, setPending] = useState<Action | null>(null);
   const [busy, setBusy] = useState(false);
@@ -125,6 +128,8 @@ export default function OrderStatusModal({
             );
           })}
         </ol>
+
+        <PaymentCard order={order} onRecord={viewer === "staff" ? onRecordPayment : undefined} />
 
         {/* Delivery fee: computed from distance; the admin can change it on this order */}
         {!pickup && (

@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
-import { DELIVERY_LIMITS, quoteDelivery, type DeliverySettings } from "@/lib/deliveryFee";
+import { DELIVERY_LIMITS, estimateRoadKm, islandAt, quoteForDistance, type DeliverySettings, type DistanceSource } from "@/lib/deliveryFee";
 
 type Field = { key: keyof DeliverySettings; label: string; suffix: string; step: string; hint: string };
 
 const FEE_FIELDS: Field[] = [
-  { key: "freeKm", label: "Free delivery distance", suffix: "km by road", step: "0.5", hint: "Customers this close to the store pay no delivery fee." },
-  { key: "ratePerKm", label: "Rate beyond that", suffix: "₱ per km", step: "1", hint: "Charged for every kilometre past the free distance, so farther places pay more." },
-  { key: "roadFactor", label: "Road factor", suffix: "× straight-line km", step: "0.05", hint: "Roads curve, so the map's straight line is shorter than the drive. 1.3 suits Biliran's coastal roads." },
+  { key: "baseFee", label: "Base delivery fee", suffix: "₱ per delivery", step: "5", hint: "The default fee every delivery pays, however close. Set 0 for free nearby delivery." },
+  { key: "freeKm", label: "Distance the base fee covers", suffix: "km by road", step: "0.5", hint: "Deliveries within this distance pay only the base fee." },
+  { key: "ratePerKm", label: "Rate beyond that", suffix: "₱ per km", step: "1", hint: "Charged for every kilometre past the covered distance, so farther places pay more." },
+  { key: "roadFactor", label: "Road factor (backup only)", suffix: "× straight-line km", step: "0.05", hint: "Distances come from real roads (OpenStreetMap routing). Only if that service is down, or for islands, the straight line × this is used instead." },
   { key: "islandFee", label: "Boat fee for islands (Maripipi, Higatangan)", suffix: "₱ added", step: "10", hint: "Added on top of the distance fee for island drop-offs. Set 0 to charge islands by distance only." },
   { key: "maxKm", label: "Farthest delivery", suffix: "km (0 = no limit)", step: "1", hint: "Mainland orders farther than this can't choose delivery." },
 ];
@@ -38,6 +39,8 @@ const EXAMPLES = [
   { name: "Higatangan Is. (Naval)", lat: 11.564109, lng: 124.274366 },
 ];
 
+type ExampleDistance = { roadKm: number; source: DistanceSource; island: string | null };
+
 const toForm = (s: DeliverySettings) => Object.fromEntries(FIELDS.map((f) => [f.key, String(s[f.key])])) as Record<keyof DeliverySettings, string>;
 
 export default function DeliveryFeeSettingsModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
@@ -45,9 +48,22 @@ export default function DeliveryFeeSettingsModal({ onClose, onSaved }: { onClose
   const [store, setStore] = useState<{ lat: number; lng: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Road distance to each example town, from the same routing service checkout uses.
+  const [distances, setDistances] = useState<Record<string, ExampleDistance>>({});
 
   useEffect(() => {
     fetch("/api/delivery-settings").then((r) => r.json()).then((d) => { setForm(toForm(d.settings)); setStore(d.store); }).catch(() => setError("Couldn't load the settings."));
+    let live = true;
+    for (const ex of EXAMPLES) {
+      fetch("/api/delivery-quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lat: ex.lat, lng: ex.lng }) })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!live || !d?.quote) return;
+          setDistances((p) => ({ ...p, [ex.name]: { roadKm: d.quote.roadKm, source: d.quote.source, island: d.quote.island } }));
+        })
+        .catch(() => {});
+    }
+    return () => { live = false; };
   }, []);
 
   const current: DeliverySettings | null = form ? Object.fromEntries(FIELDS.map((f) => [f.key, Number(form[f.key]) || 0])) as DeliverySettings : null;
@@ -78,8 +94,9 @@ export default function DeliveryFeeSettingsModal({ onClose, onSaved }: { onClose
       ) : (
         <form id="delivery-fee-form" onSubmit={save} className="space-y-4">
           <p className="text-xs text-gray-500">
-            The fee depends on distance: it is measured from the store&apos;s map pin to the customer&apos;s pin, so farther places pay more.
-            Customers see it at checkout before they order, and you can still change it on a single order.
+            Every delivery pays the base fee, plus a rate per km past the distance it covers. The distance is the real driving
+            distance by road from the store&apos;s pin to the customer&apos;s pin (OpenStreetMap routing), so farther places pay more.
+            Customers see the fee at checkout before they order, and you can still change it on a single order.
           </p>
           <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide pt-1">Delivery fee</p>
           {FEE_FIELDS.map((f) => (
@@ -120,12 +137,16 @@ export default function DeliveryFeeSettingsModal({ onClose, onSaved }: { onClose
               </div>
               <ul className="divide-y divide-gray-50">
                 {EXAMPLES
-                  .map((ex) => ({ ex, q: quoteDelivery(current, store, ex) }))
+                  .map((ex) => {
+                    // Real road distance once it arrives; the straight-line estimate until then.
+                    const d = distances[ex.name] ?? { roadKm: estimateRoadKm(current, store, ex), source: "estimate" as const, island: islandAt(ex.lat, ex.lng) };
+                    return { ex, q: quoteForDistance(current, d.roadKm, d.island, d.source) };
+                  })
                   .sort((a, b) => a.q.fee - b.q.fee || a.q.roadKm - b.q.roadKm)
                   .map(({ ex, q }) => {
                   return (
                     <li key={ex.name} className="flex justify-between gap-3 px-3 py-2 text-xs">
-                      <span className="text-gray-700">{ex.name} <span className="text-gray-400">· ~{q.roadKm.toFixed(1)} km{q.island ? ` + boat ₱${q.boatFee}` : ""}</span></span>
+                      <span className="text-gray-700">{ex.name} <span className="text-gray-400">· {q.source === "road" ? "" : "~"}{q.roadKm.toFixed(1)} km{q.source === "road" ? " by road" : ""}{q.island ? ` + boat ₱${q.boatFee}` : ""}</span></span>
                       <span className="font-semibold text-gray-900 num">{q.tooFar ? "Too far" : q.fee === 0 ? "Free" : `₱${q.fee}`}</span>
                     </li>
                   );

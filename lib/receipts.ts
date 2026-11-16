@@ -32,8 +32,14 @@ export function orderReceipt(o: ReceiptOrder): ReceiptData {
     payment.push({ label: "Amount paid", value: peso(paid) });
     const bal = Math.round((o.totalAmount - paid) * 100) / 100;
     if (bal > 0.005) payment.push({ label: "Balance due", value: peso(bal), tone: "warn" });
-  } else if (o.status !== "delivered") {
-    payment.push({ label: pickup ? "Pay at pickup" : "Cash on delivery", value: peso(o.totalAmount) });
+  } else if (o.status !== "delivered" && o.status !== "cancelled") {
+    // Cash, maybe with a downpayment staff recorded (e.g. half).
+    const paid = o.amountPaid ?? 0;
+    const bal = Math.max(0, Math.round((o.totalAmount - paid) * 100) / 100);
+    if (paid > 0) payment.push({ label: bal > 0 ? "Downpayment" : "Amount paid", value: peso(paid), tone: "good" });
+    if (bal > 0) payment.push({ label: pickup ? "Balance at pickup" : "Balance on delivery", value: peso(bal), tone: paid > 0 ? "warn" : undefined });
+  } else if (o.status === "delivered") {
+    payment.push({ label: "Amount paid", value: peso(o.totalAmount), tone: "good" });
   }
   return {
     number: `Order #${o.id}`,

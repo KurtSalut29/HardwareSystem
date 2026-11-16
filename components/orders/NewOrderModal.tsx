@@ -5,7 +5,9 @@ import { Plus, Trash2, Store, Truck, Banknote, Smartphone, UserRound, UserPlus }
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import LocationPicker, { type PickedLocation } from "@/components/LocationPicker";
-import { quoteDelivery, describeQuote, type DeliverySettings } from "@/lib/deliveryFee";
+import { describeQuote } from "@/lib/deliveryFee";
+import { useDeliveryQuote } from "@/lib/useDeliveryQuote";
+import { PAY_NOW_OPTIONS, payNowAmount, type PayNow } from "@/lib/payment";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 
 type Product = { id: number; name: string; price: number; unit: string; stock: number; category: { name: string } | null };
@@ -53,7 +55,6 @@ export default function NewOrderModal({ onClose, onCreated }: {
 }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [fees, setFees] = useState<{ settings: DeliverySettings; store: { lat: number; lng: number } } | null>(null);
 
   const [who, setWho] = useState<"walkin" | "account">("walkin");
   const [customerId, setCustomerId] = useState("");
@@ -66,16 +67,18 @@ export default function NewOrderModal({ onClose, onCreated }: {
   const [payment, setPayment] = useState<"Cash" | "GCash">("Cash");
   const [gcashReference, setGcashReference] = useState("");
   const [gcashNumber, setGcashNumber] = useState("");
+  // How much the customer pays now: all of it, a half downpayment, nothing yet, or another amount.
+  const [payNow, setPayNow] = useState<PayNow>("later");
+  const [payOther, setPayOther] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let live = true;
-    Promise.all([fetch("/api/products"), fetch("/api/customers"), fetch("/api/delivery-settings")]).then(async ([p, c, d]) => {
+    Promise.all([fetch("/api/products"), fetch("/api/customers")]).then(async ([p, c]) => {
       if (!live) return;
       if (p.ok) setProducts(await p.json());
       if (c.ok) setCustomers(await c.json());
-      if (d.ok) setFees(await d.json());
     }).catch(() => {});
     return () => { live = false; };
   }, []);
@@ -88,9 +91,12 @@ export default function NewOrderModal({ onClose, onCreated }: {
 
   const productOf = (id: number) => products.find((p) => p.id === id);
   const subtotal = lines.reduce((s, l) => s + (productOf(l.productId)?.price ?? 0) * (Number(l.quantity) || 0), 0);
-  const quote = mode === "delivery" && location && fees ? quoteDelivery(fees.settings, fees.store, location) : null;
+  const delivery = useDeliveryQuote(mode === "delivery" ? location : null);
+  const quote = mode === "delivery" ? delivery.quote : null;
   const fee = quote?.fee ?? 0;
-  const total = subtotal + fee;
+  const total = Math.round((subtotal + fee) * 100) / 100;
+  const paidNow = payNowAmount(payNow, total, payOther);
+  const payOtherInvalid = payNow === "other" && (paidNow == null || paidNow > total);
 
   function addLine() {
     const id = Number(pick);
@@ -115,7 +121,10 @@ export default function NewOrderModal({ onClose, onCreated }: {
     if (lines.length === 0) { setError("Add at least one product."); return; }
     if (lineError.some(Boolean)) { setError("Fix the quantities marked in red."); return; }
     if (mode === "delivery" && !location) { setError("Pin the delivery location on the map."); return; }
+    if (mode === "delivery" && delivery.loading) { setError("Still working out the delivery fee — one moment."); return; }
+    if (mode === "delivery" && !quote) { setError(delivery.error ?? "Couldn't work out the delivery fee. Move the pin and try again."); return; }
     if (quote?.tooFar) { setError("That location is beyond the delivery area."); return; }
+    if (payOtherInvalid) { setError(`Enter an amount from ₱0 to ${peso(total)}.`); return; }
 
     setSaving(true);
     const res = await fetch("/api/orders", {
@@ -127,6 +136,7 @@ export default function NewOrderModal({ onClose, onCreated }: {
         ...(mode === "delivery" && location ? { deliveryAddress: location.address, latitude: location.lat, longitude: location.lng } : {}),
         paymentMethod: payment,
         ...(payment === "GCash" ? { gcashNumber, gcashReference } : {}),
+        amountPaid: paidNow ?? 0,
       }),
     });
     setSaving(false);
@@ -220,9 +230,11 @@ export default function NewOrderModal({ onClose, onCreated }: {
           {mode === "delivery" && (
             <div className="space-y-2">
               <LocationPicker value={location} onChange={setLocation} />
-              {quote && fees && (
+              {location && delivery.loading && <p className="rounded-lg px-3 py-2 text-xs text-gray-500 animate-pulse" style={{ background: "var(--bg-muted)" }}>Checking the road distance…</p>}
+              {location && !delivery.loading && delivery.error && <p className="rounded-lg px-3 py-2 text-xs" style={{ background: "var(--bad-soft)", color: "var(--bad)" }}>{delivery.error}</p>}
+              {quote && delivery.settings && (
                 <div className="rounded-lg px-3 py-2 text-xs flex justify-between gap-3" style={{ background: quote.tooFar ? "var(--bad-soft)" : "var(--info-soft)" }}>
-                  <span className="text-gray-600">{quote.tooFar ? `About ${quote.roadKm.toFixed(0)} km — beyond the ${fees.settings.maxKm} km delivery area` : describeQuote(quote, fees.settings)}</span>
+                  <span className="text-gray-600">{quote.tooFar ? `About ${quote.roadKm.toFixed(0)} km — beyond the ${delivery.settings.maxKm} km delivery area` : describeQuote(quote, delivery.settings)}</span>
                   <span className="font-bold text-gray-900 num whitespace-nowrap">{quote.fee === 0 ? "Free" : peso(quote.fee)}</span>
                 </div>
               )}
@@ -244,6 +256,33 @@ export default function NewOrderModal({ onClose, onCreated }: {
               <p className="text-[11px] text-gray-400">Leave blank if the customer hasn&apos;t sent it yet. It stays &ldquo;not verified&rdquo; until you check it.</p>
             </div>
           )}
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-gray-600">Paid now</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl border border-gray-200 p-1" role="group" aria-label="Amount paid now">
+              {PAY_NOW_OPTIONS.map((o) => (
+                <button key={o.value} type="button" onClick={() => setPayNow(o.value)} aria-pressed={payNow === o.value}
+                  className="rounded-lg py-2 px-1 text-xs font-semibold transition leading-tight"
+                  style={payNow === o.value ? { background: "var(--brand)", color: "#fff" } : { color: "var(--text-muted)" }}>
+                  {o.label}
+                  {o.value !== "other" && total > 0 && <span className="block text-[10.5px] font-normal opacity-80 num">{peso(payNowAmount(o.value, total, "") ?? 0)}</span>}
+                </button>
+              ))}
+            </div>
+            {payNow === "other" && (
+              <div className="relative w-40">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">₱</span>
+                <input aria-label="Amount paid now" type="number" min="0" step="0.01" value={payOther} onChange={(e) => setPayOther(e.target.value)} className={`${inputCls} pl-7`} placeholder="0.00" />
+              </div>
+            )}
+            {paidNow != null && total > 0 && !payOtherInvalid && (
+              <p className="text-[11px] text-gray-500">
+                {paidNow >= total ? "Paid in full." : paidNow > 0
+                  ? <>Downpayment {peso(paidNow)} · <b className="text-gray-700">{peso(total - paidNow)}</b> left to collect {mode === "delivery" ? "on delivery" : "at pickup"}.</>
+                  : <>Nothing paid yet · the full {peso(total)} is collected {mode === "delivery" ? "on delivery" : "at pickup"}.</>}
+              </p>
+            )}
+            {payOtherInvalid && payOther !== "" && <p className="text-[11px]" style={{ color: "var(--bad)" }}>Enter an amount from ₱0 to {peso(total)}.</p>}
+          </div>
         </Section>
 
         {error && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}

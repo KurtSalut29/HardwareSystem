@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/auth";
 import { geocodeAddress } from "@/lib/geocode";
 import { isOrderStatus } from "@/lib/orderStatus";
-import { quoteDelivery } from "@/lib/deliveryFee";
-import { getDeliverySettings, getStorePin } from "@/lib/deliverySettings";
+import { liveQuote } from "@/lib/deliveryQuote";
+import { getDeliverySettings } from "@/lib/deliverySettings";
 import { canTakeOrder, driverAvailability, unavailableReason } from "@/lib/driverStatus";
 
 const FULFILLMENT_MODES = ["delivery", "pickup"];
@@ -138,8 +138,8 @@ export async function POST(req: NextRequest) {
   // so it is left at zero and staff set the location (and fee) afterwards.
   let deliveryFee = 0;
   if (!isPickup && latitude != null && longitude != null) {
-    const [settings, store] = await Promise.all([getDeliverySettings(), getStorePin()]);
-    const quote = quoteDelivery(settings, store, { lat: latitude, lng: longitude });
+    // Same road-distance quote the checkout showed (cached per drop-off point).
+    const { quote, settings } = await liveQuote({ lat: latitude, lng: longitude });
     if (quote.tooFar) {
       return NextResponse.json({ error: `Sorry, that's about ${quote.roadKm.toFixed(0)} km away — beyond our ${settings.maxKm} km delivery area.` }, { status: 400 });
     }
@@ -165,7 +165,14 @@ export async function POST(req: NextRequest) {
       // balance they settle on delivery or pickup. Defaulting to the full total
       // keeps the common "paid in full" case a no-op for the client.
       let amountPaid = 0;
-      if (isGcash && (gcashReference || !isStaff)) {
+      if (isStaff && rawAmountPaid != null && rawAmountPaid !== "") {
+        // Staff record what was paid when the order was taken: in full, a
+        // downpayment (e.g. half), or nothing yet. Any payment method.
+        amountPaid = round2(Number(rawAmountPaid));
+        if (!Number.isFinite(amountPaid) || amountPaid < 0) throw new Error("Enter how much the customer paid.");
+        if (amountPaid > totalAmount + 0.01) throw new Error("The amount paid can't be more than the order total.");
+        if (amountPaid > totalAmount) amountPaid = totalAmount;
+      } else if (isGcash && (gcashReference || !isStaff)) {
         amountPaid = rawAmountPaid == null || rawAmountPaid === "" ? totalAmount : round2(Number(rawAmountPaid));
         if (!Number.isFinite(amountPaid) || amountPaid <= 0) throw new Error("Enter how much was sent via GCash.");
         // A cent of tolerance absorbs float rounding on the client's total.
@@ -183,7 +190,8 @@ export async function POST(req: NextRequest) {
           fulfillmentMode,
           paymentMethod,
           ...(isStaff ? { status: "confirmed", handledById: payload.id } : {}),
-          ...(isGcash ? { gcashNumber, gcashReference, amountPaid } : {}),
+          ...(isGcash ? { gcashNumber, gcashReference } : {}),
+          amountPaid,
           ...(!isPickup && (deliveryAddress || latitude != null) ? { deliveryAddress: deliveryAddress || null, latitude, longitude } : {}),
           items: { create: lines },
         },
@@ -293,7 +301,11 @@ export async function PATCH(req: NextRequest) {
     if (!proof) return NextResponse.json({ error: "Take a photo of the delivered items first" }, { status: 400 });
     // A delivery finished by the driver is credited to the staff member who handled
     // the order (usually the one who dispatched it), so it lands in their report.
-    const order = await applyOrderUpdate(id, { status: "delivered", proofImage: proof, deliveredAt: new Date() }, existing.handledById ?? payload.id);
+    const order = await applyOrderUpdate(id, {
+      status: "delivered", proofImage: proof, deliveredAt: new Date(),
+      // The driver collected the cash (or the balance after a downpayment).
+      ...(existing.paymentMethod === "Cash" ? { amountPaid: existing.totalAmount } : {}),
+    }, existing.handledById ?? payload.id);
     return NextResponse.json(order);
   }
 
@@ -306,7 +318,11 @@ export async function PATCH(req: NextRequest) {
   // Whoever works the order is recorded as handling it.
   const data: OrderUpdate = { handledById: payload.id };
   if (status !== undefined) data.status = status;
-  if (status === "delivered" && existing.status !== "delivered") data.deliveredAt = new Date();
+  if (status === "delivered" && existing.status !== "delivered") {
+    data.deliveredAt = new Date();
+    // Cash is handed over on delivery or at pickup, so the order is now paid in full.
+    if (existing.paymentMethod === "Cash") data.amountPaid = existing.totalAmount;
+  }
   if (proof) data.proofImage = proof;
 
   // The admin can change the computed delivery fee on one order (a regular
@@ -332,11 +348,15 @@ export async function PATCH(req: NextRequest) {
   // Recording a settlement: what the customer has now paid in total, not a
   // delta. Clamped to the order total so a balance can never go negative.
   if (amountPaid !== undefined) {
+    if (existing.status === "cancelled") return NextResponse.json({ error: "This order was cancelled" }, { status: 400 });
     const paid = round2(Number(amountPaid));
     if (!Number.isFinite(paid) || paid < 0) {
       return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
     }
-    data.amountPaid = Math.min(paid, existing.totalAmount);
+    if (paid > (data.totalAmount ?? existing.totalAmount) + 0.01) {
+      return NextResponse.json({ error: "That's more than the order total" }, { status: 400 });
+    }
+    data.amountPaid = Math.min(paid, data.totalAmount ?? existing.totalAmount);
   }
 
   if (paymentVerified !== undefined) {

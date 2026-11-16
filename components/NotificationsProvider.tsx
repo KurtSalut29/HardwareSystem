@@ -30,6 +30,7 @@ const MAX_REMEMBERED = 300;
 
 const TOAST_VARIANT: Record<NotificationType, ToastVariant> = {
   new_order: "info",
+  new_customer: "info",
   order_update: "success",
   low_stock: "warning",
   out_of_stock: "error",

@@ -1,11 +1,23 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Circle, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Search, MapPin, X, LocateFixed, Crosshair } from 'lucide-react';
-import { BILIRAN_CENTER, BILIRAN_LEAFLET_BOUNDS, BILIRAN_VIEWBOX } from '@/lib/biliran';
+import { Search, MapPin, X, LocateFixed, Crosshair, AlertTriangle } from 'lucide-react';
+import { BILIRAN_CENTER, BILIRAN_LEAFLET_BOUNDS, BILIRAN_VIEWBOX, isWithinBiliran } from '@/lib/biliran';
+
+/**
+ * "Use my location" keeps listening for a better GPS fix instead of taking the
+ * first answer, which on many devices is a rough WiFi/cell guess. It stops as
+ * soon as a fix is this good, or after the wait below, keeping the best one.
+ */
+const GOOD_ENOUGH_M = 25;
+const MAX_WAIT_MS = 12000;
+/** Past this, the fix is a rough guess: the customer is asked to drag the pin onto their house. */
+const ROUGH_M = 100;
+
+const fmtAccuracy = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`);
 
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -76,7 +88,17 @@ export default function LocationPickerInner({ value, onChange }: Props) {
   const [pinMode, setPinMode] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState('');
+  // How sure the device is about the GPS pin, in metres (null once placed by hand).
+  const [accuracy, setAccuracy] = useState<number | null>(null);
+  // Live accuracy while still listening for a better fix.
+  const [liveAccuracy, setLiveAccuracy] = useState<number | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const watchRef = useRef<{ id: number; timer: ReturnType<typeof setTimeout> } | null>(null);
+
+  // Stop listening for GPS if the picker goes away mid-search.
+  useEffect(() => () => {
+    if (watchRef.current) { navigator.geolocation.clearWatch(watchRef.current.id); clearTimeout(watchRef.current.timer); }
+  }, []);
 
   // Pre-fill query from existing value on mount
   useEffect(() => {
@@ -103,11 +125,15 @@ export default function LocationPickerInner({ value, onChange }: Props) {
     setSearching(false);
   }, []);
 
+  // The box now shows the picked place's address (from a pin, GPS or a suggestion):
+  // don't search it again, or a dropdown pops open over the map for no reason.
+  const pickedAddress = value?.address ?? null;
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (pickedAddress && query === pickedAddress) return;
     debounceRef.current = setTimeout(() => searchPlaces(query), 400);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query, searchPlaces]);
+  }, [query, searchPlaces, pickedAddress]);
 
   function pickSuggestion(s: SuggestionResult) {
     const lat = parseFloat(s.lat);
@@ -136,6 +162,8 @@ export default function LocationPickerInner({ value, onChange }: Props) {
   }
 
   async function handleMapClick(lat: number, lng: number) {
+    // Placed by hand (tap or drag): exactly where the customer put it.
+    setAccuracy(null);
     const address = await reverseGeocode(lat, lng);
     onChange({ address, lat, lng });
     setQuery(address);
@@ -149,30 +177,57 @@ export default function LocationPickerInner({ value, onChange }: Props) {
       setGeoError('Geolocation is not supported by your browser.');
       return;
     }
+    if (watchRef.current) return; // already listening
     setGeoLoading(true);
     setGeoError('');
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        const address = await reverseGeocode(lat, lng);
-        onChange({ address, lat, lng });
-        setQuery(address);
+    setLiveAccuracy(null);
+
+    let best: GeolocationPosition | null = null;
+    const finish = async (err?: GeolocationPositionError) => {
+      if (!watchRef.current) return;
+      navigator.geolocation.clearWatch(watchRef.current.id);
+      clearTimeout(watchRef.current.timer);
+      watchRef.current = null;
+      setLiveAccuracy(null);
+
+      if (!best) {
         setGeoLoading(false);
+        setGeoError(err && err.code === err.PERMISSION_DENIED
+          ? 'Location blocked. Allow location for this site, or search your barangay / tap "Pin on map" instead.'
+          : 'Could not detect your location. Search your barangay or tap "Pin on map".');
+        return;
+      }
+      const { latitude: lat, longitude: lng, accuracy: acc } = best.coords;
+      if (!isWithinBiliran(lat, lng)) {
+        setGeoLoading(false);
+        setGeoError(`Your device placed you outside Biliran (±${fmtAccuracy(acc)}), which usually means it guessed from the internet connection. Search your barangay or tap "Pin on map" instead.`);
+        return;
+      }
+      const address = await reverseGeocode(lat, lng);
+      setAccuracy(acc);
+      onChange({ address, lat, lng });
+      setQuery(address);
+      setSuggestions([]);
+      setGeoLoading(false);
+    };
+
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        if (!best || pos.coords.accuracy < best.coords.accuracy) best = pos;
+        setLiveAccuracy(best.coords.accuracy);
+        if (best.coords.accuracy <= GOOD_ENOUGH_M) finish();
       },
       (err) => {
-        setGeoLoading(false);
-        const msg = err.code === err.PERMISSION_DENIED
-          ? 'Location blocked. Please search your barangay above or tap "Pin on map" instead.'
-          : 'Could not detect location. Please search or use "Pin on map".';
-        setGeoError(msg);
-        setTimeout(() => setGeoError(''), 6000);
+        // Permission denied is final; a timeout just means keep the best fix so far.
+        if (err.code === err.PERMISSION_DENIED || !best) finish(err);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: MAX_WAIT_MS },
     );
+    watchRef.current = { id, timer: setTimeout(() => finish(), MAX_WAIT_MS) };
   }
 
   function clear() {
+    setAccuracy(null);
     onChange(null);
     setQuery('');
     setSuggestions([]);
@@ -188,11 +243,14 @@ export default function LocationPickerInner({ value, onChange }: Props) {
         <input
           value={query}
           onChange={(e) => { setQuery(e.target.value); if (value) onChange(null); }}
+          // Inside a form (signup, checkout), Enter here would submit it; pick the first suggestion instead.
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (suggestions[0]) pickSuggestion(suggestions[0]); } }}
+          aria-label="Search for your location"
           placeholder="Search barangay, street, landmark…"
           className="w-full pl-8 pr-8 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
         />
         {(query || value) && (
-          <button onClick={clear} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
+          <button type="button" onClick={clear} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
             <X size={14} />
           </button>
         )}
@@ -201,7 +259,7 @@ export default function LocationPickerInner({ value, onChange }: Props) {
             {searching && <li className="px-3 py-2 text-gray-400 text-xs">Searching…</li>}
             {suggestions.map((s) => (
               <li key={s.place_id}>
-                <button
+                <button type="button"
                   onClick={() => pickSuggestion(s)}
                   className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-start gap-2 transition"
                 >
@@ -217,17 +275,17 @@ export default function LocationPickerInner({ value, onChange }: Props) {
       {/* Action buttons */}
       <div className="flex gap-2">
         {/* Auto-detect location */}
-        <button
+        <button type="button"
           onClick={handleDetectLocation}
           disabled={geoLoading}
           className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition disabled:opacity-60 border border-blue-200"
         >
           <LocateFixed size={13} />
-          {geoLoading ? 'Detecting…' : 'Use my location'}
+          {geoLoading ? (liveAccuracy != null ? `Finding you… ±${fmtAccuracy(liveAccuracy)}` : 'Finding you…') : 'Use my location'}
         </button>
 
         {/* Toggle pin-drop mode */}
-        <button
+        <button type="button"
           onClick={() => setPinMode((p) => !p)}
           className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition border ${
             pinMode
@@ -241,6 +299,15 @@ export default function LocationPickerInner({ value, onChange }: Props) {
       </div>
 
       {geoError && <p className="text-[11px] text-red-500">{geoError}</p>}
+      {value && accuracy != null && accuracy > ROUGH_M && (
+        <p className="text-[11px] rounded-lg px-2.5 py-2 flex items-start gap-1.5" style={{ background: 'var(--warn-soft)', color: 'var(--warn)' }}>
+          <AlertTriangle size={13} className="shrink-0 mt-px" />
+          <span>
+            Your device could only find a rough location (within about {fmtAccuracy(accuracy)}). Computers without GPS guess from WiFi.
+            <b> Drag the pin onto your house</b>, or use a phone with GPS turned on.
+          </span>
+        </p>
+      )}
 
       {/* Map */}
       <div
@@ -264,14 +331,27 @@ export default function LocationPickerInner({ value, onChange }: Props) {
           />
           <MapController value={value} />
           <MapClickHandler pinMode={pinMode} onPick={handleMapClick} />
-          {value && <Marker position={[value.lat, value.lng]} />}
+          {/* How far off a GPS pin could be */}
+          {value && accuracy != null && (
+            <Circle center={[value.lat, value.lng]} radius={accuracy}
+              pathOptions={{ color: accuracy > ROUGH_M ? '#B4670A' : '#1E4FD8', weight: 1, fillOpacity: 0.12 }} />
+          )}
+          {/* Drag the pin to put it exactly on the house */}
+          {value && (
+            <Marker position={[value.lat, value.lng]} draggable
+              eventHandlers={{ dragend: (e) => { const ll = (e.target as L.Marker).getLatLng(); handleMapClick(ll.lat, ll.lng); } }} />
+          )}
         </MapContainer>
       </div>
 
       {value ? (
-        <p className="text-[11px] text-emerald-600 flex items-center gap-1">
-          <MapPin size={11} /> {value.address}
-        </p>
+        <div className="text-[11px] space-y-0.5">
+          <p className="text-emerald-600 flex items-center gap-1"><MapPin size={11} className="shrink-0" /> {value.address}</p>
+          <p className="text-gray-400">
+            {accuracy != null && accuracy <= ROUGH_M ? `Located within about ${fmtAccuracy(accuracy)}. ` : ''}
+            Not quite right? Drag the pin onto your house.
+          </p>
+        </div>
       ) : (
         <p className="text-[11px] text-gray-400">Search, use your location, or enable pin mode to tap the map.</p>
       )}

@@ -13,6 +13,26 @@ model User {
   password         String
   role             String
   contact          String?
+  // Sign-in address. Customers register with it; staff without one still sign in by username.
+  email            String?           @unique
+  // A customer's full name from registration. Their username is built from it.
+  firstName        String?
+  middleName       String?
+  lastName         String?
+  suffix           String?
+  // Customers start "pending" and can't sign in until the admin approves them
+  // ("approved") or turns them down ("rejected", reason in statusNote).
+  accountStatus    String            @default("approved")
+  statusNote       String?
+  reviewedAt       DateTime?
+  reviewedById     Int?
+  // The customer's usual drop-off point, pinned on the map at registration.
+  defaultAddress   String?
+  defaultLat       Float?
+  defaultLng       Float?
+  // Wrong-password counter: five in a row locks sign-in for a while.
+  failedLogins     Int               @default(0)
+  lockedUntil      DateTime?
   // Drivers only: false while off duty (break, day off), so no delivery is assigned to them.
   onDuty           Boolean           @default(true)
   createdAt        DateTime          @default(now())
@@ -55,6 +75,8 @@ model Product {
   category         Category          @relation(fields: [categoryId], references: [id])
   subcategoryId    Int?
   subcategory      Subcategory?      @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
+  // Maker, e.g. Holcim, Boysen, Stanley. Optional: plenty of hardware is unbranded.
+  brand            String?
   price            Float
   unit             String            @default("pc")
   stock            Float             @default(0)
@@ -218,6 +240,21 @@ model StockAdjustment {
 model Setting {
   key   String @id
   value String
+}
+
+// Road distance between two map points from the routing service (OSRM), so the
+// same drop-off is never looked up twice and a quote shown at checkout matches
+// the fee charged when the order is saved. Keys are coordinates rounded to
+// about 10 m ("11.4573,124.5638").
+model RouteDistance {
+  id        Int      @id @default(autoincrement())
+  fromKey   String
+  toKey     String
+  km        Float
+  minutes   Float?
+  createdAt DateTime @default(now())
+
+  @@unique([fromKey, toKey])
 }
 
 // A sales/accomplishment report a staff member compiles for a period and sends

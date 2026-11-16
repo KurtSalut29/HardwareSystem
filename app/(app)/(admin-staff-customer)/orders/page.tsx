@@ -23,7 +23,8 @@ import { customerLabel, customerPhone, isWalkIn } from "@/lib/customer";
 import OrderStatusModal from "@/components/orders/OrderStatusModal";
 import DriversPanel, { DriverStatusChip, type DriverInfo } from "@/components/orders/DriversPanel";
 import { driverOption, canTakeOrder } from "@/lib/driverStatus";
-import { nextStepText } from "@/lib/orderFlow";
+import { outstanding, paymentState } from "@/lib/payment";
+import { balanceDue, nextStepText } from "@/lib/orderFlow";
 
 type OItem = { id: number; quantity: number; price: number; product: { name: string; unit?: string } };
 type Order = {
@@ -254,14 +255,20 @@ const TOAST_CONFIG: Record<string, { msg: string; variant: "success" | "error" |
   pending:   { msg: "Order set back to pending.",     variant: "warning" },
 };
 
-function StatusBadge({ status }: { status: string }) {
+/** Pickup orders read differently: "To pick up" instead of "Confirmed", "Picked up" instead of "Delivered". */
+const PICKUP_LABEL: Record<string, string> = { confirmed: "To pick up", delivered: "Picked up" };
+
+function StatusBadge({ status, pickup = false }: { status: string; pickup?: boolean }) {
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.pending;
+  const icon = pickup && status === "confirmed" ? <Store size={ICON_SIZE.xs} /> : cfg.icon;
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
-      {cfg.icon} {cfg.label}
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+      {icon} {(pickup && PICKUP_LABEL[status]) || cfg.label}
     </span>
   );
 }
+
+type ModeFilter = "all" | "delivery" | "pickup";
 
 
 type Driver = DriverInfo;
@@ -403,6 +410,7 @@ export default function OrdersPage() {
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
   const [selectedKey, setSelectedKey] = useState<string | null>(null); // null = show all
+  const [modeFilter, setModeFilter] = useState<ModeFilter>("all");
 
   const PER_PAGE = 10;
 
@@ -536,6 +544,20 @@ export default function OrdersPage() {
     return true;
   }
 
+  /** Staff set how much the customer has paid so far: full, a half downpayment, nothing, or another amount. */
+  async function recordPayment(id: number, amount: number) {
+    const res = await fetch("/api/orders", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, amountPaid: amount }),
+    });
+    if (!res.ok) { showToast((await res.json().catch(() => ({}))).error ?? "Couldn't record the payment.", "error"); return false; }
+    const u = await res.json();
+    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, amountPaid: u.amountPaid } : o)));
+    const left = Math.max(0, Math.round((u.totalAmount - u.amountPaid) * 100) / 100);
+    showToast(left > 0 ? `Order #${id}: ₱${u.amountPaid.toFixed(2)} paid, ₱${left.toFixed(2)} left to collect.` : `Order #${id} is paid in full.`);
+    return true;
+  }
+
   /** Record that the outstanding balance on a partly-paid order has been collected. */
   async function settleBalance(id: number, total: number) {
     const res = await fetch("/api/orders", {
@@ -563,7 +585,7 @@ export default function OrdersPage() {
   // Finished orders need no hint, except a delivered one still owing a balance.
   const showNextText = (o: Order) =>
     o.status !== "cancelled" &&
-    (o.status !== "delivered" || (isStaff && o.paymentMethod === "GCash" && o.totalAmount - (o.amountPaid ?? 0) > 0.005));
+    (o.status !== "delivered" || (isStaff && balanceDue(o) > 0.005));
   // Dispatch moved to the cashier; the admin keeps confirm/cancel/payment duties.
   const canAssign = role === "cashier";
   const outForDeliveryCount = orders.filter((o) => o.status === "out_for_delivery").length;
@@ -583,15 +605,27 @@ export default function OrdersPage() {
     }
   };
 
+  // Delivery or pickup: a second filter alongside the status tabs.
+  const matchesMode = (o: Order, m: ModeFilter) =>
+    m === "all" || (m === "pickup" ? o.fulfillmentMode === "pickup" : o.fulfillmentMode !== "pickup");
+  const inMode = orders.filter((o) => matchesMode(o, modeFilter));
+
   const TABS: { key: string; label: string; urgent?: boolean }[] = [
     { key: "all", label: "All" },
     { key: "pending", label: "Pending", urgent: true },
-    { key: "needs_driver", label: "Needs Driver", urgent: true },
-    { key: "active", label: "In Progress" },
+    // Pickup orders never need a driver.
+    ...(modeFilter === "pickup" ? [] : [{ key: "needs_driver", label: "Needs Driver", urgent: true }]),
+    { key: "active", label: modeFilter === "pickup" ? "Ready for Pickup" : modeFilter === "delivery" ? "On the Way" : "In Progress" },
     { key: "done", label: "Completed" },
   ];
 
-  const filtered = orders.filter((o) => {
+  const MODES: { key: ModeFilter; label: string; icon: React.ReactNode }[] = [
+    { key: "all", label: "All orders", icon: null },
+    { key: "delivery", label: "Delivery", icon: <Truck size={ICON_SIZE.xs} /> },
+    { key: "pickup", label: "Pickup", icon: <Store size={ICON_SIZE.xs} /> },
+  ];
+
+  const filtered = inMode.filter((o) => {
     const matchSearch = customerLabel(o).toLowerCase().includes(search.toLowerCase()) || String(o.id).includes(search);
     const matchDate = selectedKey ? toDateKey(new Date(o.dateTime)) === selectedKey : true;
     return matchSearch && matchDate && matchesFilter(o, statusFilter);
@@ -675,6 +709,7 @@ export default function OrdersPage() {
           onCancel={() => { setCancelTarget(statusOrder); setStatusOrderId(null); }}
           onViewProof={() => { setProofView(statusOrder); setStatusOrderId(null); }}
           onAdjustFee={role === "admin" ? adjustFee : undefined}
+          onRecordPayment={isStaff ? recordPayment : undefined}
         />
       )}
       {locationOrder && (
@@ -887,11 +922,32 @@ export default function OrdersPage() {
             </div>
           </div>
 
-          {/* Status tabs — a filter over this same table, not a second list */}
+          {/* Delivery or pickup, then status tabs — filters over this same table, not second lists */}
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 border-b border-gray-100">
+            <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white" role="group" aria-label="Delivery or pickup">
+              {MODES.map((m) => {
+                const on = modeFilter === m.key;
+                const count = orders.filter((o) => matchesMode(o, m.key)).length;
+                return (
+                  <button key={m.key} onClick={() => { setModeFilter(m.key); if (m.key === "pickup" && statusFilter === "needs_driver") setStatusFilter("all"); setPage(1); }}
+                    aria-pressed={on}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition whitespace-nowrap ${on ? "bg-blue-600 text-white shadow-sm" : "text-gray-600 hover:bg-gray-50"}`}>
+                    {m.icon}{m.label}
+                    <span className={`text-[10px] font-bold px-1.5 py-px rounded-full ${on ? "bg-white/25 text-white" : "bg-gray-100 text-gray-500"}`}>{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {modeFilter !== "all" && (
+              <p className="text-[11px] text-gray-400">
+                {modeFilter === "pickup" ? "Customers collect these at the store." : "These go out with a driver."}
+              </p>
+            )}
+          </div>
           {isStaff && (
             <div className="flex gap-1.5 overflow-x-auto px-3 py-2.5 border-b border-gray-100">
               {TABS.map((t) => {
-                const count = orders.filter((o) => matchesFilter(o, t.key)).length;
+                const count = inMode.filter((o) => matchesFilter(o, t.key)).length;
                 const active = statusFilter === t.key;
                 const flag = t.urgent && count > 0 && !active;
                 return (
@@ -954,14 +1010,25 @@ export default function OrdersPage() {
                       </td>
                       <td className="py-3 px-4 text-gray-600 hidden sm:table-cell">
                         {customerLabel(o)}
-                        {isWalkIn(o) && <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 align-middle">WALK-IN</span>}
+                        {isWalkIn(o) && <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 align-middle whitespace-nowrap">WALK-IN</span>}
                       </td>
-                      <td className="py-3 px-4 font-semibold text-gray-900">₱{o.totalAmount.toFixed(2)}</td>
+                      <td className="py-3 px-4 font-semibold text-gray-900">
+                        ₱{o.totalAmount.toFixed(2)}
+                        {(() => {
+                          const st = paymentState(o);
+                          if (o.status === "cancelled" || st !== "partial") return null;
+                          return (
+                            <span className="block text-[10.5px] font-semibold whitespace-nowrap" style={{ color: "var(--warn)" }}>
+                              Paid ₱{(o.amountPaid ?? 0).toFixed(2)} · ₱{outstanding(o).toFixed(2)} left
+                            </span>
+                          );
+                        })()}
+                      </td>
                       <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1.5">
                           <button onClick={() => setStatusOrderId(o.id)} title="View order progress" aria-label={`Order #${o.id} progress`}
                             className="rounded-full transition hover:ring-2 hover:ring-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
-                            <StatusBadge status={o.status} />
+                            <StatusBadge status={o.status} pickup={o.fulfillmentMode === "pickup"} />
                           </button>
                           {o.paymentMethod === "GCash" && !o.paymentVerified && o.status !== "cancelled" && (
                             <span title="GCash payment not verified yet">

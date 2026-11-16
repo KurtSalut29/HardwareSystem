@@ -15,7 +15,7 @@ import Image from "next/image";
 import { customerLabel } from "@/lib/customer";
 import ReceiptModal, { type ReceiptData } from "@/components/receipts/Receipt";
 type Category = { id: number; name: string };
-type Product = { id: number; name: string; category: Category; subcategory: string | null; price: number; unit: string; stock: number; image: string | null; description: string | null };
+type Product = { brand?: string | null; id: number; name: string; category: Category; subcategory: string | null; price: number; unit: string; stock: number; image: string | null; description: string | null };
 // `orderQty` is how much of the line came from a customer's online order (stock already reserved).
 type CartItem = Product & { quantity: number; fromOrder?: boolean; orderQty?: number };
 type OItem = { id: number; quantity: number; price: number; product: { name: string }; productId: number };
@@ -87,7 +87,7 @@ export default function POSPage() {
 
   const filtered = products.filter((p) => {
     const q = search.toLowerCase();
-    const matchSearch = p.name.toLowerCase().includes(q) || (p.subcategory ?? "").toLowerCase().includes(q);
+    const matchSearch = p.name.toLowerCase().includes(q) || (p.subcategory ?? "").toLowerCase().includes(q) || (p.brand ?? "").toLowerCase().includes(q);
     const matchCat = filterCat === "All" || p.category.name === filterCat;
     return matchSearch && matchCat;
   });
@@ -342,6 +342,7 @@ export default function POSPage() {
                                   {p.subcategory}
                                 </span>
                               )}
+                              {p.brand && <p className="text-[9.5px] font-bold uppercase tracking-wide truncate" style={{ color: "var(--brand)" }}>{p.brand}</p>}
                               <p className="text-xs font-semibold text-gray-900 leading-tight line-clamp-2">{p.name}</p>
                               <div className="mt-auto pt-2 border-t border-gray-50">
                                 <span className="text-sm font-bold text-gray-900 num">₱{p.price.toFixed(2)}</span>

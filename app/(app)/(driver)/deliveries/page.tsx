@@ -92,10 +92,8 @@ export default function DeliveriesPage() {
   const totalValue = active.reduce((s, a) => s + a.order.totalAmount, 0);
   // What the driver actually has to come back with: the full amount on a
   // cash order, and whatever is still outstanding on a partly-paid GCash one.
-  const balanceOf = (o: Order) =>
-    o.paymentMethod === "Cash"
-      ? o.totalAmount
-      : Math.max(0, Math.round((o.totalAmount - (o.amountPaid ?? 0)) * 100) / 100);
+  // What's still owed at the door: the total, less any downpayment or GCash transfer.
+  const balanceOf = (o: Order) => Math.max(0, Math.round((o.totalAmount - (o.amountPaid ?? 0)) * 100) / 100);
   const toCollect = active.reduce((s, a) => s + balanceOf(a.order), 0);
 
   return (
@@ -133,7 +131,7 @@ export default function DeliveriesPage() {
             const collectCash = o.paymentMethod === "Cash";
             const unverifiedGcash = o.paymentMethod === "GCash" && !o.paymentVerified;
             const due = balanceOf(o);
-            const partiallyPaid = o.paymentMethod === "GCash" && due > 0;
+            const partiallyPaid = due > 0 && (o.amountPaid ?? 0) > 0;
             return (
               <div key={o.id} className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -165,7 +163,7 @@ export default function DeliveriesPage() {
                     </span>
                     {partiallyPaid && (
                       <p className="mt-1 text-[11px] font-bold" style={{ color: "var(--warn)" }}>
-                        Collect ₱{due.toFixed(2)} balance
+                        ₱{(o.amountPaid ?? 0).toFixed(2)} paid · collect ₱{due.toFixed(2)}
                       </p>
                     )}
                   </div>

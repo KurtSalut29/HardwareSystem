@@ -165,6 +165,8 @@ export default function DeliveryNavigationPage() {
   const hasDest = order.latitude != null && order.longitude != null;
   const collectCash = order.paymentMethod === "Cash";
   const unverifiedGcash = order.paymentMethod === "GCash" && !order.paymentVerified;
+  // Still owed at the door: the total less any downpayment or GCash transfer.
+  const due = Math.max(0, Math.round((order.totalAmount - (order.amountPaid ?? 0)) * 100) / 100);
 
   return (
     <div className="space-y-4">
@@ -172,7 +174,7 @@ export default function DeliveryNavigationPage() {
         <ProofOfDeliveryModal
           orderId={order.id}
           customer={customerLabel(order)}
-          collect={collectCash ? order.totalAmount : Math.max(0, Math.round((order.totalAmount - (order.amountPaid ?? 0)) * 100) / 100)}
+          collect={due}
           onClose={() => setConfirmDeliver(false)}
           onDelivered={onDelivered}
         />
@@ -210,6 +212,11 @@ export default function DeliveryNavigationPage() {
                 : unverifiedGcash ? <><ShieldAlert size={10} /> GCash unverified</>
                 : <><Smartphone size={10} /> Paid</>}
             </span>
+            {due > 0 && (order.amountPaid ?? 0) > 0 && (
+              <p className="mt-1 text-[11px] font-bold" style={{ color: "var(--warn)" }}>
+                ₱{(order.amountPaid ?? 0).toFixed(2)} paid · collect ₱{due.toFixed(2)}
+              </p>
+            )}
           </div>
         </div>
 

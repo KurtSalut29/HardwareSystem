@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Search, ShoppingCart, Trash2, CheckCircle, ChevronDown, ChevronRight, PackageSearch, Banknote, Smartphone, Copy, Check, QrCode, AlertTriangle, Truck, Store, CreditCard, Receipt } from "lucide-react";
+import { Search, ShoppingCart, Trash2, CheckCircle, ChevronDown, ChevronRight, PackageSearch, Banknote, Smartphone, Copy, Check, QrCode, AlertTriangle, Truck, Store, CreditCard, Receipt, MapPin } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import Drawer from "@/components/ui/Drawer";
 import Modal from "@/components/ui/Modal";
@@ -12,11 +12,12 @@ import LocationPicker, { PickedLocation } from "@/components/LocationPicker";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 import { STORE_NAME } from "@/lib/brand";
 import AddToCartModal from "@/components/shop/AddToCartModal";
-import { quoteDelivery, describeQuote, type DeliverySettings } from "@/lib/deliveryFee";
+import { describeQuote, type DeliverySettings } from "@/lib/deliveryFee";
+import { useDeliveryQuote } from "@/lib/useDeliveryQuote";
 import { useToast } from "@/components/ui/ToastProvider";
 
 type Category = { id: number; name: string };
-type Product = { id: number; name: string; category: Category; categoryId: number; subcategory: string | null; price: number; unit: string; stock: number; image: string | null; description: string | null };
+type Product = { id: number; name: string; brand?: string | null; category: Category; categoryId: number; subcategory: string | null; price: number; unit: string; stock: number; image: string | null; description: string | null };
 type CartItem = Product & { quantity: number };
 type StorePayment = { gcashName: string | null; gcashNumber: string | null; gcashQr: string | null };
 
@@ -39,6 +40,9 @@ export default function ShopPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [pickedLocation, setPickedLocation] = useState<PickedLocation | null>(null);
+  // The customer's default delivery spot from registration. Checkout starts there.
+  const [savedLocation, setSavedLocation] = useState<PickedLocation | null>(null);
+  const [saveAsDefault, setSaveAsDefault] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [activeSub, setActiveSub] = useState<Record<string, string>>({});
   const [fulfillmentMode, setFulfillmentMode] = useState<"delivery" | "pickup">("delivery");
@@ -67,11 +71,17 @@ export default function ShopPage() {
     fetch("/api/store-location").then((r) => (r.ok ? r.json() : null)).then(setStoreInfo).catch(() => {});
     fetch("/api/store-payment").then((r) => (r.ok ? r.json() : null)).then(setStorePayment).catch(() => {});
     fetch("/api/delivery-settings").then((r) => (r.ok ? r.json() : null)).then(setFees).catch(() => {});
+    fetch("/api/account").then((r) => (r.ok ? r.json() : null)).then((a) => {
+      if (!a || a.defaultLat == null || a.defaultLng == null) return;
+      const saved = { address: a.defaultAddress ?? "My default location", lat: a.defaultLat, lng: a.defaultLng };
+      setSavedLocation(saved);
+      setPickedLocation((p) => p ?? saved);
+    }).catch(() => {});
   }, []);
 
   const filtered = products.filter((p) => {
     const q = search.toLowerCase();
-    const matchSearch = p.name.toLowerCase().includes(q) || (p.subcategory ?? "").toLowerCase().includes(q);
+    const matchSearch = p.name.toLowerCase().includes(q) || (p.subcategory ?? "").toLowerCase().includes(q) || (p.brand ?? "").toLowerCase().includes(q);
     const matchCat = filterCat === "All" || p.category.name === filterCat;
     return matchSearch && matchCat;
   });
@@ -117,7 +127,10 @@ export default function ShopPage() {
   const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
   // Delivery fee, shown before ordering. The server computes the same figure
   // from the same settings when the order is placed.
-  const quote = fulfillmentMode === "delivery" && pickedLocation && fees ? quoteDelivery(fees.settings, fees.store, pickedLocation) : null;
+  // Fee from the real road distance, worked out by the server (the same quote the order is saved with).
+  const delivery = useDeliveryQuote(fulfillmentMode === "delivery" ? pickedLocation : null);
+  const quote = fulfillmentMode === "delivery" ? delivery.quote : null;
+  const usingSaved = !!pickedLocation && !!savedLocation && pickedLocation.lat === savedLocation.lat && pickedLocation.lng === savedLocation.lng;
   const deliveryFee = quote && !quote.tooFar ? quote.fee : 0;
   const total = round2(subtotal + deliveryFee);
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
@@ -148,6 +161,14 @@ export default function ShopPage() {
     if (!cart.length) return;
     if (fulfillmentMode === "delivery" && !pickedLocation) {
       setError("Please set a delivery location.");
+      return;
+    }
+    if (fulfillmentMode === "delivery" && delivery.loading) {
+      setError("Still working out the delivery fee — one moment.");
+      return;
+    }
+    if (fulfillmentMode === "delivery" && !quote) {
+      setError(delivery.error ?? "Couldn't work out the delivery fee for that spot. Move the pin and try again.");
       return;
     }
     if (quote?.tooFar) {
@@ -186,7 +207,17 @@ export default function ShopPage() {
     });
     setLoading(false);
     if (!res.ok) { setError((await res.json()).error); return; }
-    setCart([]); setPickedLocation(null); setFulfillmentMode("delivery"); setPaymentMethod("Cash");
+    // "Use this as my default delivery location" — the next checkout starts here.
+    let nextDefault = savedLocation;
+    if (saveAsDefault && fulfillmentMode === "delivery" && pickedLocation && !usingSaved) {
+      const saved = await fetch("/api/account", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ defaultAddress: pickedLocation.address, defaultLat: pickedLocation.lat, defaultLng: pickedLocation.lng }),
+      }).then((r) => r.ok).catch(() => false);
+      if (saved) { nextDefault = pickedLocation; setSavedLocation(pickedLocation); }
+    }
+    setSaveAsDefault(false);
+    setCart([]); setPickedLocation(nextDefault); setFulfillmentMode("delivery"); setPaymentMethod("Cash");
     setGcashNumber(""); setGcashReference(""); setGcashAmount("");
     setShowReview(false); setShowCart(false); setSuccess(true); fetchProducts();
     setTimeout(() => setSuccess(false), 4000);
@@ -231,7 +262,7 @@ export default function ShopPage() {
       <div className="space-y-3">
         <div className="relative max-w-md">
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products by name..."
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by product, brand or type..."
             className="w-full pl-11 pr-4 py-3 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 transition placeholder:text-gray-400" />
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap md:overflow-visible md:pb-0">
@@ -327,6 +358,7 @@ export default function ShopPage() {
                                 {p.subcategory}
                               </span>
                             )}
+                            {p.brand && <p className="text-[10.5px] font-bold uppercase tracking-wide" style={{ color: "var(--brand)" }}>{p.brand}</p>}
                             <p className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2">{p.name}</p>
                             {p.description && <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-1">{p.description}</p>}
 
@@ -365,7 +397,7 @@ export default function ShopPage() {
               {fulfillmentMode === "delivery" && (
                 <div className="flex justify-between text-gray-500">
                   <span>Delivery fee</span>
-                  <span className="num">{quote ? (quote.tooFar ? "Too far" : quote.fee === 0 ? "Free" : `₱${quote.fee.toFixed(2)}`) : "Pin your location"}</span>
+                  <span className="num">{quote ? (quote.tooFar ? "Too far" : quote.fee === 0 ? "Free" : `₱${quote.fee.toFixed(2)}`) : pickedLocation && delivery.loading ? "Checking…" : "Pin your location"}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-gray-800 pt-1">
@@ -426,19 +458,41 @@ export default function ShopPage() {
 
             {fulfillmentMode === "delivery" ? (
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Delivery Location</label>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="block text-xs font-medium text-gray-600">Delivery Location</label>
+                  {savedLocation && !usingSaved && (
+                    <button type="button" onClick={() => { setPickedLocation(savedLocation); setSaveAsDefault(false); }}
+                      className="text-[11px] font-semibold text-blue-600 hover:underline">Use my default location</button>
+                  )}
+                </div>
+                {usingSaved && (
+                  <p className="text-[11px] text-emerald-600 mb-1.5 flex items-center gap-1"><MapPin size={11} /> Your default location. Move the pin to deliver somewhere else.</p>
+                )}
                 <LocationPicker value={pickedLocation} onChange={setPickedLocation} />
-                {quote && fees && (
+                {pickedLocation && delivery.loading && (
+                  <p className="mt-2 rounded-lg px-3 py-2 text-xs text-gray-500 animate-pulse" style={{ background: "var(--bg-muted)" }}>Checking the road distance…</p>
+                )}
+                {pickedLocation && !delivery.loading && delivery.error && (
+                  <p className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--bad-soft)", color: "var(--bad)" }}>{delivery.error}</p>
+                )}
+                {quote && delivery.settings && (
                   <div className="mt-2 rounded-lg px-3 py-2 text-xs flex justify-between gap-3" style={{ background: quote.tooFar ? "var(--bad-soft)" : "var(--info-soft)" }}>
                     <span className="text-gray-600">
-                      {quote.tooFar ? `About ${quote.roadKm.toFixed(0)} km away — beyond our ${fees.settings.maxKm} km delivery area. Choose pickup instead.` : describeQuote(quote, fees.settings)}
+                      {quote.tooFar ? `About ${quote.roadKm.toFixed(0)} km away — beyond our ${delivery.settings.maxKm} km delivery area. Choose pickup instead.` : describeQuote(quote, delivery.settings)}
+                      {!quote.tooFar && quote.minutes != null && <span className="text-gray-400"> · about {quote.minutes} min drive</span>}
                     </span>
                     {!quote.tooFar && <span className="font-bold text-gray-900 whitespace-nowrap num">{quote.fee === 0 ? "Free" : `₱${quote.fee}`}</span>}
                   </div>
                 )}
+                {pickedLocation && savedLocation && !usingSaved && (
+                  <label className="mt-2 flex items-center gap-2 text-[11px] text-gray-600 cursor-pointer">
+                    <input type="checkbox" checked={saveAsDefault} onChange={(e) => setSaveAsDefault(e.target.checked)} className="rounded" />
+                    Make this my default delivery location
+                  </label>
+                )}
                 {!pickedLocation && fees && (
                   <p className="text-[11px] text-gray-400 mt-1.5">
-                    Delivery is free within {fees.settings.freeKm} km of the store, then ₱{fees.settings.ratePerKm} per km. Pin your location to see the fee.
+                    Delivery is ₱{fees.settings.baseFee} for the first {fees.settings.freeKm} km by road, then ₱{fees.settings.ratePerKm} per km. Pin your location to see the fee.
                   </p>
                 )}
               </div>

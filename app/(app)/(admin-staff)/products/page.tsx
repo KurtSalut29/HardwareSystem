@@ -19,7 +19,7 @@ type Category = { id: number; name: string; description: string | null; subcateg
 type Product = {
   id: number; name: string; categoryId: number; category: Category;
   subcategory: string | null; subcategoryId: number | null; price: number; unit: string; stock: number;
-  image: string | null; description: string | null;
+  image: string | null; description: string | null; brand: string | null;
 };
 
 const UNITS = [
@@ -42,7 +42,7 @@ const UNITS = [
   { value: "sack", label: "per sack" },
 ];
 
-const EMPTY_FORM = { id: 0, name: "", categoryId: "", subcategoryId: "", price: "", unit: "pc", stock: "", description: "", image: "" };
+const EMPTY_FORM = { id: 0, name: "", brand: "", categoryId: "", subcategoryId: "", price: "", unit: "pc", stock: "", description: "", image: "" };
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -101,7 +101,7 @@ export default function ProductsPage() {
 
   const filtered = products.filter((p) => {
     const q = search.toLowerCase();
-    const matchSearch = p.name.toLowerCase().includes(q) || (p.subcategory ?? "").toLowerCase().includes(q);
+    const matchSearch = p.name.toLowerCase().includes(q) || (p.subcategory ?? "").toLowerCase().includes(q) || (p.brand ?? "").toLowerCase().includes(q);
     const matchCat = filterCat === "All" || p.category.name === filterCat;
     return matchSearch && matchCat;
   });
@@ -128,7 +128,7 @@ export default function ProductsPage() {
 
   function openEdit(p: Product) {
     setForm({
-      id: p.id, name: p.name, categoryId: String(p.categoryId),
+      id: p.id, name: p.name, brand: p.brand ?? "", categoryId: String(p.categoryId),
       subcategoryId: p.subcategoryId ? String(p.subcategoryId) : "", price: String(p.price),
       unit: p.unit || "pc", stock: String(p.stock),
       description: p.description ?? "", image: p.image ?? "",
@@ -200,7 +200,7 @@ export default function ProductsPage() {
         {/* Search — its own row, filled background, so it reads as an input, not another pill */}
         <div className="relative max-w-md">
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products by name..."
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, brand or subcategory..."
             className="w-full pl-11 pr-4 py-3 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 transition placeholder:text-gray-400" />
         </div>
 
@@ -310,6 +310,7 @@ export default function ProductsPage() {
                                 {p.subcategory}
                               </span>
                             )}
+                            {p.brand && <p className="text-[10.5px] font-bold uppercase tracking-wide" style={{ color: "var(--brand)" }}>{p.brand}</p>}
                             <p className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2">{p.name}</p>
                             {p.description && <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-1">{p.description}</p>}
 
@@ -410,11 +411,24 @@ export default function ProductsPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 {/* Product Name */}
-                <div className="col-span-2">
+                <div className="col-span-2 sm:col-span-1">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Product Name</label>
                   <input required value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
-                    placeholder="e.g. Common Wire Nail" />
+                    placeholder="e.g. Portland Cement 40kg" />
+                </div>
+
+                {/* Brand */}
+                <div className="col-span-2 sm:col-span-1">
+                  <label htmlFor="product-brand" className="block text-xs font-medium text-gray-600 mb-1">Brand <span className="text-gray-400">(optional)</span></label>
+                  <input id="product-brand" list="product-brands" value={form.brand} maxLength={60}
+                    onChange={(e) => setForm((p) => ({ ...p, brand: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
+                    placeholder="e.g. Holcim, Boysen, Stanley" />
+                  {/* Brands already in use, so the same maker is spelled the same way. */}
+                  <datalist id="product-brands">
+                    {[...new Set(products.map((x) => x.brand).filter((b): b is string => !!b))].sort().map((b) => <option key={b} value={b} />)}
+                  </datalist>
                 </div>
 
                 {/* Category */}

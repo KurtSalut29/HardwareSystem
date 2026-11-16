@@ -9,7 +9,7 @@ import { ICON_SIZE } from "@/lib/constants/icon-size";
 
 export type CartProduct = {
   id: number; name: string; price: number; unit: string; stock: number;
-  image: string | null; description: string | null; subcategory: string | null;
+  image: string | null; description: string | null; subcategory: string | null; brand?: string | null;
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -59,7 +59,13 @@ export default function AddToCartModal({ product, siblings, inCart, onSwitch, on
               : <div className="absolute inset-0 flex items-center justify-center text-white font-display font-extrabold text-xl" style={{ background: "linear-gradient(155deg, var(--brand), var(--brand-ink))" }}>{product.name.charAt(0)}</div>}
           </div>
           <div className="min-w-0">
-            {product.subcategory && <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{product.subcategory}</p>}
+            {(product.brand || product.subcategory) && (
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                {product.brand && <span style={{ color: "var(--brand)" }}>{product.brand}</span>}
+                {product.brand && product.subcategory && " · "}
+                {product.subcategory}
+              </p>
+            )}
             <p className="font-semibold text-gray-900 leading-snug">{product.name}</p>
             <p className="text-sm text-gray-700 mt-0.5"><span className="font-display font-extrabold num">{peso(product.price)}</span> <span className="text-xs text-gray-400">per {product.unit}</span></p>
             <p className="text-[11px] mt-0.5" style={{ color: available > 0 ? "var(--good)" : "var(--bad)" }}>
@@ -79,6 +85,7 @@ export default function AddToCartModal({ product, siblings, inCart, onSwitch, on
                   <button key={s.id} type="button" disabled={s.stock <= 0} onClick={() => !active && onSwitch(s)} aria-pressed={active}
                     className={`shrink-0 text-left rounded-lg border px-2.5 py-1.5 transition disabled:opacity-40 ${active ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:bg-gray-50"}`}>
                     <span className={`block text-xs font-semibold max-w-[150px] truncate ${active ? "text-blue-700" : "text-gray-800"}`}>{s.name}</span>
+                    {s.brand && <span className="block text-[10px] text-gray-500 max-w-[150px] truncate">{s.brand}</span>}
                     <span className="block text-[10px] text-gray-500 num">{s.stock > 0 ? `${peso(s.price)}/${s.unit}` : "Out of stock"}</span>
                   </button>
                 );

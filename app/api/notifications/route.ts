@@ -20,14 +20,31 @@ export async function GET(req: NextRequest) {
   if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   if (payload.role === "admin" || payload.role === "cashier") {
-    const [pending, plan] = await Promise.all([
+    const [pending, plan, registrations] = await Promise.all([
       prisma.order.findMany({
         where: { status: "pending" },
         orderBy: { dateTime: "desc" },
         select: { id: true, totalAmount: true, dateTime: true, fulfillmentMode: true, customerName: true, customer: { select: { username: true } } },
       }),
       getReorderPlan(),
+      // New customers waiting for approval. Only the admin approves them.
+      payload.role === "admin"
+        ? prisma.user.findMany({
+            where: { role: "customer", accountStatus: "pending" },
+            orderBy: { createdAt: "desc" },
+            select: { id: true, username: true, email: true, createdAt: true },
+          })
+        : Promise.resolve([]),
     ]);
+
+    const signups = registrations.map<AppNotification>((u) => ({
+      key: `signup-${u.id}`,
+      type: "new_customer",
+      title: "New customer to approve",
+      message: `${u.username}${u.email ? ` · ${u.email}` : ""} registered and is waiting for approval.`,
+      href: "/users?tab=pending",
+      at: u.createdAt.toISOString(),
+    }));
 
     const orders = pending.map<AppNotification>((o) => ({
       key: `order-${o.id}`,
@@ -54,7 +71,7 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({ items: [...orders, ...stock] });
+    return NextResponse.json({ items: [...signups, ...orders, ...stock] });
   }
 
   if (payload.role === "customer") {

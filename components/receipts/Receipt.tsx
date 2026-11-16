@@ -52,7 +52,7 @@ export function ReceiptBody({ data }: { data: ReceiptData }) {
       <div className="text-center">
         <p className="font-bold text-gray-900 text-base">{STORE_NAME}</p>
         <p className="text-[11px] text-gray-400">{STORE_ADDRESS}</p>
-        <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-1">Official Receipt</p>
+        <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-1">Acknowledgement Receipt</p>
       </div>
       <div className="border-t border-dashed border-gray-200" />
       <div className="space-y-1">
@@ -92,6 +92,7 @@ export function ReceiptBody({ data }: { data: ReceiptData }) {
         </div>
       )}
       <p className="text-center text-[10px] text-gray-400 pt-1">Thank you for your purchase!</p>
+      <p className="text-center text-[9.5px] font-semibold uppercase tracking-wide text-gray-400">This is not an official receipt.</p>
     </div>
   );
 }
@@ -111,7 +112,7 @@ export function printReceipt(data: ReceiptData) {
     .row span:last-child{text-align:right}.muted{color:#666;font-size:11px;margin:0 0 4px}.total{font-size:15px;font-weight:700}
     @media print{body{margin:0}}
   </style></head><body>
-    <h1>${esc(STORE_NAME)}</h1><p class="c">${esc(STORE_ADDRESS)}</p><p class="c">OFFICIAL RECEIPT</p><hr>
+    <h1>${esc(STORE_NAME)}</h1><p class="c">${esc(STORE_ADDRESS)}</p><p class="c">ACKNOWLEDGEMENT RECEIPT</p><hr>
     ${row("No.", data.number)}${row("Date", when(data.date))}
     ${data.customer ? row("Customer", data.customer) : ""}${data.contact ? row("Contact", data.contact) : ""}
     ${data.fulfillment ? row("Type", data.fulfillment) : ""}${data.address ? row("Deliver to", data.address) : ""}
@@ -120,7 +121,7 @@ export function printReceipt(data: ReceiptData) {
     ${data.deliveryFee ? row("Subtotal", peso(subtotal)) + row("Delivery fee", peso(data.deliveryFee)) : ""}
     ${row("TOTAL", peso(data.total), "total")}
     ${data.payment.map((p) => row(p.label, p.value)).join("")}
-    <hr><p class="c">Thank you for your purchase!</p>
+    <hr><p class="c">Thank you for your purchase!</p><p class="c"><b>THIS IS NOT AN OFFICIAL RECEIPT.</b></p>
     <script>window.onload=function(){window.print();}</script>
   </body></html>`;
   win.document.open();

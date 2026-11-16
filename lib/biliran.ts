@@ -6,11 +6,12 @@
  * side of the island: Cabucgayan (124.575) and Caibiran (124.581) fell outside
  * it. Geocoding those addresses either failed outright or silently returned a
  * different place that happened to sit inside the box, so orders landed several
- * kilometres from the customer. These bounds cover the mainland plus Maripipi.
+ * kilometres from the customer. These bounds cover the mainland plus Maripipi and Higatangan.
  */
 export const BILIRAN_BOUNDS = {
   minLat: 11.40, maxLat: 11.85,
-  minLng: 124.30, maxLng: 124.65,
+  // 124.24 takes in Higatangan island (Naval), whose barangays sit near 124.26-124.30.
+  minLng: 124.24, maxLng: 124.65,
 } as const;
 
 /** Leaflet order: [[southWestLat, southWestLng], [northEastLat, northEastLng]] */

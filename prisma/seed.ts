@@ -12,14 +12,14 @@ async function main() {
     return;
   }
 
-  // Users
+  // Users (sign in with the email; demo addresses use the reserved .test domain)
   const users = [
-    { username: "admin", password: "admin123", role: "admin", contact: "09001112222" },
-    { username: "cashier1", password: "cashier123", role: "cashier", contact: "09003334444" },
-    { username: "cashier2", password: "cashier123", role: "cashier", contact: "09003335555" },
-    { username: "customer1", password: "customer123", role: "customer", contact: "09005556666" },
-    { username: "customer2", password: "customer123", role: "customer", contact: "09005557777" },
-    { username: "driver1", password: "driver123", role: "driver", contact: "09006668888" },
+    { username: "admin", email: "admin@rmhardware.test", password: "admin123", role: "admin", contact: "09001112222" },
+    { username: "cashier1", email: "cashier1@rmhardware.test", password: "cashier123", role: "cashier", contact: "09003334444" },
+    { username: "cashier2", email: "cashier2@rmhardware.test", password: "cashier123", role: "cashier", contact: "09003335555" },
+    { username: "customer1", email: "customer1@rmhardware.test", password: "customer123", role: "customer", contact: "09005556666" },
+    { username: "customer2", email: "customer2@rmhardware.test", password: "customer123", role: "customer", contact: "09005557777" },
+    { username: "driver1", email: "driver1@rmhardware.test", password: "driver123", role: "driver", contact: "09006668888" },
   ];
 
   const createdUsers: Record<string, number> = {};
@@ -27,7 +27,8 @@ async function main() {
     const hashed = await bcrypt.hash(user.password, 10);
     const u = await prisma.user.upsert({
       where: { username: user.username },
-      update: {},
+      // Older databases had no email column; fill it in so these accounts can sign in by email.
+      update: { email: user.email },
       create: { ...user, password: hashed },
     });
     createdUsers[user.username] = u.id;

@@ -7,9 +7,13 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   Eye, EyeOff, ArrowLeft, ArrowRight, User, Lock, Phone, ShieldCheck, ShoppingBag, Truck, Tag, Wallet,
-  MapPin, UserPlus, LogIn, type LucideIcon,
+  MapPin, UserPlus, LogIn, Mail, Check, Circle, MailCheck, Clock, type LucideIcon,
 } from "lucide-react";
 import { STORE_NAME } from "@/lib/brand";
+import LocationPicker, { type PickedLocation } from "@/components/LocationPicker";
+import {
+  SUFFIXES, PASSWORD_RULES, PHONE_HINT, cleanName, fullName, nameProblem, normalizeEmail, normalizePhone, passwordProblem,
+} from "@/lib/validation";
 
 type Mode = "signin" | "signup";
 
@@ -46,8 +50,8 @@ const PANEL: Record<Mode, {
 };
 
 const FORM_HEAD: Record<Mode, { title: string; body: string }> = {
-  signin: { title: "Welcome back", body: "Sign in with the username and password for your account." },
-  signup: { title: "Create your account", body: "A free customer account lets you order online for delivery or store pickup." },
+  signin: { title: "Welcome back", body: "Sign in with the email and password for your account." },
+  signup: { title: "Create your account", body: "Three quick steps. The store approves new accounts, and we email you when yours is ready." },
 };
 
 // `auth-input` (globals.css) keeps the browser's autofill from painting the field blue.
@@ -99,7 +103,64 @@ function RevealButton({ shown, onToggle }: { shown: boolean; onToggle: () => voi
   );
 }
 
-function Notice({ tone, children }: { tone: "bad" | "good"; children: React.ReactNode }) {
+function SelectField({ id, label, hint, children, ...select }: { id: string; label: string; hint?: string } & React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <div>
+      <label htmlFor={id} className="block text-[13px] font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>{label}</label>
+      <select id={id} {...select} className={`${INPUT_CLASS} pl-4 pr-4 appearance-none cursor-pointer`}>{children}</select>
+      {hint && <p className="mt-1.5 text-xs" style={{ color: "var(--text-muted)" }}>{hint}</p>}
+    </div>
+  );
+}
+
+const SIGNUP_STEPS = ["Your name", "Contact & address", "Password"] as const;
+
+/** Where the visitor is in the three signup steps. */
+function StepHeader({ step }: { step: number }) {
+  return (
+    <ol className="flex items-center gap-2 mb-6" aria-label="Signup steps">
+      {SIGNUP_STEPS.map((label, i) => {
+        const done = i < step;
+        const current = i === step;
+        return (
+          <li key={label} className="flex-1 min-w-0" aria-current={current ? "step" : undefined}>
+            <div className="h-1.5 rounded-full transition-colors" style={{ background: done || current ? "var(--brand)" : "var(--border)" }} />
+            <p className="mt-1.5 text-[11px] font-semibold truncate" style={{ color: current ? "var(--brand)" : done ? "var(--text-secondary)" : "var(--text-faint)" }}>
+              {i + 1}. {label}
+            </p>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+type SignupForm = {
+  firstName: string; middleName: string; lastName: string; suffix: string;
+  contact: string; email: string; password: string; confirm: string;
+};
+const EMPTY_SIGNUP: SignupForm = { firstName: "", middleName: "", lastName: "", suffix: "", contact: "", email: "", password: "", confirm: "" };
+
+/** The first problem on a signup step, checked with the same rules the server uses. */
+function stepProblem(step: number, f: SignupForm, location: PickedLocation | null): string | null {
+  if (step === 0) {
+    return nameProblem(cleanName(f.firstName), "first name", true)
+      ?? nameProblem(cleanName(f.middleName), "middle name", false)
+      ?? nameProblem(cleanName(f.lastName), "last name", true);
+  }
+  if (step === 1) {
+    if (!normalizePhone(f.contact)) return `Enter a valid mobile number: ${PHONE_HINT}.`;
+    if (!normalizeEmail(f.email)) return "Enter a valid email address, e.g. juan.delacruz@gmail.com.";
+    if (!location) return "Pin your home or usual delivery spot on the map.";
+    return null;
+  }
+  const pw = passwordProblem(f.password);
+  if (pw) return pw;
+  if (f.password !== f.confirm) return "The two passwords don't match.";
+  return null;
+}
+
+function Notice({ tone, children }: { tone: "bad" | "good" | "info"; children: React.ReactNode }) {
   return (
     <div
       role={tone === "bad" ? "alert" : "status"}
@@ -156,18 +217,25 @@ function AuthPage() {
   const [leaving, setLeaving] = useState<Mode>("signin");
 
   // Sign in state
-  const [siUsername, setSiUsername] = useState("");
+  const [siEmail, setSiEmail] = useState("");
   const [siPassword, setSiPassword] = useState("");
   const [siShowPass, setSiShowPass] = useState(false);
   const [siError, setSiError] = useState("");
+  // Signed in with the right password, but the account isn't approved yet.
+  const [siWaiting, setSiWaiting] = useState("");
   const [siSuccess, setSiSuccess] = useState(() => (searchParams.get("registered") === "1" ? "Account created! You can now sign in." : ""));
   const [siLoading, setSiLoading] = useState(false);
 
   // Sign up state
-  const [suForm, setSuForm] = useState({ username: "", password: "", confirm: "", contact: "" });
+  const [suForm, setSuForm] = useState<SignupForm>(EMPTY_SIGNUP);
+  const [suLocation, setSuLocation] = useState<PickedLocation | null>(null);
+  const [suStep, setSuStep] = useState(0);
   const [suShowPass, setSuShowPass] = useState(false);
   const [suError, setSuError] = useState("");
   const [suLoading, setSuLoading] = useState(false);
+  // After registering: which email we wrote to, and whether the email went out.
+  const [suDone, setSuDone] = useState<{ email: string; emailSent: boolean } | null>(null);
+  const setSu = (k: keyof SignupForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setSuForm((p) => ({ ...p, [k]: e.target.value }));
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 50);
@@ -186,14 +254,19 @@ function AuthPage() {
 
   async function handleSignIn(e: FormEvent) {
     e.preventDefault();
-    setSiError(""); setSiSuccess(""); setSiLoading(true);
+    setSiError(""); setSiSuccess(""); setSiWaiting(""); setSiLoading(true);
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: siUsername, password: siPassword }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) { setSiLoading(false); setSiError(data.error || "Login failed"); return; }
+      body: JSON.stringify({ email: siEmail, password: siPassword }),
+    }).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : {};
+    if (!res || !res.ok) {
+      setSiLoading(false);
+      if (data.status === "pending") setSiWaiting(data.error);
+      else setSiError(data.error || (res ? "Sign-in failed. Please try again." : "Can't reach the server. Check your connection."));
+      return;
+    }
 
     // A visitor who tapped "Order" on the landing page is sent straight to the
     // shop once they're in. Only same-origin relative paths are honoured, and
@@ -211,23 +284,44 @@ function AuthPage() {
     setTimeout(() => { window.location.href = target; }, 1100);
   }
 
+  function nextStep(e: FormEvent) {
+    e.preventDefault();
+    const problem = stepProblem(suStep, suForm, suLocation);
+    if (problem) { setSuError(problem); return; }
+    setSuError("");
+    setSuStep((n) => n + 1);
+  }
+
   async function handleSignUp(e: FormEvent) {
     e.preventDefault();
+    for (const step of [0, 1, 2]) {
+      const problem = stepProblem(step, suForm, suLocation);
+      if (problem) { setSuStep(step); setSuError(problem); return; }
+    }
     setSuError("");
-    if (suForm.password !== suForm.confirm) { setSuError("Passwords do not match"); return; }
     setSuLoading(true);
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       // No role is sent — public signup always creates a customer. Staff and
       // driver accounts are created by the admin on the Users page.
-      body: JSON.stringify({ username: suForm.username, password: suForm.password, contact: suForm.contact }),
-    });
-    const data = await res.json();
+      body: JSON.stringify({
+        firstName: suForm.firstName, middleName: suForm.middleName, lastName: suForm.lastName, suffix: suForm.suffix,
+        contact: suForm.contact, email: suForm.email, password: suForm.password,
+        defaultAddress: suLocation?.address, defaultLat: suLocation?.lat, defaultLng: suLocation?.lng,
+      }),
+    }).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : {};
     setSuLoading(false);
-    if (!res.ok) { setSuError(data.error || "Registration failed"); return; }
-    setSiSuccess("Account created! You can now sign in.");
-    switchMode("signin");
+    if (!res || !res.ok) {
+      // Send them back to the step with the problem.
+      const stepOf: Record<string, number> = { name: 0, contact: 1, location: 1, password: 2 };
+      if (data.field && data.field in stepOf) setSuStep(stepOf[data.field]);
+      setSuError(data.error || "Registration failed. Please try again.");
+      return;
+    }
+    setSuDone({ email: data.email, emailSent: Boolean(data.emailSent) });
+    setSuForm(EMPTY_SIGNUP); setSuLocation(null); setSuStep(0);
   }
 
   const panel = PANEL[mode];
@@ -328,7 +422,7 @@ function AuthPage() {
 
         <div className="flex-1 flex items-center justify-center px-5 sm:px-10 py-8">
           <div
-            className={`w-full max-w-[440px] rounded-3xl border p-6 sm:p-9 ${fadeIn("")}`}
+            className={`w-full ${mode === "signup" ? "max-w-[540px]" : "max-w-[440px]"} rounded-3xl border p-6 sm:p-9 transition-[max-width] duration-300 ${fadeIn("")}`}
             style={{
               background: "var(--bg-card)",
               borderColor: "var(--border)",
@@ -384,8 +478,9 @@ function AuthPage() {
                 <div>
                   <form onSubmit={handleSignIn} className="space-y-5">
                     <Field
-                      id="si-username" label="Username" icon={User} type="text" autoComplete="username" required
-                      value={siUsername} onChange={(e) => setSiUsername(e.target.value)} placeholder="Enter your username"
+                      id="si-email" label="Email" icon={Mail} type="text" inputMode="email" autoComplete="username" required
+                      value={siEmail} onChange={(e) => setSiEmail(e.target.value)} placeholder="yourname@gmail.com"
+                      hint="Staff accounts without an email on file can use their username."
                     />
                     <Field
                       id="si-password" label="Password" icon={Lock} type={siShowPass ? "text" : "password"} autoComplete="current-password" required
@@ -394,6 +489,11 @@ function AuthPage() {
                     />
 
                     {siError && <Notice tone="bad">{siError}</Notice>}
+                    {siWaiting && (
+                      <Notice tone="info">
+                        <span className="flex items-start gap-2"><Clock size={16} className="shrink-0 mt-0.5" /> {siWaiting}</span>
+                      </Notice>
+                    )}
                     {siSuccess && <Notice tone="good">{siSuccess}</Notice>}
 
                     <button type="submit" disabled={siLoading} className={PRIMARY_BUTTON} style={PRIMARY_BUTTON_STYLE}>
@@ -419,38 +519,119 @@ function AuthPage() {
                 </div>
               ) : (
                 <div>
-                  <form onSubmit={handleSignUp} className="space-y-5">
-                    <Field
-                      id="su-username" label="Username" icon={User} type="text" autoComplete="username" required minLength={3} maxLength={50}
-                      value={suForm.username} onChange={(e) => setSuForm((p) => ({ ...p, username: e.target.value }))}
-                      placeholder="Choose a username" hint="3 to 50 characters."
-                    />
-                    <Field
-                      id="su-contact" label="Contact number" icon={Phone} type="text" autoComplete="tel"
-                      value={suForm.contact} onChange={(e) => setSuForm((p) => ({ ...p, contact: e.target.value }))}
-                      placeholder="Phone or email (optional)" hint="Optional. The store uses it to reach you about an order."
-                    />
-                    <div className="grid sm:grid-cols-2 gap-5 sm:gap-3">
-                      <Field
-                        id="su-password" label="Password" icon={Lock} type={suShowPass ? "text" : "password"} autoComplete="new-password" required minLength={6} maxLength={128}
-                        value={suForm.password} onChange={(e) => setSuForm((p) => ({ ...p, password: e.target.value }))}
-                        placeholder="Password"
-                        trailing={<RevealButton shown={suShowPass} onToggle={() => setSuShowPass(!suShowPass)} />}
-                      />
-                      <Field
-                        id="su-confirm" label="Confirm password" icon={Lock} type={suShowPass ? "text" : "password"} autoComplete="new-password" required
-                        value={suForm.confirm} onChange={(e) => setSuForm((p) => ({ ...p, confirm: e.target.value }))}
-                        placeholder="Type it again"
-                      />
+                  {suDone ? (
+                    <div className="text-center py-2 animate-rise-in" role="status">
+                      <span className="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "var(--good-soft)", color: "var(--good)" }}>
+                        <MailCheck size={28} />
+                      </span>
+                      <h2 className="mt-4 font-display text-xl font-extrabold" style={{ color: "var(--text-primary)" }}>Registration received</h2>
+                      <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                        The store will review your account first. {suDone.emailSent
+                          ? <>We sent a confirmation to <b style={{ color: "var(--text-primary)" }}>{suDone.email}</b>, and we&apos;ll email you again once it&apos;s approved.</>
+                          : <>Once it&apos;s approved, you can sign in with <b style={{ color: "var(--text-primary)" }}>{suDone.email}</b>.</>}
+                      </p>
+                      <button type="button" onClick={() => { setSiEmail(suDone.email); setSuDone(null); switchMode("signin"); }}
+                        className={`${PRIMARY_BUTTON} mt-6`} style={PRIMARY_BUTTON_STYLE}>
+                        Back to sign in <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-1" />
+                      </button>
                     </div>
-                    <p className="-mt-3 text-xs" style={{ color: "var(--text-muted)" }}>Password needs at least 6 characters.</p>
+                  ) : (
+                  <form onSubmit={suStep < 2 ? nextStep : handleSignUp} className="space-y-5" noValidate>
+                    <StepHeader step={suStep} />
+
+                    {suStep === 0 && (
+                      <div className="space-y-5 animate-rise-in">
+                        <div className="grid sm:grid-cols-2 gap-5 sm:gap-3">
+                          <Field id="su-first" label="First name" icon={User} autoComplete="given-name" required maxLength={50}
+                            value={suForm.firstName} onChange={setSu("firstName")} placeholder="Juan" />
+                          <Field id="su-last" label="Last name" icon={User} autoComplete="family-name" required maxLength={50}
+                            value={suForm.lastName} onChange={setSu("lastName")} placeholder="Dela Cruz" />
+                        </div>
+                        <div className="grid sm:grid-cols-[1fr_9rem] gap-5 sm:gap-3">
+                          <Field id="su-middle" label="Middle name (optional)" icon={User} autoComplete="additional-name" maxLength={50}
+                            value={suForm.middleName} onChange={setSu("middleName")} placeholder="Santos" />
+                          <SelectField id="su-suffix" label="Suffix" value={suForm.suffix} onChange={setSu("suffix")}>
+                            <option value="">None</option>
+                            {SUFFIXES.map((x) => <option key={x} value={x}>{x}</option>)}
+                          </SelectField>
+                        </div>
+                        {(suForm.firstName.trim() || suForm.lastName.trim()) && (
+                          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                            You&apos;ll show up to the store as{" "}
+                            <b style={{ color: "var(--text-primary)" }}>
+                              {fullName({ firstName: cleanName(suForm.firstName) || "…", middleName: cleanName(suForm.middleName), lastName: cleanName(suForm.lastName) || "…", suffix: suForm.suffix })}
+                            </b>.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {suStep === 1 && (
+                      <div className="space-y-5 animate-rise-in">
+                        <div className="grid sm:grid-cols-2 gap-5 sm:gap-3">
+                          <Field id="su-contact" label="Mobile number" icon={Phone} type="tel" inputMode="numeric" autoComplete="tel" required maxLength={16}
+                            value={suForm.contact} onChange={setSu("contact")} placeholder="0917 123 4567" hint="11 digits, starts with 09." />
+                          <Field id="su-email" label="Gmail address" icon={Mail} type="email" autoComplete="email" required maxLength={120}
+                            value={suForm.email} onChange={setSu("email")} placeholder="juan.delacruz@gmail.com" hint="You'll sign in with this." />
+                        </div>
+                        <div>
+                          <p className="block text-[13px] font-semibold mb-1" style={{ color: "var(--text-secondary)" }}>Default delivery location</p>
+                          <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>
+                            Search your barangay, tap <b>Use my location</b>, or drop a pin on your house. Orders go here unless you pick another spot at checkout.
+                          </p>
+                          <LocationPicker value={suLocation} onChange={(loc) => { setSuLocation(loc); if (loc) setSuError(""); }} />
+                        </div>
+                      </div>
+                    )}
+
+                    {suStep === 2 && (
+                      <div className="space-y-5 animate-rise-in">
+                        <div className="grid sm:grid-cols-2 gap-5 sm:gap-3">
+                          <Field
+                            id="su-password" label="Password" icon={Lock} type={suShowPass ? "text" : "password"} autoComplete="new-password" required maxLength={128}
+                            value={suForm.password} onChange={setSu("password")} placeholder="Password"
+                            trailing={<RevealButton shown={suShowPass} onToggle={() => setSuShowPass(!suShowPass)} />}
+                          />
+                          <Field
+                            id="su-confirm" label="Confirm password" icon={Lock} type={suShowPass ? "text" : "password"} autoComplete="new-password" required maxLength={128}
+                            value={suForm.confirm} onChange={setSu("confirm")} placeholder="Type it again"
+                          />
+                        </div>
+                        <ul className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs" aria-label="Password rules">
+                          {[...PASSWORD_RULES.map((r) => ({ ok: r.test(suForm.password), label: r.label })),
+                            { ok: suForm.confirm.length > 0 && suForm.confirm === suForm.password, label: "Both passwords match" }].map((r) => (
+                            <li key={r.label} className="flex items-center gap-1.5" style={{ color: r.ok ? "var(--good)" : "var(--text-muted)" }}>
+                              {r.ok ? <Check size={13} /> : <Circle size={11} />} {r.label}
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="rounded-xl border px-4 py-3 text-xs space-y-1" style={{ borderColor: "var(--border)", background: "var(--bg-subtle)", color: "var(--text-muted)" }}>
+                          <p className="font-bold uppercase tracking-wide text-[10px]" style={{ color: "var(--text-faint)" }}>Check your details</p>
+                          <p><span style={{ color: "var(--text-secondary)" }}>Name:</span> {fullName({ firstName: cleanName(suForm.firstName), middleName: cleanName(suForm.middleName), lastName: cleanName(suForm.lastName), suffix: suForm.suffix })}</p>
+                          <p><span style={{ color: "var(--text-secondary)" }}>Mobile:</span> {normalizePhone(suForm.contact)} · <span style={{ color: "var(--text-secondary)" }}>Email:</span> {normalizeEmail(suForm.email)}</p>
+                          <p className="line-clamp-2"><span style={{ color: "var(--text-secondary)" }}>Delivery location:</span> {suLocation?.address}</p>
+                        </div>
+                      </div>
+                    )}
 
                     {suError && <Notice tone="bad">{suError}</Notice>}
 
-                    <button type="submit" disabled={suLoading} className={PRIMARY_BUTTON} style={PRIMARY_BUTTON_STYLE}>
-                      {suLoading ? "Creating account..." : <>Create account <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-1" /></>}
-                    </button>
+                    <div className="flex gap-3">
+                      {suStep > 0 && (
+                        <button type="button" onClick={() => { setSuError(""); setSuStep((n) => n - 1); }}
+                          className={`h-12 px-5 rounded-xl border text-sm font-bold inline-flex items-center gap-1.5 transition hover:bg-[color:var(--bg-muted)] ${FOCUS_RING}`}
+                          style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+                          <ArrowLeft size={16} /> Back
+                        </button>
+                      )}
+                      <button type="submit" disabled={suLoading} className={PRIMARY_BUTTON} style={PRIMARY_BUTTON_STYLE}>
+                        {suStep < 2
+                          ? <>Next: {SIGNUP_STEPS[suStep + 1]} <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-1" /></>
+                          : suLoading ? "Sending registration..." : <>Create account <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-1" /></>}
+                      </button>
+                    </div>
                   </form>
+                  )}
 
                   <p className="mt-4 flex items-center justify-center gap-1.5 text-xs" style={{ color: "var(--text-faint)" }}>
                     <ShieldCheck size={13} /> Staff and driver accounts are set up by the store admin.

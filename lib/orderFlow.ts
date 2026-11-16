@@ -23,9 +23,13 @@ export type Viewer = "staff" | "customer";
 
 const isPickup = (o: FlowOrder) => o.fulfillmentMode === "pickup";
 
-/** Balance still owed on a GCash order paid in part. Cash orders are paid on handover. */
+/**
+ * What is still owed on the order: total minus what's been paid (a GCash
+ * transfer, or a downpayment staff recorded). Cash orders are settled in full
+ * once delivered, so after delivery this is only ever a GCash shortfall.
+ */
 export function balanceDue(o: FlowOrder) {
-  if (o.paymentMethod !== "GCash") return 0;
+  if (o.status === "cancelled") return 0;
   return Math.max(0, Math.round((o.totalAmount - (o.amountPaid ?? 0)) * 100) / 100);
 }
 

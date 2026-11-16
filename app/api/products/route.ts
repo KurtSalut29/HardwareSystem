@@ -25,10 +25,16 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(products.map(flattenProduct));
 }
 
+/** The maker's name, tidied: "  holcim " stays as typed but trimmed; blank means unbranded. */
+function cleanBrand(v: unknown): string | null {
+  const b = String(v ?? "").trim().replace(/\s+/g, " ").slice(0, 60);
+  return b || null;
+}
+
 export async function POST(req: NextRequest) {
   if (!canManage(await getRole(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const { name, categoryId, subcategoryId, price, unit, stock, image, description } = await req.json();
+    const { name, brand, categoryId, subcategoryId, price, unit, stock, image, description } = await req.json();
     if (!name || !categoryId || price == null) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     const sub = await checkSubcategory(subcategoryId, Number(categoryId));
     if (sub === false) return NextResponse.json({ error: "That subcategory belongs to another category" }, { status: 400 });
@@ -37,6 +43,7 @@ export async function POST(req: NextRequest) {
     const product = await prisma.product.create({
       data: {
         name,
+        brand: cleanBrand(brand),
         categoryId: Number(categoryId),
         subcategoryId: sub,
         price: Number(price),
@@ -60,7 +67,7 @@ export async function PUT(req: NextRequest) {
   try {
     // Stock is deliberately not editable here: use a purchase (Restocks) or a
     // stock adjustment, so every change has a record.
-    const { id, name, categoryId, subcategoryId, price, unit, image, description } = await req.json();
+    const { id, name, brand, categoryId, subcategoryId, price, unit, image, description } = await req.json();
     if (!id) return NextResponse.json({ error: "Missing product ID" }, { status: 400 });
     const sub = await checkSubcategory(subcategoryId, Number(categoryId));
     if (sub === false) return NextResponse.json({ error: "That subcategory belongs to another category" }, { status: 400 });
@@ -68,6 +75,7 @@ export async function PUT(req: NextRequest) {
       where: { id: Number(id) },
       data: {
         name,
+        brand: cleanBrand(brand),
         categoryId: Number(categoryId),
         subcategoryId: sub,
         price: Number(price),

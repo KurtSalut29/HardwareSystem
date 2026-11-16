@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, ChevronDown, Package, ShoppingBag, Settings, Sun, Moon, Monitor, Menu, LogOut, Clock, Truck, PackageX, ClipboardCheck, Volume2, VolumeX } from "lucide-react";
+import { Bell, ChevronDown, Package, ShoppingBag, Settings, Sun, Moon, Monitor, Menu, LogOut, Clock, Truck, PackageX, ClipboardCheck, Volume2, VolumeX, UserPlus } from "lucide-react";
 import { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "@/components/ThemeProvider";
@@ -14,12 +14,13 @@ import { roleLabel } from "@/lib/roles";
 import { isSoundOn, playAlert, setSoundOn, subscribeSound, unlockAudio, type AlertSound } from "@/lib/sounds";
 import { desktopPermission, requestDesktop } from "@/lib/desktopNotify";
 
-type BellType = "new_order" | "low_stock" | "out_of_stock" | "order_update" | "delivery";
+type BellType = "new_order" | "new_customer" | "low_stock" | "out_of_stock" | "order_update" | "delivery";
 type BellItem = { id: string; type: BellType; title: string; message: string; href?: string; unread: boolean };
 
 // Icon, colors and label for each kind of notification in the bell.
 const BELL_STYLE: Record<BellType, { icon: typeof Bell; fg: string; bg: string }> = {
   new_order: { icon: ShoppingBag, fg: "var(--brand)", bg: "var(--brand-soft)" },
+  new_customer: { icon: UserPlus, fg: "var(--brand)", bg: "var(--brand-soft)" },
   order_update: { icon: ClipboardCheck, fg: "var(--good)", bg: "var(--good-soft)" },
   delivery: { icon: Truck, fg: "var(--brand)", bg: "var(--brand-soft)" },
   low_stock: { icon: Package, fg: "var(--warn)", bg: "var(--warn-soft)" },
