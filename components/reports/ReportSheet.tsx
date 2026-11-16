@@ -14,7 +14,7 @@ export type SheetSummary = {
   orders: { placed: number; placedValue: number; delivered: number; cancelled: number; outstandingBalance: number };
 };
 
-const peso = (n: number) => `₱${n.toFixed(2)}`;
+const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /**
  * The printable document itself.
@@ -45,7 +45,7 @@ export default function ReportSheet({
   return (
     <div
       data-print-root
-      className="bg-white rounded-2xl border p-6 sm:p-8 text-[13px]"
+      className="bg-surface rounded-2xl border p-6 sm:p-8 text-[13px]"
       style={{ borderColor: "var(--border-strong)", color: "#14161F" }}
     >
       {/* Letterhead */}
@@ -76,7 +76,7 @@ export default function ReportSheet({
         <Figure label="Cash" value={peso(summary.cashTotal)} />
         <Figure label="GCash" value={peso(summary.gcashTotal)} />
         {summary.otherTotal > 0 && <Figure label="Other" value={peso(summary.otherTotal)} />}
-        <Figure label="Items sold" value={String(summary.itemsSold)} />
+        <Figure label="Items sold" value={summary.itemsSold.toLocaleString("en-PH", { maximumFractionDigits: 2 })} />
       </div>
 
       {/* Online-order activity */}

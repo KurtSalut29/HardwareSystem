@@ -4,29 +4,23 @@ import { Loader2 } from "lucide-react";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "danger" | "ghost";
+  variant?: "primary" | "secondary" | "danger" | "ghost" | "soft";
   size?: "sm" | "md";
   loading?: boolean;
   icon?: React.ReactNode;
 };
 
 const VARIANTS: Record<string, string> = {
-  primary: "text-white shadow-sm active:scale-[0.98] hover:brightness-95",
-  secondary: "bg-white border text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-subtle)] active:scale-[0.98]",
-  danger: "text-white active:scale-[0.98] hover:brightness-95",
-  ghost: "text-[color:var(--text-muted)] hover:bg-[color:var(--bg-muted)]",
-};
-
-const VARIANT_STYLE: Record<string, React.CSSProperties> = {
-  primary: { background: "var(--brand)" },
-  secondary: { borderColor: "var(--border)" },
-  danger: { background: "var(--bad)" },
-  ghost: {},
+  primary: "bg-brand text-white shadow-[0_8px_18px_-10px_rgba(30,79,216,0.8)] hover:brightness-110",
+  secondary: "border border-line bg-surface text-ink-2 shadow-[0_1px_2px_rgba(16,24,64,0.05)] hover:border-line-strong hover:text-ink",
+  soft: "bg-brand-soft text-brand-ink hover:bg-brand-soft/70",
+  danger: "bg-bad text-white hover:brightness-110",
+  ghost: "text-ink-3 hover:bg-recess hover:text-ink-2",
 };
 
 const SIZES: Record<string, string> = {
-  sm: "py-1.5 px-3 text-xs",
-  md: "py-2.5 px-4 text-sm",
+  sm: "h-8 px-3 text-xs",
+  md: "h-10 px-4 text-sm",
 };
 
 export default function Button({
@@ -36,15 +30,13 @@ export default function Button({
   icon,
   disabled,
   className = "",
-  style,
   children,
   ...rest
 }: ButtonProps) {
   return (
     <button
       disabled={disabled || loading}
-      style={{ ...VARIANT_STYLE[variant], ...style }}
-      className={`inline-flex items-center justify-center gap-2 rounded-[10px] font-semibold transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...rest}
     >
       {loading ? <Loader2 size={ICON_SIZE.sm} className="animate-spin" /> : icon}

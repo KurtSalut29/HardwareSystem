@@ -64,16 +64,16 @@ export default function Pagination({
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(total, page * pageSize);
   const go = (p: number) => onChange(Math.min(totalPages, Math.max(1, p)));
-  const arrow = "h-8 px-2.5 inline-flex items-center gap-1 rounded-lg text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100";
+  const arrow = "h-8 px-2.5 inline-flex items-center gap-1 rounded-lg text-xs font-semibold text-ink-2 transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-recess";
 
   return (
-    <nav aria-label="Pagination" className={`flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-gray-100 ${className}`}>
-      <p className="text-xs text-gray-400 num">
-        Showing <span className="font-semibold text-gray-600">{from.toLocaleString()}–{to.toLocaleString()}</span> of{" "}
-        <span className="font-semibold text-gray-600">{total.toLocaleString()}</span> {noun}
+    <nav aria-label="Pagination" className={`flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-line ${className}`}>
+      <p className="num text-xs text-ink-4">
+        Showing <span className="font-semibold text-ink-2">{from.toLocaleString()}–{to.toLocaleString()}</span> of{" "}
+        <span className="font-semibold text-ink-2">{total.toLocaleString()}</span> {noun}
       </p>
       <div className="flex items-center gap-1">
-        <button type="button" onClick={() => go(page - 1)} disabled={page === 1} className={arrow} style={{ color: "var(--text-secondary)" }} aria-label="Previous page">
+        <button type="button" onClick={() => go(page - 1)} disabled={page === 1} className={arrow} aria-label="Previous page">
           <ChevronLeft size={ICON_SIZE.sm} /> <span className="hidden sm:inline">Prev</span>
         </button>
 
@@ -81,24 +81,23 @@ export default function Pagination({
         <div className="hidden sm:flex items-center gap-1">
           {pageList(page, totalPages).map((p, i) =>
             p === "gap" ? (
-              <span key={`gap-${i}`} className="w-6 text-center text-xs text-gray-400" aria-hidden>…</span>
+              <span key={`gap-${i}`} className="w-6 text-center text-xs text-ink-4" aria-hidden>…</span>
             ) : (
               <button
                 key={p}
                 type="button"
                 onClick={() => go(p)}
                 aria-current={p === page ? "page" : undefined}
-                className={`min-w-8 h-8 px-1.5 rounded-lg text-xs font-semibold num transition ${p === page ? "text-white" : "text-gray-500 hover:bg-gray-100"}`}
-                style={p === page ? { background: "var(--brand)" } : undefined}
+                className={`min-w-8 h-8 px-1.5 rounded-lg text-xs font-semibold num transition ${p === page ? "bg-brand text-white" : "text-ink-3 hover:bg-recess"}`}
               >
                 {p}
               </button>
             )
           )}
         </div>
-        <span className="sm:hidden text-xs font-semibold text-gray-600 num px-2">{page} / {totalPages}</span>
+        <span className="sm:hidden text-xs font-semibold text-ink-2 num px-2">{page} / {totalPages}</span>
 
-        <button type="button" onClick={() => go(page + 1)} disabled={page === totalPages} className={arrow} style={{ color: "var(--text-secondary)" }} aria-label="Next page">
+        <button type="button" onClick={() => go(page + 1)} disabled={page === totalPages} className={arrow} aria-label="Next page">
           <span className="hidden sm:inline">Next</span> <ChevronRight size={ICON_SIZE.sm} />
         </button>
       </div>

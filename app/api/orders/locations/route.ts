@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/auth";
 import { haversineKm, estimateMinutes, formatDistance, formatDuration } from "@/lib/distance";
+import { OPEN_STATUSES, startOfStoreDay } from "@/lib/storeDay";
 
 async function getPayload(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
@@ -28,16 +29,23 @@ export async function GET(req: NextRequest) {
     longitude: { not: null },
   };
 
+  // Staff see today's board: orders placed today (PH time) plus any still open
+  // from earlier days, so the map starts fresh every midnight without losing an
+  // unfinished delivery. ?scope=all returns every order (the Orders page uses it
+  // when a specific date is picked).
+  const allTime = req.nextUrl.searchParams.get("scope") === "all";
+  const todays = { OR: [{ dateTime: { gte: startOfStoreDay() } }, { status: { in: [...OPEN_STATUSES] } }] };
   const where =
     payload.role === "customer" ? { ...baseWhere, customerId: payload.id } :
     payload.role === "driver" ? { ...baseWhere, driverId: payload.id } :
-    baseWhere;
+    allTime ? baseWhere : { ...baseWhere, ...todays };
 
   const orders = await prisma.order.findMany({
     where,
     select: {
       id: true,
       status: true,
+      dateTime: true,
       deliveryAddress: true,
       latitude: true,
       longitude: true,

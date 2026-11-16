@@ -1,15 +1,15 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Package, Receipt, Banknote, TrendingUp, Calculator, Clock, CalendarDays } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Banknote, Calculator, CreditCard, Smartphone, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Receipt, Clock, CalendarDays, Globe, Store } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import PageHeader from "@/components/ui/PageHeader";
-import Badge from "@/components/ui/Badge";
+import Modal from "@/components/ui/Modal";
+import Segmented from "@/components/ui/Segmented";
+import ProductThumb from "@/components/catalog/ProductThumb";
 import EmptyState from "@/components/ui/EmptyState";
 import Pagination, { usePagination } from "@/components/ui/Pagination";
 import { CardHeader } from "@/components/dashboard/DashboardParts";
-import { ICON_SIZE } from "@/lib/constants/icon-size";
-import Image from "next/image";
 
 type TItem = { id: number; quantity: number; price: number; product: { name: string; image: string | null; subcategory: string | null } };
 type Transaction = { id: number; totalAmount: number; paymentMethod: string; dateTime: string; type: string; user: { username: string }; items: TItem[] };
@@ -69,6 +69,8 @@ export default function TransactionsPage() {
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
   const [range, setRange] = useState<Range>(() => rangeFor("today"));
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [view, setView] = useState<"list" | "insights">("list");
 
   useEffect(() => {
     fetch("/api/transactions")
@@ -181,300 +183,281 @@ export default function TransactionsPage() {
   const label = rangeLabel(range);
 
   return (
-    <div className="space-y-5">
-      <PageHeader title="Transactions" subtitle="Sales rung up at the POS and delivered online orders" />
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="Sales"
+        title="Transactions"
+        subtitle={loading ? "Loading sales…" : (
+          <>
+            <span className="font-semibold text-ink-2">{label}</span>
+            {multiDay && <> ({dayCount} days)</>}
+            {" · "}<span className="num font-semibold text-ink-2">{stats.count.toLocaleString()}</span> {stats.count === 1 ? "sale" : "sales"}
+            <span className="num"> · <span className="font-semibold text-ink-2">{peso(stats.total)}</span></span>
+          </>
+        )}
+      />
 
-      {/* Period picker */}
-      <div className="bg-white rounded-xl border border-gray-200 px-3 py-2.5 flex flex-wrap items-center gap-2">
-        <div className="flex gap-1.5 overflow-x-auto">
-          {MODE_TABS.map((t) => {
-            const active = range.mode === t.key;
+      {/* Calendar: pick one day */}
+      <Modal open={showCalendar} onClose={() => setShowCalendar(false)} title="Show sales from" size="sm">
+        <div className="mb-4 flex items-center justify-between">
+          <button type="button" onClick={prevMonth} aria-label="Previous month" className="grid size-8 place-items-center rounded-lg text-ink-3 transition hover:bg-recess">
+            <ChevronLeft className="size-4" />
+          </button>
+          <span className="font-display text-sm font-extrabold text-ink">{MONTHS[calMonth]} {calYear}</span>
+          <button type="button" onClick={nextMonth} aria-label="Next month" className="grid size-8 place-items-center rounded-lg text-ink-3 transition hover:bg-recess">
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+        <div className="mb-1 grid grid-cols-7">
+          {DAYS.map((d) => <div key={d} className="py-1 text-center text-[10px] font-bold uppercase tracking-wide text-ink-4">{d}</div>)}
+        </div>
+        <div className="grid grid-cols-7 gap-y-1">
+          {cells.map((day, i) => {
+            if (!day) return <div key={i} />;
+            const date = new Date(calYear, calMonth, day);
+            const key = dayKey(date);
+            const isToday = dayKey(today) === key;
+            const ts = date.getTime();
+            const inSel = ts >= startOfDay(range.from).getTime() && ts <= range.to.getTime();
+            const single = inSel && !multiDay;
+            const hasTxns = txDateKeys.has(key);
             return (
-              <button key={t.key} onClick={() => selectMode(t.key)} aria-pressed={active}
-                className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold transition border ${
-                  active ? "bg-blue-600 text-white border-blue-600 shadow-sm" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                }`}>
-                {t.label}
+              <button key={i} type="button" onClick={() => { selectDay(date); setShowCalendar(false); }}
+                className={`num relative mx-auto grid size-9 place-items-center rounded-lg text-xs font-semibold transition ${
+                  single ? "bg-brand text-white" : inSel ? "bg-brand-soft text-brand-ink" : isToday ? "bg-brand-soft font-bold text-brand-ink" : "text-ink-2 hover:bg-recess"}`}>
+                {day}
+                {hasTxns && <span className={`absolute bottom-1 left-1/2 size-1 -translate-x-1/2 rounded-full ${single ? "bg-white/70" : "bg-brand"}`} />}
               </button>
             );
           })}
         </div>
+        <p className="mt-4 border-t border-line pt-3 text-[11px] text-ink-4">Tap a date to see that day only. Dots mark days with sales.</p>
+      </Modal>
+
+      {/* Period */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Segmented options={MODE_TABS} value={range.mode === "day" ? ("none" as Exclude<Mode, "day">) : range.mode} onChange={selectMode} label="Period" />
+        <button type="button" onClick={() => { setCalYear(range.from.getFullYear()); setCalMonth(range.from.getMonth()); setShowCalendar(true); }} aria-haspopup="dialog"
+          className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-[13px] font-semibold transition ${
+            range.mode === "day" ? "border-brand/40 bg-brand-soft text-brand-ink" : "border-line bg-surface text-ink-2 hover:border-line-strong"}`}>
+          <CalendarDays className="size-4" /> {range.mode === "day" ? label : "Pick a day"}
+        </button>
         {range.mode === "custom" && (
           <div className="flex items-center gap-1.5 text-xs">
             <input type="date" aria-label="From" value={inputValue(range.from)} max={inputValue(range.to)}
               onChange={(e) => e.target.value && setRange((r) => ({ ...r, from: startOfDay(fromInput(e.target.value)) }))}
-              className="border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
-            <span className="text-gray-400">to</span>
+              className="h-9 rounded-xl border border-line bg-surface px-2.5 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20" />
+            <span className="text-ink-4">to</span>
             <input type="date" aria-label="To" value={inputValue(range.to)} min={inputValue(range.from)} max={inputValue(today)}
               onChange={(e) => e.target.value && setRange((r) => ({ ...r, to: endOfDay(fromInput(e.target.value)) }))}
-              className="border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+              className="h-9 rounded-xl border border-line bg-surface px-2.5 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20" />
           </div>
         )}
-        <span className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold text-gray-700">
-          <CalendarDays size={ICON_SIZE.xs} className="text-gray-400" />
-          {label}{multiDay && <span className="text-gray-400 font-medium">· {dayCount} days</span>}
-        </span>
       </div>
 
-      {loading ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400 text-sm">Loading...</div>
-      ) : (
-        <>
-          {/* Summary */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            <SummaryTile icon={<Receipt size={ICON_SIZE.sm} />} label="Transactions" value={stats.count.toLocaleString()}
-              caption={multiDay ? `about ${(stats.count / dayCount).toFixed(1)} per day` : "sales recorded"} />
-            <SummaryTile icon={<TrendingUp size={ICON_SIZE.sm} />} label="Total sales" value={peso(stats.total)}
-              caption={multiDay ? `about ${pesoShort(stats.total / dayCount)} per day` : "money taken in"} />
-            <SummaryTile className="col-span-2 sm:col-span-1" icon={<Calculator size={ICON_SIZE.sm} />} label="Average sale" value={peso(stats.average)} caption="per transaction" />
-            <div className="bg-white rounded-xl border border-gray-200 p-4 col-span-2 sm:col-span-3 lg:col-span-1 space-y-2.5">
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5"><Banknote size={ICON_SIZE.xs} /> Breakdown</p>
-              <SplitBar total={stats.total} parts={[
-                { label: "Cash", amount: stats.cash, count: stats.cashCount },
-                { label: "GCash", amount: stats.gcash, count: stats.gcashCount },
-                ...(stats.otherCount ? [{ label: "Card", amount: stats.other, count: stats.otherCount }] : []),
-              ]} />
-              <SplitBar total={stats.total} parts={[
-                { label: "POS", amount: stats.pos, count: stats.posCount },
-                { label: "Online", amount: stats.online, count: stats.onlineCount },
-              ]} />
-            </div>
-          </div>
+      {/* Summary */}
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-3">
+        <SummaryTile icon={<Receipt className="size-5" />} label="Sales" value={loading ? "–" : stats.count.toLocaleString()}
+          caption={multiDay ? `about ${(stats.count / dayCount).toFixed(1)} a day` : "transactions recorded"} />
+        <SummaryTile icon={<Banknote className="size-5" />} label="Total taken in" value={loading ? "–" : peso(stats.total)}
+          caption={multiDay ? `about ${pesoShort(stats.total / dayCount)} a day` : "cash, GCash and card"} />
+        <div className="col-span-2 lg:col-span-1">
+          <SummaryTile icon={<Calculator className="size-5" />} label="Average sale" value={loading ? "–" : peso(stats.average)} caption="per transaction" />
+        </div>
+      </div>
 
-          {/* Per-day + peak hours */}
-          <div className={`grid gap-5 ${multiDay ? "lg:grid-cols-2" : ""}`}>
-            {multiDay && (
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col">
-                <CardHeader className="px-5 pt-5 pb-3" icon={<CalendarDays size={ICON_SIZE.sm} className="text-blue-600" />} title="Sales per day"
-                  description="Number of transactions and total for each day. Tap a day to see its sales." />
-                <div className="overflow-x-auto flex-1">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-100 bg-gray-50/50">
-                        <th className="text-left py-2 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Day</th>
-                        <th className="text-right py-2 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Sales</th>
-                        <th className="text-right sm:text-left py-2 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {dayPaging.pageItems.map((d) => (
-                        <tr key={d.date.getTime()} onClick={() => selectDay(d.date)} className="cursor-pointer hover:bg-blue-50/40 transition-colors">
-                          <td className="py-2.5 px-4 whitespace-nowrap">
-                            <span className="font-medium text-gray-900">{d.date.toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric" })}</span>
-                            {dayKey(d.date) === dayKey(today) && <span className="ml-1.5 text-[10px] font-bold text-blue-600">TODAY</span>}
-                          </td>
-                          <td className={`py-2.5 px-4 text-right num ${d.count ? "text-gray-700" : "text-gray-300"}`}>{d.count}</td>
-                          <td className="py-2.5 px-4 w-1/2">
-                            <div className="flex items-center gap-2">
-                              <div className="hidden sm:block flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden min-w-[40px]">
-                                <div className="h-full rounded-full" style={{ width: `${(d.total / bestDayTotal) * 100}%`, background: "var(--brand)" }} />
-                              </div>
-                              <span className={`num text-xs font-semibold whitespace-nowrap ml-auto sm:w-[84px] text-right ${d.total ? "text-gray-900" : "text-gray-300"}`}>{peso(d.total)}</span>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <Pagination {...dayPaging} onChange={dayPaging.setPage} noun="days" />
-              </div>
-            )}
+      {/* Where the money came from: how customers paid, and counter vs online */}
+      <div className="grid gap-2.5 md:grid-cols-2">
+        <Breakdown title="How customers paid" total={stats.total} rows={[
+          { label: "Cash", icon: <Banknote className="size-4" />, amount: stats.cash, count: stats.cashCount },
+          { label: "GCash", icon: <Smartphone className="size-4" />, amount: stats.gcash, count: stats.gcashCount },
+          ...(stats.otherCount ? [{ label: "Card", icon: <CreditCard className="size-4" />, amount: stats.other, count: stats.otherCount }] : []),
+        ]} />
+        <Breakdown title="Where the sale happened" total={stats.total} rows={[
+          { label: "Counter (POS)", icon: <Store className="size-4" />, amount: stats.pos, count: stats.posCount },
+          { label: "Online orders", icon: <Globe className="size-4" />, amount: stats.online, count: stats.onlineCount },
+        ]} />
+      </div>
 
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col">
-              <CardHeader className="px-5 pt-5 pb-3" icon={<Clock size={ICON_SIZE.sm} className="text-blue-600" />} title="Peak hours"
-                description={peak
-                  ? `Busiest at ${peak.label}–${hourLabel((peak.hour + 1) % 24)} with ${peak.count} sale${peak.count === 1 ? "" : "s"}. Plan staff around the tall bars.`
-                  : "When customers buy, hour by hour. No sales in this period yet."} />
-              <div className="px-2 pb-3 pt-1 flex-1 min-h-[220px]">
-                <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 600, height: 220 }}>
-                  <BarChart data={hourly} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={6} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={36} />
-                    <Tooltip cursor={{ fill: "#f1f5f9" }}
-                      formatter={(v, name, item) => name === "count" ? [`${v} sale${v === 1 ? "" : "s"} · ${peso((item.payload as { total: number }).total)}`, "Sales"] : [v, name]}
-                      labelFormatter={(l) => `${l}`}
-                      contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }} />
-                    <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={28}>
-                      {hourly.map((h) => (
-                        <Cell key={h.hour} fill={peak && h.hour === peak.hour ? "#12327F" : "#1E4FD8"} fillOpacity={peak && h.hour === peak.hour ? 1 : 0.55} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
+      <Segmented options={[{ key: "list", label: "Sales list", count: stats.count }, { key: "insights", label: "Insights" }]}
+        value={view} onChange={setView} label="Show" />
 
-          <div className="flex flex-col md:flex-row gap-5 items-start">
-            {/* Calendar: pick one day */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5 w-full md:w-72 md:shrink-0">
-              <div className="flex items-center justify-between mb-4">
-                <button onClick={prevMonth} aria-label="Previous month" className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition">
-                  <ChevronLeft size={15} />
-                </button>
-                <span className="text-sm font-semibold text-gray-900">{MONTHS[calMonth]} {calYear}</span>
-                <button onClick={nextMonth} aria-label="Next month" className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition">
-                  <ChevronRight size={15} />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-7 mb-1">
-                {DAYS.map((d) => (
-                  <div key={d} className="text-center text-[10px] font-semibold text-gray-400 py-1">{d}</div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-y-1">
-                {cells.map((day, i) => {
-                  if (!day) return <div key={i} />;
-                  const date = new Date(calYear, calMonth, day);
-                  const key = dayKey(date);
-                  const isToday = dayKey(today) === key;
-                  const ts = date.getTime();
-                  const inSel = ts >= startOfDay(range.from).getTime() && ts <= range.to.getTime();
-                  const single = inSel && !multiDay;
-                  const hasTxns = txDateKeys.has(key);
-                  return (
-                    <button key={i} onClick={() => selectDay(date)}
-                      className={`relative w-8 h-8 mx-auto flex items-center justify-center rounded-lg text-xs font-medium transition
-                        ${single ? "bg-blue-600 text-white" : inSel ? "bg-blue-100 text-blue-700" : isToday ? "bg-blue-50 text-blue-600 font-bold" : "text-gray-700 hover:bg-gray-100"}`}>
-                      {day}
-                      {hasTxns && (
-                        <span className={`absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${single ? "bg-white/60" : "bg-blue-400"}`} />
-                      )}
+      {view === "insights" && !loading && (
+        <div className={`grid gap-5 ${multiDay ? "lg:grid-cols-2" : ""}`}>
+          {multiDay && (
+            <div className="flex flex-col overflow-hidden rounded-2xl border border-line bg-surface">
+              <CardHeader className="px-5 pb-3 pt-5" icon={<CalendarDays className="size-3.5 text-brand" />} title="Sales per day"
+                description="Tap a day to see its sales." />
+              <ul className="flex-1 divide-y divide-line border-t border-line">
+                {dayPaging.pageItems.map((d) => (
+                  <li key={d.date.getTime()}>
+                    <button type="button" onClick={() => { selectDay(d.date); setView("list"); }}
+                      className="grid w-full grid-cols-[110px_40px_minmax(0,1fr)_96px] items-center gap-3 px-5 py-2.5 text-left transition hover:bg-subtle">
+                      <span className="whitespace-nowrap text-[13px] font-semibold text-ink">
+                        {d.date.toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric" })}
+                      </span>
+                      <span className={`num text-right text-[13px] ${d.count ? "text-ink-2" : "text-ink-4"}`}>{d.count}</span>
+                      <span className="h-1.5 overflow-hidden rounded-full bg-recess">
+                        <span className="block h-full rounded-full bg-brand" style={{ width: `${(d.total / bestDayTotal) * 100}%` }} />
+                      </span>
+                      <span className={`num text-right text-[13px] font-semibold ${d.total ? "text-ink" : "text-ink-4"}`}>{peso(d.total)}</span>
                     </button>
-                  );
-                })}
-              </div>
-              <p className="mt-4 pt-3 border-t border-gray-100 text-[11px] text-gray-400">Tap a date to see that day only. Dots mark days with sales.</p>
+                  </li>
+                ))}
+              </ul>
+              <Pagination {...dayPaging} onChange={dayPaging.setPage} noun="days" />
             </div>
+          )}
 
-            {/* Transaction list for the period */}
-            <div className="flex-1 min-w-0 bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="flex flex-wrap items-center gap-2.5 px-4 py-3 border-b border-gray-100 bg-gray-50">
-                <span className="font-semibold text-gray-900 text-sm">{label}</span>
-                <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-medium">{stats.count} transactions</span>
-                {stats.count > 0 && (
-                  <span className="ml-auto text-xs font-semibold text-gray-700">Total: {peso(stats.total)}</span>
-                )}
-              </div>
+          <div className="flex flex-col overflow-hidden rounded-2xl border border-line bg-surface">
+            <CardHeader className="px-5 pb-3 pt-5" icon={<Clock className="size-3.5 text-brand" />} title="Peak hours"
+              description={peak
+                ? `Busiest at ${peak.label}–${hourLabel((peak.hour + 1) % 24)} with ${peak.count} sale${peak.count === 1 ? "" : "s"}. Plan staff around the tall bars.`
+                : "When customers buy, hour by hour. No sales in this period yet."} />
+            <div className="min-h-[240px] flex-1 px-2 pb-3 pt-1">
+              <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 600, height: 240 }}>
+                <BarChart data={hourly} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: "var(--text-faint)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={6} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "var(--text-faint)" }} axisLine={false} tickLine={false} width={36} />
+                  <Tooltip cursor={{ fill: "var(--bg-muted)" }}
+                    formatter={(v, name, item) => name === "count" ? [`${v} sale${v === 1 ? "" : "s"} · ${peso((item.payload as { total: number }).total)}`, "Sales"] : [v, name]}
+                    labelFormatter={(l) => `${l}`}
+                    contentStyle={{ borderRadius: "12px", border: "1px solid var(--border)", background: "var(--bg-card)", fontSize: "12px" }} />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={28}>
+                    {hourly.map((h) => (
+                      <Cell key={h.hour} fill={peak && h.hour === peak.hour ? "#12327F" : "#1E4FD8"} fillOpacity={peak && h.hour === peak.hour ? 1 : 0.55} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50/50">
-                      <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide w-8"></th>
-                      <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">ID</th>
-                      <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">Handled by</th>
-                      <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">Type</th>
-                      <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Payment</th>
-                      <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Amount</th>
-                      <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">{multiDay ? "Date" : "Time"}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {inRange.length === 0 ? (
-                      <tr>
-                        <td colSpan={7}>
-                          <EmptyState icon={Receipt} title="No transactions in this period" description="Pick another period or date to view its transactions." />
-                        </td>
-                      </tr>
-                    ) : paging.pageItems.map((t) => (
-                      <React.Fragment key={t.id}>
-                        <tr className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => setExpanded(expanded === t.id ? null : t.id)}>
-                          <td className="py-3 px-4 text-gray-400">
-                            {expanded === t.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                          </td>
-                          <td className="py-3 px-4 font-medium text-gray-900">#{t.id}</td>
-                          <td className="py-3 px-4 text-gray-600 hidden sm:table-cell">{t.user.username}</td>
-                          <td className="py-3 px-4 hidden sm:table-cell"><Badge label={t.type} /></td>
-                          <td className="py-3 px-4 text-gray-500">{t.paymentMethod}</td>
-                          <td className="py-3 px-4 font-semibold text-gray-900">{peso(t.totalAmount)}</td>
-                          <td className="py-3 px-4 text-gray-400 text-xs hidden sm:table-cell whitespace-nowrap">
+      {/* Transaction list for the period */}
+      {view === "list" && (
+        <section aria-label="Sales" className="overflow-hidden rounded-2xl border border-line bg-surface">
+          <div className="hidden grid-cols-[150px_minmax(0,1fr)_110px_130px] gap-4 border-b border-line px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-ink-4 md:grid">
+            <span>Sale</span><span>Handled by</span><span>Payment</span><span className="text-right">Amount</span>
+          </div>
+          {loading ? (
+            <ul className="divide-y divide-line">
+              {Array.from({ length: 5 }, (_, i) => (
+                <li key={i} className="flex items-center gap-4 px-4 py-4"><div className="h-4 w-24 animate-pulse rounded bg-recess" /><div className="h-4 flex-1 animate-pulse rounded bg-recess" /></li>
+              ))}
+            </ul>
+          ) : inRange.length === 0 ? (
+            <EmptyState icon={Receipt} title="No sales in this period" description="Pick another period or day to see its sales." />
+          ) : (
+            <ul className="divide-y divide-line">
+              {paging.pageItems.map((t) => {
+                const open = expanded === t.id;
+                const online = t.type === "Online";
+                return (
+                  <li key={t.id} className={open ? "bg-subtle" : ""}>
+                    <button type="button" onClick={() => setExpanded(open ? null : t.id)} aria-expanded={open}
+                      className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-3 text-left transition hover:bg-subtle md:grid-cols-[150px_minmax(0,1fr)_110px_130px]">
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${online ? "bg-brand-soft text-brand" : "bg-recess text-ink-3"}`} title={online ? "Online order" : "Counter sale"}>
+                          {online ? <Globe className="size-4" /> : <Store className="size-4" />}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="flex items-center gap-1 font-code text-[14px] font-bold text-ink">
+                            #{t.id} {open ? <ChevronUp className="size-3.5 text-ink-4" /> : <ChevronDown className="size-3.5 text-ink-4" />}
+                          </span>
+                          <span className="block text-[11.5px] text-ink-4">
                             {multiDay
                               ? new Date(t.dateTime).toLocaleString("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
-                              : new Date(t.dateTime).toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" })}
-                          </td>
-                        </tr>
-                        {expanded === t.id && (
-                          <tr className="bg-blue-50/30">
-                            <td colSpan={7} className="px-6 py-4">
-                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Items Purchased</p>
-                              <div className="flex flex-col gap-2">
-                                {t.items.map((i) => (
-                                  <div key={i.id} className="flex items-center gap-3 bg-white rounded-xl border border-gray-100 px-3 py-2.5">
-                                    <div className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                                      {i.product.image ? (
-                                        <Image src={i.product.image} alt={i.product.name} width={40} height={40} className="w-full h-full object-cover" />
-                                      ) : (
-                                        <Package size={16} className="text-gray-300" />
-                                      )}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium text-gray-900 truncate">{i.product.name}</p>
-                                      {i.product.subcategory && <p className="text-[11px] text-blue-500">{i.product.subcategory}</p>}
-                                    </div>
-                                    <div className="text-right flex-shrink-0">
-                                      <p className="text-xs text-gray-400">₱{i.price.toFixed(2)} × {i.quantity}</p>
-                                      <p className="text-sm font-semibold text-gray-900">₱{(i.price * i.quantity).toFixed(2)}</p>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                              <div className="flex justify-end mt-3 pt-3 border-t border-gray-100">
-                                <span className="text-xs text-gray-500 mr-2">Total</span>
-                                <span className="text-sm font-bold text-gray-900">{peso(t.totalAmount)}</span>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <Pagination {...paging} onChange={(p) => { paging.setPage(p); setExpanded(null); }} noun="transactions" />
-            </div>
-          </div>
-        </>
+                              : new Date(t.dateTime).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}
+                          </span>
+                        </span>
+                      </span>
+                      <span className="num col-start-2 row-start-1 text-right font-display text-[15px] font-extrabold text-ink md:col-start-4">{peso(t.totalAmount)}</span>
+                      <span className="col-span-2 truncate pl-[42px] text-[12.5px] text-ink-3 md:col-span-1 md:col-start-2 md:row-start-1 md:pl-0 md:text-[13.5px] md:text-ink-2">
+                        {t.user.username} <span className="text-ink-4">· {online ? "Online" : "Counter"} · {t.items.length} {t.items.length === 1 ? "item" : "items"}</span>
+                        <span className="text-ink-4 md:hidden"> · {t.paymentMethod}</span>
+                      </span>
+                      <span className="hidden text-[13px] text-ink-3 md:col-start-3 md:row-start-1 md:block">{t.paymentMethod}</span>
+                    </button>
+                    {open && (
+                      <div className="px-4 pb-4">
+                        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
+                          {t.items.map((i) => (
+                            <li key={i.id} className="flex items-center gap-3 px-3 py-2.5">
+                              <ProductThumb size="row" image={i.product.image} name={i.product.name} subcategory={i.product.subcategory} />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-[13.5px] font-semibold text-ink">{i.product.name}</span>
+                                <span className="num block text-[12px] text-ink-4">{Number(i.quantity.toFixed(2))} × {peso(i.price)}{i.product.subcategory && <> · {i.product.subcategory}</>}</span>
+                              </span>
+                              <span className="num shrink-0 text-[13.5px] font-semibold text-ink">{peso(i.price * i.quantity)}</span>
+                            </li>
+                          ))}
+                          <li className="flex items-center justify-between bg-subtle px-3 py-2.5 font-display text-[14px] font-extrabold text-ink">
+                            <span>Total · {t.paymentMethod}</span><span className="num">{peso(t.totalAmount)}</span>
+                          </li>
+                        </ul>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <Pagination {...paging} onChange={(p) => { paging.setPage(p); setExpanded(null); }} noun="sales" />
+        </section>
       )}
     </div>
   );
 }
 
-function SummaryTile({ icon, label, value, caption, className = "" }: { icon: React.ReactNode; label: string; value: string; caption: string; className?: string }) {
+function SummaryTile({ icon, label, value, caption }: { icon: React.ReactNode; label: string; value: string; caption: string }) {
   return (
-    <div className={`bg-white rounded-xl border border-gray-200 p-4 min-w-0 ${className}`}>
-      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
-        <span className="text-blue-600">{icon}</span> {label}
-      </p>
-      <p className="font-display text-lg sm:text-xl font-extrabold text-gray-900 num mt-1.5 truncate">{value}</p>
-      <p className="text-[11px] text-gray-400 mt-0.5">{caption}</p>
+    <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-line bg-surface px-3.5 py-3">
+      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand">{icon}</span>
+      <div className="min-w-0">
+        <p className="truncate text-[12px] font-semibold text-ink-3">{label}</p>
+        <p className="num truncate font-display text-xl font-extrabold leading-tight text-ink sm:text-[22px]">{value}</p>
+        <p className="truncate text-[11.5px] text-ink-4">{caption}</p>
+      </div>
     </div>
   );
 }
 
-const SPLIT_COLORS = ["var(--brand)", "#93B4F5", "#CBD5E1"];
-
-/** Shares of the total in one bar, with each part's amount and count. */
-function SplitBar({ parts, total }: { parts: { label: string; amount: number; count: number }[]; total: number }) {
+/** One way of splitting the period's sales: a row per part, each with its share of the total. */
+function Breakdown({ title, rows, total }: {
+  title: string;
+  total: number;
+  rows: { label: string; icon: React.ReactNode; amount: number; count: number }[];
+}) {
   return (
-    <div>
-      <div className="flex flex-wrap justify-between text-[11px] mb-1 gap-x-3 gap-y-0.5">
-        {parts.map((p, i) => (
-          <span key={p.label} className="inline-flex items-center gap-1 text-gray-600 whitespace-nowrap">
-            <span className="w-1.5 h-1.5 rounded-full" style={{ background: SPLIT_COLORS[i] }} />
-            <span className="font-semibold text-gray-900">{p.label}</span> {pesoShort(p.amount)} <span className="text-gray-400">({p.count})</span>
-          </span>
-        ))}
-      </div>
-      <div className="h-1.5 rounded-full overflow-hidden flex bg-gray-100">
-        {total > 0 && parts.map((p, i) => (
-          <div key={p.label} style={{ width: `${(p.amount / total) * 100}%`, background: SPLIT_COLORS[i] }} />
-        ))}
-      </div>
-    </div>
+    <section className="rounded-2xl border border-line bg-surface p-4">
+      <h3 className="mb-3 text-[12px] font-semibold text-ink-3">{title}</h3>
+      <ul className="space-y-3">
+        {rows.map((r) => {
+          const share = total > 0 ? (r.amount / total) * 100 : 0;
+          return (
+            <li key={r.label} className="flex items-center gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand">{r.icon}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="truncate text-[13.5px] font-semibold text-ink">
+                    {r.label} <span className="num text-[12px] font-normal text-ink-4">· {r.count} {r.count === 1 ? "sale" : "sales"}</span>
+                  </span>
+                  <span className="num shrink-0 text-[13.5px] font-bold text-ink">{peso(r.amount)}</span>
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-recess">
+                    <div className="h-full rounded-full bg-brand transition-[width] duration-500" style={{ width: `${share}%` }} />
+                  </div>
+                  <span className="num w-9 shrink-0 text-right text-[11.5px] font-semibold text-ink-3">{Math.round(share)}%</span>
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

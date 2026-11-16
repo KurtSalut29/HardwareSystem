@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Search, ChevronDown, ChevronUp, CheckCircle, XCircle, Clock, CheckCheck, Receipt, Plus, Camera, Phone, MapPin, ChevronLeft, ChevronRight, Truck, Ban, Smartphone, ShieldCheck, ShieldAlert, Upload, Calendar as CalendarIcon, AlertTriangle, Store, Route, CreditCard, X } from "lucide-react";
+import { ClipboardList, ShoppingBag, UserRoundSearch, ChevronDown, ChevronUp, CheckCircle, Clock, CheckCheck, Receipt, Plus, Camera, Phone, MapPin, ChevronLeft, ChevronRight, Truck, Ban, Smartphone, ShieldCheck, ShieldAlert, Upload, Calendar as CalendarIcon, Store, Route, CreditCard, X } from "lucide-react";
 import Image from "next/image";
 import PageHeader from "@/components/ui/PageHeader";
 import Modal from "@/components/ui/Modal";
@@ -9,6 +9,10 @@ import ConfirmModal from "@/components/ui/ConfirmModal";
 import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
 import Pagination from "@/components/ui/Pagination";
+import FilterTiles, { type FilterTile } from "@/components/ui/FilterTiles";
+import Segmented, { type SegmentOption } from "@/components/ui/Segmented";
+import SearchField from "@/components/ui/SearchField";
+import StatusPill, { ORDER_STATUS_STYLE, statusLabel } from "@/components/orders/StatusPill";
 import { useToast } from "@/components/ui/ToastProvider";
 import OrderMap, { OrderPin, MapFocus } from "@/components/OrderMap";
 import LocationPicker, { PickedLocation } from "@/components/LocationPicker";
@@ -21,10 +25,11 @@ import DeliveryFeeSettingsModal from "@/components/orders/DeliveryFeeSettingsMod
 import { orderReceipt } from "@/lib/receipts";
 import { customerLabel, customerPhone, isWalkIn } from "@/lib/customer";
 import OrderStatusModal from "@/components/orders/OrderStatusModal";
-import DriversPanel, { DriverStatusChip, type DriverInfo } from "@/components/orders/DriversPanel";
+import DriversPanel, { DriverStatusChip, driverState, type DriverInfo } from "@/components/orders/DriversPanel";
+import Drawer from "@/components/ui/Drawer";
 import { driverOption, canTakeOrder } from "@/lib/driverStatus";
 import { outstanding, paymentState } from "@/lib/payment";
-import { balanceDue, nextStepText } from "@/lib/orderFlow";
+import { onTodaysBoard } from "@/lib/storeDay";
 
 type OItem = { id: number; quantity: number; price: number; product: { name: string; unit?: string } };
 type Order = {
@@ -90,9 +95,9 @@ function SetLocationModal({ order, onClose, onSaved }: { order: Order; onClose: 
   return (
     <Modal open onClose={onClose} title={`Delivery Location — Order #${order.id}`}>
       <div className="space-y-4">
-        <p className="text-xs text-gray-400 -mt-2">Customer: {customerLabel(order)}</p>
+        <p className="text-xs text-ink-4 -mt-2">Customer: {customerLabel(order)}</p>
         <LocationPicker value={pickedLocation} onChange={setPickedLocation} />
-        {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+        {error && <p className="text-xs text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
         <Button onClick={handleSave} loading={saving} disabled={!pickedLocation} className="w-full">
           Save Location
         </Button>
@@ -131,15 +136,15 @@ function StoreLocationModal({ current, onClose, onSaved }: {
     <Modal open onClose={onClose} title="Store Location">
       <div className="space-y-4">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Store Name</label>
+          <label className="block text-xs font-medium text-ink-2 mb-1">Store Name</label>
           <input value={storeName} onChange={(e) => setStoreName(e.target.value)}
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition" />
+            className="w-full text-sm border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Store Location on Map</label>
+          <label className="block text-xs font-medium text-ink-2 mb-1">Store Location on Map</label>
           <LocationPicker value={pickedLocation} onChange={setPickedLocation} />
         </div>
-        {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+        {error && <p className="text-xs text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
         <Button onClick={handleSave} loading={saving} disabled={!pickedLocation} className="w-full">
           Save Store Location
         </Button>
@@ -190,45 +195,45 @@ function GcashSettingsModal({ current, onClose, onSaved }: {
   return (
     <Modal open onClose={onClose} title="GCash Payment Details" size="sm">
       <div className="space-y-4">
-        <p className="text-xs text-gray-500 -mt-2">
+        <p className="text-xs text-ink-3 -mt-2">
           Customers see this QR code and number at checkout when they pay with GCash.
         </p>
 
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Account Name</label>
+          <label className="block text-xs font-medium text-ink-2 mb-1">Account Name</label>
           <input value={gcashName} onChange={(e) => setGcashName(e.target.value)} placeholder="e.g. Juan D."
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition" />
+            className="w-full text-sm border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">GCash Number</label>
+          <label className="block text-xs font-medium text-ink-2 mb-1">GCash Number</label>
           <input value={gcashNumber} onChange={(e) => setGcashNumber(e.target.value.replace(/\D/g, "").slice(0, 11))}
             inputMode="numeric" placeholder="09XXXXXXXXX"
-            className="w-full text-sm num border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition" />
+            className="w-full text-sm num border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">QR Code Image</label>
+          <label className="block text-xs font-medium text-ink-2 mb-1">QR Code Image</label>
           <div className="flex items-center gap-3">
-            <div className="relative w-24 h-24 shrink-0 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden">
+            <div className="relative w-24 h-24 shrink-0 rounded-lg border border-line bg-subtle overflow-hidden">
               {gcashQr ? (
                 <Image src={gcashQr} alt="GCash QR code" fill sizes="96px" className="object-contain p-1" />
               ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-[10px] text-center px-2">No QR yet</div>
+                <div className="absolute inset-0 flex items-center justify-center text-ink-4 text-[10px] text-center px-2">No QR yet</div>
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg cursor-pointer transition">
+              <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand bg-brand-soft hover:bg-brand-soft px-3 py-2 rounded-lg cursor-pointer transition">
                 <Upload size={ICON_SIZE.xs} /> {uploading ? "Uploading..." : gcashQr ? "Replace QR" : "Upload QR"}
                 <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden"
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) handleQrUpload(f); }} />
               </label>
-              <p className="text-[10px] text-gray-400 mt-1.5">Screenshot your GCash &ldquo;Receive Money&rdquo; QR. PNG/JPG, max 2MB.</p>
+              <p className="text-[10px] text-ink-4 mt-1.5">Screenshot your GCash &ldquo;Receive Money&rdquo; QR. PNG/JPG, max 2MB.</p>
             </div>
           </div>
         </div>
 
-        {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+        {error && <p className="text-xs text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
         <Button onClick={handleSave} loading={saving} disabled={uploading} className="w-full">
           Save GCash Details
         </Button>
@@ -239,14 +244,6 @@ function GcashSettingsModal({ current, onClose, onSaved }: {
 
 const STATUSES = [...ORDER_STATUSES];
 
-const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; bg: string; text: string; border: string }> = {
-  pending:   { label: "Pending",   icon: <Clock size={ICON_SIZE.xs} />,     bg: "bg-yellow-50",  text: "text-yellow-600", border: "border-yellow-200" },
-  confirmed: { label: "Confirmed", icon: <CheckCircle size={ICON_SIZE.xs} />, bg: "bg-blue-50",  text: "text-blue-600",   border: "border-blue-200" },
-  out_for_delivery: { label: "Out for Delivery", icon: <Truck size={ICON_SIZE.xs} />, bg: "bg-indigo-50", text: "text-indigo-600", border: "border-indigo-200" },
-  delivered: { label: "Delivered", icon: <CheckCheck size={ICON_SIZE.xs} />, bg: "bg-green-50",  text: "text-green-600",  border: "border-green-200" },
-  cancelled: { label: "Cancelled", icon: <XCircle size={ICON_SIZE.xs} />,   bg: "bg-red-50",    text: "text-red-500",    border: "border-red-200" },
-};
-
 const TOAST_CONFIG: Record<string, { msg: string; variant: "success" | "error" | "warning" | "info" }> = {
   confirmed: { msg: "Order confirmed successfully!",  variant: "info" },
   out_for_delivery: { msg: "Order is out for delivery!", variant: "info" },
@@ -255,62 +252,53 @@ const TOAST_CONFIG: Record<string, { msg: string; variant: "success" | "error" |
   pending:   { msg: "Order set back to pending.",     variant: "warning" },
 };
 
-/** Pickup orders read differently: "To pick up" instead of "Confirmed", "Picked up" instead of "Delivered". */
-const PICKUP_LABEL: Record<string, string> = { confirmed: "To pick up", delivered: "Picked up" };
-
-function StatusBadge({ status, pickup = false }: { status: string; pickup?: boolean }) {
-  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.pending;
-  const icon = pickup && status === "confirmed" ? <Store size={ICON_SIZE.xs} /> : cfg.icon;
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${cfg.bg} ${cfg.text} ${cfg.border}`}>
-      {icon} {(pickup && PICKUP_LABEL[status]) || cfg.label}
-    </span>
-  );
-}
-
 type ModeFilter = "all" | "delivery" | "pickup";
-
+type StatusFilter = "all" | "pending" | "needs_driver" | "active" | "open" | "done";
 
 type Driver = DriverInfo;
 
-/** Driver picker sized for a table cell. Lives in the fixed "Next Step" column,
+const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** "Today, 2:15 PM", "Yesterday, 9:02 AM" or "Nov 14, 2:15 PM". */
+function fmtWhen(iso: string) {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" });
+  const now = new Date();
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (toDateKey(d) === toDateKey(now)) return `Today, ${time}`;
+  if (toDateKey(d) === toDateKey(y)) return `Yesterday, ${time}`;
+  return `${d.toLocaleDateString("en-PH", { month: "short", day: "numeric", ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) })}, ${time}`;
+}
+
+/** "Portland Cement +3 more" — the full list is in the opened order. */
+function itemsLine(items: OItem[]) {
+  if (items.length === 0) return "No items";
+  return items.length > 1 ? `${items[0].product.name} +${items.length - 1} more` : items[0].product.name;
+}
+
+/** Driver picker sized for a list row. Lives in the fixed "Next step" slot,
  *  so assigning is always in the same place on every row that needs it. */
-function AssignDriverSelect({ drivers, onAssign, reassign = false }: {
-  drivers: Driver[];
-  onAssign: (driverId: string) => void;
-  reassign?: boolean;
-}) {
-  if (drivers.length === 0) {
-    return <span className="text-[11px]" style={{ color: "var(--warn)" }}>No drivers registered</span>;
-  }
+function AssignDriverSelect({ drivers, onAssign }: { drivers: Driver[]; onAssign: (driverId: string) => void }) {
+  if (drivers.length === 0) return <span className="text-[12px] font-semibold text-warn">No drivers registered</span>;
   return (
-    <div className="relative inline-block w-[152px]">
-      <select
-        value=""
-        onChange={(e) => { if (e.target.value) onAssign(e.target.value); }}
-        className={`w-full appearance-none cursor-pointer rounded-lg text-[11px] font-bold py-1.5 pl-7 pr-6 transition focus:outline-none focus:ring-2 focus:ring-indigo-500/40 ${
-          reassign
-            ? "bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
-            : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
-        }`}
-      >
-        <option value="">{reassign ? "Reassign" : "Assign Driver"}</option>
+    <div className="relative w-full lg:w-[168px]">
+      <select value="" onChange={(e) => { if (e.target.value) onAssign(e.target.value); }} aria-label="Assign a driver"
+        className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-brand/40 bg-brand-soft pl-8 pr-7 text-[12.5px] font-bold text-brand-ink transition hover:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30">
+        <option value="">Assign driver</option>
         {drivers.map((d) => {
           const o = driverOption(d);
-          return (
-            <option key={d.id} value={d.id} disabled={o.disabled} className="bg-white text-gray-900 font-medium">
-              {o.label}
-            </option>
-          );
+          return <option key={d.id} value={d.id} disabled={o.disabled} className="bg-surface font-medium text-ink">{o.label}</option>;
         })}
       </select>
-      <Truck size={11} className={`absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none ${reassign ? "text-gray-400" : "text-white"}`} />
-      <ChevronDown size={11} className={`absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none ${reassign ? "text-gray-400" : "text-white/80"}`} />
+      <Truck className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-brand" />
+      <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-brand" />
     </div>
   );
 }
 
-/** The single next action for a row — always in the same column. */
+const NEXT_BTN = "inline-flex h-9 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 text-[12.5px] font-bold transition active:scale-[0.98] lg:w-[168px]";
+
+/** The single next action for a row — always in the same place. */
 function NextStepCell({ order, drivers, canAssign, onStatus, onAssign }: {
   order: Order;
   drivers: Driver[];
@@ -323,9 +311,9 @@ function NextStepCell({ order, drivers, canAssign, onStatus, onAssign }: {
 
   if (order.status === "pending") {
     return (
-      <button onClick={() => onStatus(order.id, "confirmed")}
-        className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-3 py-1.5 transition shadow-sm whitespace-nowrap">
-        Confirm Order
+      <button type="button" onClick={() => onStatus(order.id, "confirmed")}
+        className={`${NEXT_BTN} bg-brand text-white shadow-[0_8px_18px_-10px_rgba(30,79,216,0.8)] hover:brightness-110`}>
+        <CheckCircle className="size-3.5" /> Confirm order
       </button>
     );
   }
@@ -333,38 +321,23 @@ function NextStepCell({ order, drivers, canAssign, onStatus, onAssign }: {
     if (!canAssign) {
       const free = drivers.filter((d) => canTakeOrder(d.availability ?? "available")).length;
       return (
-        <span className="inline-flex flex-col items-end gap-0.5">
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg whitespace-nowrap"
-            style={{ background: "var(--warn-soft)", color: "var(--warn)" }}>
-            <Truck size={11} /> Staff to assign
-          </span>
-          <span className="text-[10.5px] whitespace-nowrap" style={{ color: free ? "var(--good)" : "var(--text-muted)" }}>
-            {drivers.length === 0 ? "No drivers yet" : free ? `${free} driver${free === 1 ? "" : "s"} free` : "All drivers busy"}
-          </span>
+        <span title={drivers.length === 0 ? "No drivers yet" : free ? `${free} driver${free === 1 ? "" : "s"} free` : "All drivers busy"}
+          className="inline-flex h-9 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-warn-soft px-3 text-[12.5px] font-semibold text-warn lg:w-[168px]">
+          <Truck className="size-3.5" /> Waiting for a driver
         </span>
       );
     }
     return <AssignDriverSelect drivers={drivers} onAssign={(d) => onAssign(order.id, d)} />;
   }
-  if (order.status === "confirmed" && isPickup) {
+  if ((order.status === "confirmed" && isPickup) || order.status === "out_for_delivery") {
     return (
-      <button onClick={() => onStatus(order.id, "delivered")}
-        className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold px-3 py-1.5 transition shadow-sm whitespace-nowrap">
-        Mark Picked Up
+      <button type="button" onClick={() => onStatus(order.id, "delivered")}
+        className={`${NEXT_BTN} border border-good/40 bg-good-soft text-good hover:border-good`}>
+        <CheckCheck className="size-3.5" /> {isPickup ? "Mark picked up" : "Mark delivered"}
       </button>
     );
   }
-  if (order.status === "out_for_delivery") {
-    // Reassigning is secondary and already available in the expanded row, so
-    // this column stays one button wide for every row.
-    return (
-      <button onClick={() => onStatus(order.id, "delivered")}
-        className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold px-3 py-1.5 transition shadow-sm whitespace-nowrap">
-        Mark Delivered
-      </button>
-    );
-  }
-  return <span className="text-[11px] text-gray-300">—</span>;
+  return null;
 }
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -372,6 +345,16 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 
 function toDateKey(d: Date) {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+/** A labelled block inside an opened order. */
+function DetailBlock({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="min-w-0 rounded-xl border border-line bg-surface p-3.5">
+      <h3 className="mb-2.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-4">{icon} {title}</h3>
+      <div className="space-y-2 text-[13px] text-ink-2">{children}</div>
+    </section>
+  );
 }
 
 export default function OrdersPage() {
@@ -391,14 +374,14 @@ export default function OrdersPage() {
   const [storePayment, setStorePayment] = useState<StorePayment | null>(null);
   const [showGcashEditor, setShowGcashEditor] = useState(false);
   const [showMap, setShowMap] = useState(false);
+  const [showDrivers, setShowDrivers] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [drivers, setDrivers] = useState<DriverInfo[]>([]);
   /** The driver list failed to load, so an empty list doesn't mean "no drivers". */
   const [driversError, setDriversError] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [mapFocus, setMapFocus] = useState<MapFocus | null>(null);
-  const mapRef = useRef<HTMLDivElement>(null);
   const staffRef = useRef(false);
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
   const [statusOrderId, setStatusOrderId] = useState<number | null>(null);
@@ -425,18 +408,18 @@ export default function OrdersPage() {
   function showDriverOnMap(d: DriverInfo) {
     if (!d.lastLocation) return;
     const onRoad = d.activeOrders?.map((o) => `#${o.id}`).join(", ");
+    setShowDrivers(false);
     setShowMap(true);
     setMapFocus({
       lat: d.lastLocation.lat, lng: d.lastLocation.lng, key: Date.now(), label: d.username,
       detail: onRoad ? `Delivering ${onRoad}` : "Last known location",
     });
-    requestAnimationFrame(() => mapRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
   async function refreshPins() {
     setPinsLoading(true);
     try {
-      const res = await fetch("/api/orders/locations");
+      const res = await fetch("/api/orders/locations?scope=all");
       const data = res.ok ? await res.json() : [];
       setPins(Array.isArray(data) ? data : []);
     } catch { setPins([]); }
@@ -445,7 +428,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     async function load() {
-      const [oRes, meRes, locRes] = await Promise.all([fetch("/api/orders"), fetch("/api/auth/me"), fetch("/api/orders/locations")]);
+      const [oRes, meRes, locRes] = await Promise.all([fetch("/api/orders"), fetch("/api/auth/me"), fetch("/api/orders/locations?scope=all")]);
       if (!oRes.ok) { setLoading(false); setPinsLoading(false); return; }
       const data = await oRes.json();
       const me = meRes.ok ? await meRes.json() : {};
@@ -475,7 +458,7 @@ export default function OrdersPage() {
       setNow(Date.now());
       if (staffRef.current) refreshDrivers();
       try {
-        const res = await fetch("/api/orders/locations");
+        const res = await fetch("/api/orders/locations?scope=all");
         if (res.ok) {
           const data = await res.json();
           setPins(Array.isArray(data) ? data : []);
@@ -582,65 +565,82 @@ export default function OrdersPage() {
   }
 
   const isStaff = role === "admin" || role === "cashier";
-  // Finished orders need no hint, except a delivered one still owing a balance.
-  const showNextText = (o: Order) =>
-    o.status !== "cancelled" &&
-    (o.status !== "delivered" || (isStaff && balanceDue(o) > 0.005));
   // Dispatch moved to the cashier; the admin keeps confirm/cancel/payment duties.
   const canAssign = role === "cashier";
+  const freeDrivers = drivers.filter((d) => driverState(d) === "available").length;
+  const busyDrivers = drivers.filter((d) => driverState(d) === "delivering" || driverState(d) === "full").length;
   const outForDeliveryCount = orders.filter((o) => o.status === "out_for_delivery").length;
   const statusOrder = statusOrderId != null ? orders.find((o) => o.id === statusOrderId) ?? null : null;
   const canCancelOrder = (o: Order) =>
     (role === "customer" && (o.status === "pending" || o.status === "confirmed")) ||
     (isStaff && o.status !== "delivered" && o.status !== "cancelled");
 
-  // Tabs are a *filter over the one list* — never a second copy of it.
-  const matchesFilter = (o: Order, f: string) => {
+  // Tiles are a *filter over the one list* — never a second copy of it.
+  const matchesFilter = (o: Order, f: StatusFilter) => {
     switch (f) {
       case "pending": return o.status === "pending";
       case "needs_driver": return o.status === "confirmed" && o.fulfillmentMode !== "pickup" && !o.driverId;
-      case "active": return o.status === "out_for_delivery" || (o.status === "confirmed" && o.fulfillmentMode === "pickup");
+      case "active": return o.status === "out_for_delivery" || (o.status === "confirmed" && (o.fulfillmentMode === "pickup" || !!o.driverId));
+      case "open": return o.status === "pending" || o.status === "confirmed" || o.status === "out_for_delivery";
       case "done": return o.status === "delivered" || o.status === "cancelled";
       default: return true;
     }
   };
 
-  // Delivery or pickup: a second filter alongside the status tabs.
+  // Delivery or pickup: a second filter alongside the status tiles.
   const matchesMode = (o: Order, m: ModeFilter) =>
     m === "all" || (m === "pickup" ? o.fulfillmentMode === "pickup" : o.fulfillmentMode !== "pickup");
   const inMode = orders.filter((o) => matchesMode(o, modeFilter));
+  const countOf = (f: StatusFilter) => inMode.filter((o) => matchesFilter(o, f)).length;
 
-  const TABS: { key: string; label: string; urgent?: boolean }[] = [
-    { key: "all", label: "All" },
-    { key: "pending", label: "Pending", urgent: true },
-    // Pickup orders never need a driver.
-    ...(modeFilter === "pickup" ? [] : [{ key: "needs_driver", label: "Needs Driver", urgent: true }]),
-    { key: "active", label: modeFilter === "pickup" ? "Ready for Pickup" : modeFilter === "delivery" ? "On the Way" : "In Progress" },
-    { key: "done", label: "Completed" },
+  const TILES: FilterTile<StatusFilter>[] = isStaff
+    ? [
+        { key: "all", label: "All orders", value: inMode.length, icon: <ClipboardList className="size-5" />, tone: "brand" },
+        { key: "pending", label: "To confirm", value: countOf("pending"), icon: <Clock className="size-5" />, tone: countOf("pending") > 0 ? "warn" : "neutral", urgent: countOf("pending") > 0 },
+        // Pickup orders never need a driver.
+        ...(modeFilter === "pickup" ? [] : [{ key: "needs_driver" as const, label: "Needs a driver", value: countOf("needs_driver"), icon: <UserRoundSearch className="size-5" />, tone: countOf("needs_driver") > 0 ? "warn" as const : "neutral" as const, urgent: countOf("needs_driver") > 0 }]),
+        { key: "active", label: modeFilter === "pickup" ? "Ready for pickup" : modeFilter === "delivery" ? "On the way" : "In progress", value: countOf("active"), icon: <Truck className="size-5" />, tone: "brand" },
+        { key: "done", label: "Completed", value: countOf("done"), icon: <CheckCheck className="size-5" />, tone: "good" },
+      ]
+    : [
+        { key: "all", label: "All my orders", value: inMode.length, icon: <ShoppingBag className="size-5" />, tone: "brand" },
+        { key: "open", label: "In progress", value: countOf("open"), icon: <Truck className="size-5" />, tone: "brand" },
+        { key: "done", label: "Completed", value: countOf("done"), icon: <CheckCheck className="size-5" />, tone: "good" },
+      ];
+
+  const MODES: SegmentOption<ModeFilter>[] = [
+    { key: "all", label: "All", count: orders.length },
+    { key: "delivery", label: "Delivery", icon: <Truck className="size-3.5" />, count: orders.filter((o) => matchesMode(o, "delivery")).length },
+    { key: "pickup", label: "Pickup", icon: <Store className="size-3.5" />, count: orders.filter((o) => matchesMode(o, "pickup")).length },
   ];
 
-  const MODES: { key: ModeFilter; label: string; icon: React.ReactNode }[] = [
-    { key: "all", label: "All orders", icon: null },
-    { key: "delivery", label: "Delivery", icon: <Truck size={ICON_SIZE.xs} /> },
-    { key: "pickup", label: "Pickup", icon: <Store size={ICON_SIZE.xs} /> },
-  ];
-
+  const q = search.trim().toLowerCase();
   const filtered = inMode.filter((o) => {
-    const matchSearch = customerLabel(o).toLowerCase().includes(search.toLowerCase()) || String(o.id).includes(search);
+    const matchSearch = !q || customerLabel(o).toLowerCase().includes(q) || String(o.id).includes(q)
+      || o.items.some((i) => i.product.name.toLowerCase().includes(q));
     const matchDate = selectedKey ? toDateKey(new Date(o.dateTime)) === selectedKey : true;
     return matchSearch && matchDate && matchesFilter(o, statusFilter);
   });
 
-  // Filter map pins to match the selected date
-  const filteredPins = selectedKey
-    ? pins.filter((p) => {
-        const order = orders.find((o) => o.id === p.id);
-        return order ? toDateKey(new Date(order.dateTime)) === selectedKey : false;
-      })
-    : pins;
+  // A picked date shows that day's orders. Otherwise staff see today's board:
+  // orders placed today plus any still open, so the map starts fresh each midnight.
+  const filteredPins = pins.filter((p) => {
+    const order = orders.find((o) => o.id === p.id);
+    if (!order) return false;
+    if (selectedKey) return toDateKey(new Date(order.dateTime)) === selectedKey;
+    return !isStaff || onTodaysBoard(order);
+  });
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
   const currentPage = Math.min(page, Math.max(1, totalPages));
   const paginated = filtered.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
+
+  // Header summary: what today looks like at a glance.
+  const todayKey = toDateKey(today);
+  const todays = orders.filter((o) => toDateKey(new Date(o.dateTime)) === todayKey && o.status !== "cancelled");
+  const todaysValue = todays.reduce((s, o) => s + o.totalAmount, 0);
+  const waiting = orders.filter((o) => matchesFilter(o, "pending") || matchesFilter(o, "needs_driver")).length;
+  const filtersOn = statusFilter !== "all" || modeFilter !== "all" || !!selectedKey || !!q;
+  function clearFilters() { setStatusFilter("all"); setModeFilter("all"); setSelectedKey(null); setSearch(""); setPage(1); }
 
   // Calendar helpers
   const orderDateKeys = new Set(orders.map((o) => toDateKey(new Date(o.dateTime))));
@@ -665,17 +665,22 @@ export default function OrdersPage() {
   }
 
   function selectedLabel() {
-    if (!selectedKey) return "All Orders";
+    if (!selectedKey) return "All dates";
     const [y, m, d] = selectedKey.split("-").map(Number);
     const date = new Date(y, m, d);
     if (toDateKey(date) === toDateKey(today)) return "Today";
-    return date.toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+    return date.toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   }
 
   const cells = buildCalendar();
+  const DETAIL_BTN = "inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[12.5px] font-semibold text-ink-2 transition hover:border-brand/40 hover:bg-brand-soft hover:text-brand-ink";
+  // One column template for the header and every row, so they line up.
+  const COLS = isStaff
+    ? "lg:grid-cols-[150px_minmax(0,1.3fr)_120px_minmax(0,1fr)_168px]"
+    : "lg:grid-cols-[150px_minmax(0,1.3fr)_120px_minmax(0,1fr)_96px]";
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {receipt && <ReceiptModal title="Order receipt" data={orderReceipt(receipt)} onClose={() => setReceipt(null)} />}
       {showNewOrder && (
         <NewOrderModal
@@ -744,10 +749,10 @@ export default function OrdersPage() {
 
       {proofView?.proofImage && (
         <Modal open onClose={() => setProofView(null)} title={`Proof of delivery — Order #${proofView.id}`} size="lg">
-          <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-gray-50 border border-gray-200">
+          <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-line bg-subtle">
             <Image src={proofView.proofImage} alt={`Order #${proofView.id} at the drop-off`} fill sizes="512px" className="object-contain" />
           </div>
-          <p className="text-xs text-gray-500 mt-3">
+          <p className="mt-3 text-xs text-ink-3">
             Delivered to {customerLabel(proofView)}
             {proofView.deliveredAt && <> on {new Date(proofView.deliveredAt).toLocaleString("en-PH", { month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })}</>}
             {proofView.driver && <> by {proofView.driver.username}</>}.
@@ -760,92 +765,26 @@ export default function OrdersPage() {
         onClose={() => setCancelTarget(null)}
         onConfirm={handleCancelConfirm}
         title="Cancel this order?"
-        body={cancelTarget ? <>Order #{cancelTarget.id} (₱{cancelTarget.totalAmount.toFixed(2)}) will be cancelled. This can&apos;t be undone.</> : null}
-        confirmLabel="Yes, Cancel Order"
-        cancelLabel="Keep Order"
+        body={cancelTarget ? <>Order #{cancelTarget.id} ({peso(cancelTarget.totalAmount)}) will be cancelled. This can&apos;t be undone.</> : null}
+        confirmLabel="Yes, cancel order"
+        cancelLabel="Keep order"
       />
 
-      <PageHeader
-        title="Orders"
-        subtitle={isStaff ? "Online orders, plus orders you take by phone or at the counter" : "Your orders and where they are"}
-        action={isStaff ? (
-          <div className="flex flex-wrap items-center gap-2">
-            {role === "admin" && (
-              <>
-                <button onClick={() => setShowFeeEditor(true)}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-blue-600 bg-white hover:bg-blue-50 border border-gray-200 px-3 py-2 rounded-xl transition shadow-sm">
-                  <Truck size={ICON_SIZE.xs} /> Delivery Settings
-                </button>
-                <button onClick={() => setShowGcashEditor(true)}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-blue-600 bg-white hover:bg-blue-50 border border-gray-200 px-3 py-2 rounded-xl transition shadow-sm">
-                  <Smartphone size={ICON_SIZE.xs} /> {storePayment?.gcashNumber ? "GCash Details" : "Set Up GCash"}
-                </button>
-              </>
-            )}
-            <Button onClick={() => setShowNewOrder(true)} icon={<Plus size={ICON_SIZE.sm} />}>New Order</Button>
-          </div>
-        ) : undefined}
-      />
-
-      {/* Map — collapsed by default so the workflow owns the top of the page */}
-      <div ref={mapRef} className="bg-white rounded-xl border border-gray-200 overflow-hidden scroll-mt-4" style={{ isolation: 'isolate' }}>
-        <button onClick={() => setShowMap((v) => !v)}
-          className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-gray-50 transition text-left">
-          <MapPin size={ICON_SIZE.sm} className="text-gray-400 shrink-0" />
-          <span className="text-sm font-semibold text-gray-700">Delivery Map</span>
-          {outForDeliveryCount > 0 && (
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#EEF2FF", color: "#4F46E5" }}>
-              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#4F46E5" }} />
-              {outForDeliveryCount} out
-            </span>
-          )}
-          <span className="ml-auto text-xs text-gray-400">{showMap ? "Hide" : "Show"}</span>
-          {showMap ? <ChevronUp size={ICON_SIZE.sm} className="text-gray-400" /> : <ChevronDown size={ICON_SIZE.sm} className="text-gray-400" />}
-        </button>
-        {showMap && (
-          <div className="px-4 pb-4">
-            {isStaff && (
-              <div className="flex justify-end mb-2">
-                <button onClick={() => setShowStoreEditor(true)}
-                  className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 border border-gray-200 px-2.5 py-1.5 rounded-lg transition">
-                  <MapPin size={ICON_SIZE.xs} /> {storeLocation ? "Edit Store Location" : "Set Store Location"}
-                </button>
-              </div>
-            )}
-            <OrderMap
-              pins={filteredPins}
-              loading={pinsLoading}
-              storeLat={storeLocation?.lat}
-              storeLng={storeLocation?.lng}
-              storeName={storeLocation?.name}
-              focus={mapFocus}
-            />
-          </div>
-        )}
-      </div>
-
-      {isStaff && <DriversPanel drivers={drivers} now={now} onShowOnMap={showDriverOnMap} loadError={driversError} onRetry={refreshDrivers} />}
-
-      {/* One list. Tabs filter it, search is always on screen. */}
-      <div className="flex flex-col md:flex-row gap-5 items-start">
-
-        {/* Date picker: a modal, so the table always keeps the full width */}
-        <Modal open={showCalendar} onClose={() => setShowCalendar(false)} title="Show orders from" size="sm">
-          <div>
-          <div className="flex items-center justify-between mb-4">
-            <button onClick={prevMonth} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition">
-              <ChevronLeft size={ICON_SIZE.sm} />
+      {/* Date picker: a modal, so the list always keeps the full width */}
+      <Modal open={showCalendar} onClose={() => setShowCalendar(false)} title="Show orders from" size="sm">
+        <div>
+          <div className="mb-4 flex items-center justify-between">
+            <button type="button" onClick={prevMonth} aria-label="Previous month" className="grid size-8 place-items-center rounded-lg text-ink-3 transition hover:bg-recess">
+              <ChevronLeft className="size-4" />
             </button>
-            <span className="text-sm font-semibold text-gray-900">{MONTHS[calMonth]} {calYear}</span>
-            <button onClick={nextMonth} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition">
-              <ChevronRight size={ICON_SIZE.sm} />
+            <span className="font-display text-sm font-extrabold text-ink">{MONTHS[calMonth]} {calYear}</span>
+            <button type="button" onClick={nextMonth} aria-label="Next month" className="grid size-8 place-items-center rounded-lg text-ink-3 transition hover:bg-recess">
+              <ChevronRight className="size-4" />
             </button>
           </div>
 
-          <div className="grid grid-cols-7 mb-1">
-            {DAYS.map((d) => (
-              <div key={d} className="text-center text-[10px] font-semibold text-gray-400 py-1">{d}</div>
-            ))}
+          <div className="mb-1 grid grid-cols-7">
+            {DAYS.map((d) => <div key={d} className="py-1 text-center text-[10px] font-bold uppercase tracking-wide text-ink-4">{d}</div>)}
           </div>
 
           <div className="grid grid-cols-7 gap-y-1">
@@ -856,352 +795,322 @@ export default function OrdersPage() {
               const isSelected = selectedKey === key;
               const hasOrders = orderDateKeys.has(key);
               return (
-                <button key={i} onClick={() => { setSelectedKey(isSelected ? null : key); setPage(1); setShowCalendar(false); }}
+                <button key={i} type="button" onClick={() => { setSelectedKey(isSelected ? null : key); setPage(1); setShowCalendar(false); }}
                   aria-label={`${MONTHS[calMonth]} ${day}, ${calYear}${hasOrders ? " (has orders)" : ""}`} aria-pressed={isSelected}
-                  className={`relative w-8 h-8 mx-auto flex items-center justify-center rounded-lg text-xs font-medium transition
-                    ${isSelected ? "bg-blue-600 text-white" : isToday ? "bg-blue-50 text-blue-600 font-bold" : "text-gray-700 hover:bg-gray-100"}`}>
+                  className={`num relative mx-auto grid size-9 place-items-center rounded-lg text-xs font-semibold transition ${
+                    isSelected ? "bg-brand text-white" : isToday ? "bg-brand-soft font-bold text-brand-ink" : "text-ink-2 hover:bg-recess"}`}>
                   {day}
-                  {hasOrders && !isSelected && (
-                    <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-blue-400" />
-                  )}
-                  {hasOrders && isSelected && (
-                    <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-white/60" />
-                  )}
+                  {hasOrders && <span className={`absolute bottom-1 left-1/2 size-1 -translate-x-1/2 rounded-full ${isSelected ? "bg-white/70" : "bg-brand"}`} />}
                 </button>
               );
             })}
           </div>
 
-          <div className="mt-4 pt-4 border-t border-gray-100 space-y-1.5">
-            <p className="text-[11px] text-gray-400">A dot marks days with orders. Pick a day to see only its orders.</p>
+          <div className="mt-4 space-y-1.5 border-t border-line pt-4">
+            <p className="text-[11px] text-ink-4">A dot marks days with orders. Pick a day to see only its orders.</p>
             <div className="flex justify-between text-xs">
-              <span className="text-gray-500">{selectedKey ? "Orders that day" : "Orders"}</span>
-              <span className="font-semibold text-gray-900">{filtered.length}</span>
+              <span className="text-ink-3">{selectedKey ? "Orders that day" : "Orders"}</span>
+              <span className="num font-semibold text-ink">{filtered.length}</span>
             </div>
             <div className="flex justify-between text-xs">
-              <span className="text-gray-500">Total Value</span>
-              <span className="font-semibold text-blue-600">₱{filtered.reduce((s, o) => s + o.totalAmount, 0).toFixed(2)}</span>
+              <span className="text-ink-3">Total value</span>
+              <span className="num font-semibold text-brand">{peso(filtered.reduce((s, o) => s + o.totalAmount, 0))}</span>
             </div>
             {selectedKey && (
-              <button onClick={() => { setSelectedKey(null); setPage(1); setShowCalendar(false); }}
-                className="w-full mt-2 text-xs text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg py-1.5 transition border border-gray-200">
-                Clear filter — show all
+              <button type="button" onClick={() => { setSelectedKey(null); setPage(1); setShowCalendar(false); }}
+                className="mt-2 h-9 w-full rounded-lg border border-line text-xs font-semibold text-ink-2 transition hover:bg-recess">
+                Show all dates
               </button>
             )}
           </div>
         </div>
-        </Modal>
+      </Modal>
 
-        {/* Orders table */}
-        <div className="flex-1 min-w-0 max-w-full bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="flex flex-wrap items-center gap-2 p-3 border-b border-gray-100 bg-gray-50">
-            <span className="font-semibold text-gray-900 text-sm">{selectedLabel()}</span>
-            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-medium">{filtered.length} orders</span>
-            <div className="flex items-center gap-2 ml-auto w-full sm:w-auto">
-              <div className={`flex items-center shrink-0 rounded-lg border transition ${
-                selectedKey ? "bg-blue-50 text-blue-600 border-blue-200" : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
-              }`}>
-                <button onClick={() => setShowCalendar(true)} aria-haspopup="dialog"
-                  className="flex items-center gap-1.5 text-xs font-semibold pl-3 pr-3 py-2 whitespace-nowrap">
-                  <CalendarIcon size={ICON_SIZE.xs} />
-                  {selectedKey ? selectedLabel() : "Any date"}
+      <PageHeader
+        eyebrow={isStaff ? "Sales" : "My account"}
+        title="Orders"
+        subtitle={loading ? "Loading orders…" : isStaff ? (
+          <>
+            <span className="font-semibold text-ink-2">{todays.length}</span> {todays.length === 1 ? "order" : "orders"} today
+            <span className="num"> · <span className="font-semibold text-ink-2">{peso(todaysValue)}</span></span>
+            {waiting > 0 && <> · <span className="font-semibold text-warn">{waiting} waiting on you</span></>}
+          </>
+        ) : <>Everything you&apos;ve ordered from {STORE_NAME}, and where it is now</>}
+        action={isStaff ? (
+          <>
+            {role === "admin" && (
+              <>
+                <Button variant="secondary" onClick={() => setShowFeeEditor(true)} icon={<Truck className="size-4" />}>Delivery settings</Button>
+                <Button variant="secondary" onClick={() => setShowGcashEditor(true)} icon={<Smartphone className="size-4" />}>
+                  {storePayment?.gcashNumber ? "GCash details" : "Set up GCash"}
+                </Button>
+              </>
+            )}
+            <Button onClick={() => setShowNewOrder(true)} icon={<Plus className="size-4" />}>New order</Button>
+          </>
+        ) : undefined}
+      />
+
+      {/* Where each order stands: a summary that doubles as the status filter */}
+      <FilterTiles tiles={TILES} value={statusFilter} onChange={(k) => { setStatusFilter(k); setPage(1); }}
+        label="Filter orders by status" loading={loading} cols={isStaff ? (TILES.length === 5 ? 5 : 4) : 3} />
+
+      {/* Map and drivers open in side panels, so the order list owns the page. Date and search sit beside them. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => setShowMap(true)} aria-haspopup="dialog"
+          className="inline-flex h-11 min-w-0 grow basis-[calc(50%-4px)] items-center gap-2.5 rounded-xl border border-line bg-surface pl-1.5 pr-3.5 text-left sm:grow-0 sm:basis-auto shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition hover:border-brand/40 hover:bg-brand-soft/40">
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand"><MapPin className="size-4" /></span>
+          <span className="text-[13.5px] font-semibold text-ink">Delivery map</span>
+          <span className="num hidden text-[12px] text-ink-4 sm:inline">{isStaff ? `Today · ${filteredPins.length}` : `${filteredPins.length} pinned`}</span>
+          {outForDeliveryCount > 0 && (
+            <span className="hidden items-center gap-1.5 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-bold text-brand-ink sm:inline-flex">
+              <span className="size-1.5 animate-pulse rounded-full bg-brand" /> {outForDeliveryCount} on the road
+            </span>
+          )}
+        </button>
+        {isStaff && (
+          <button type="button" onClick={() => setShowDrivers(true)} aria-haspopup="dialog"
+            className="inline-flex h-11 min-w-0 grow basis-[calc(50%-4px)] items-center gap-2.5 rounded-xl border border-line bg-surface pl-1.5 pr-3.5 text-left sm:grow-0 sm:basis-auto shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition hover:border-brand/40 hover:bg-brand-soft/40">
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand"><Truck className="size-4" /></span>
+            <span className="text-[13.5px] font-semibold text-ink">Drivers <span className="num font-normal text-ink-4">{drivers.length}</span></span>
+            {driversError && drivers.length === 0 ? (
+              <span className="text-[11.5px] font-semibold text-warn">Couldn&apos;t load</span>
+            ) : (
+              <>
+                {freeDrivers > 0 && <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-good-soft px-2 py-0.5 text-[11px] font-bold text-good"><span className="size-1.5 rounded-full bg-good" />{freeDrivers} free</span>}
+                {busyDrivers > 0 && <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[11px] font-bold text-brand-ink"><span className="size-1.5 rounded-full bg-brand" />{busyDrivers} busy</span>}
+              </>
+            )}
+          </button>
+        )}
+          <div className="flex w-full items-center gap-2 lg:ml-auto lg:w-auto lg:min-w-[440px] lg:flex-1 lg:justify-end">
+            <div className={`flex h-11 shrink-0 items-center rounded-xl border transition ${
+              selectedKey ? "border-brand/40 bg-brand-soft text-brand-ink" : "border-line bg-surface text-ink-2 hover:border-line-strong"}`}>
+              <button type="button" onClick={() => setShowCalendar(true)} aria-haspopup="dialog"
+                className="flex items-center gap-1.5 whitespace-nowrap px-3 text-[13px] font-semibold">
+                <CalendarIcon className="size-4" />
+                {selectedKey ? selectedLabel() : "Any date"}
+              </button>
+              {selectedKey && (
+                <button type="button" onClick={() => { setSelectedKey(null); setPage(1); }} aria-label="Clear date — show all orders" title="Show all dates"
+                  className="-ml-1.5 pr-2.5 hover:text-brand">
+                  <X className="size-3.5" />
                 </button>
-                {selectedKey && (
-                  <button onClick={() => { setSelectedKey(null); setPage(1); }} aria-label="Clear date — show all orders" title="Show all dates"
-                    className="pr-2.5 -ml-1.5 py-2 hover:text-blue-800">
-                    <X size={ICON_SIZE.xs} />
-                  </button>
-                )}
-              </div>
-              <div className="relative flex-1 sm:flex-none">
-                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                  placeholder="Search by ID or customer..."
-                  className="w-full sm:w-60 pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 transition placeholder:text-gray-400" />
-              </div>
+              )}
             </div>
+            <SearchField value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder={isStaff ? "Order #, customer or item" : "Order # or item"}
+              label="Search orders" className="min-w-0 flex-1 lg:max-w-[560px]" />
           </div>
+      </div>
 
-          {/* Delivery or pickup, then status tabs — filters over this same table, not second lists */}
-          <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 border-b border-gray-100">
-            <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white" role="group" aria-label="Delivery or pickup">
-              {MODES.map((m) => {
-                const on = modeFilter === m.key;
-                const count = orders.filter((o) => matchesMode(o, m.key)).length;
-                return (
-                  <button key={m.key} onClick={() => { setModeFilter(m.key); if (m.key === "pickup" && statusFilter === "needs_driver") setStatusFilter("all"); setPage(1); }}
-                    aria-pressed={on}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition whitespace-nowrap ${on ? "bg-blue-600 text-white shadow-sm" : "text-gray-600 hover:bg-gray-50"}`}>
-                    {m.icon}{m.label}
-                    <span className={`text-[10px] font-bold px-1.5 py-px rounded-full ${on ? "bg-white/25 text-white" : "bg-gray-100 text-gray-500"}`}>{count}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {modeFilter !== "all" && (
-              <p className="text-[11px] text-gray-400">
-                {modeFilter === "pickup" ? "Customers collect these at the store." : "These go out with a driver."}
-              </p>
+      <Drawer open={showMap} onClose={() => setShowMap(false)} width="xl" placement="center"
+        title={<><MapPin className="size-4 text-brand" /> Delivery map</>}>
+        <div className="flex flex-col gap-3 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[12.5px] text-ink-3">
+              {selectedKey ? `${filteredPins.length} orders on ${selectedLabel()}` : isStaff ? `Today · ${filteredPins.length} order${filteredPins.length === 1 ? "" : "s"} · starts fresh at midnight` : `${filteredPins.length} of your orders`}
+            </p>
+            {isStaff && (
+              <button type="button" onClick={() => setShowStoreEditor(true)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-xs font-semibold text-ink-2 transition hover:border-brand/40 hover:bg-brand-soft hover:text-brand-ink">
+                <MapPin className="size-3.5" /> {storeLocation ? "Edit store location" : "Set store location"}
+              </button>
             )}
           </div>
-          {isStaff && (
-            <div className="flex gap-1.5 overflow-x-auto px-3 py-2.5 border-b border-gray-100">
-              {TABS.map((t) => {
-                const count = inMode.filter((o) => matchesFilter(o, t.key)).length;
-                const active = statusFilter === t.key;
-                const flag = t.urgent && count > 0 && !active;
-                return (
-                  <button key={t.key} onClick={() => { setStatusFilter(t.key); setPage(1); }}
-                    className={`shrink-0 flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold transition border ${
-                      active
-                        ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                        : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                    }`}>
-                    {t.label}
-                    <span className={`text-[10px] font-bold px-1.5 py-px rounded-full ${
-                      active ? "bg-white/25 text-white"
-                        : flag ? "text-white"
-                        : "bg-gray-100 text-gray-500"
-                    }`}
-                      style={flag ? { background: "var(--warn)" } : undefined}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <div className="h-[min(62vh,600px)] overflow-hidden rounded-xl border border-line [isolation:isolate]">
+            {showMap && (
+              <OrderMap
+                pins={filteredPins}
+                loading={pinsLoading}
+                height="min(62vh, 600px)"
+                storeLat={storeLocation?.lat}
+                storeLng={storeLocation?.lng}
+                storeName={storeLocation?.name}
+                focus={mapFocus}
+              />
+            )}
+          </div>
+        </div>
+      </Drawer>
 
-          <div className="overflow-x-auto w-full">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/50">
-                  <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide w-8"></th>
-                  <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Order</th>
-                  <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">Customer</th>
-                  <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Amount</th>
-                  <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</th>
-                  {/* w-px + nowrap makes these hug their content, so the slack
-                      lands in the text columns instead of gaping on the right. */}
-                  <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden xl:table-cell w-px whitespace-nowrap">Date</th>
-                  <th className="py-2.5 px-2 w-px"></th>
-                  {isStaff && <th className="text-right py-2.5 px-4 text-xs font-semibold uppercase tracking-wide whitespace-nowrap w-px" style={{ color: "var(--brand)" }}>Next Step</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {loading ? (
-                  <tr><td colSpan={isStaff ? 8 : 7} className="py-12 text-center text-gray-400">Loading...</td></tr>
-                ) : paginated.length === 0 ? (
-                  <tr><td colSpan={isStaff ? 8 : 7}><EmptyState icon={Receipt} title={`No orders ${selectedKey ? "on this date" : "found"}`} /></td></tr>
-                ) : paginated.map((o) => (
-                  <React.Fragment key={o.id}>
-                    <tr className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => setExpanded(expanded === o.id ? null : o.id)}>
-                      <td className="py-3 px-4 text-gray-400">
-                        {expanded === o.id ? <ChevronUp size={ICON_SIZE.sm} /> : <ChevronDown size={ICON_SIZE.sm} />}
-                      </td>
-                      <td className="py-3 px-4 font-medium text-gray-900">
-                        <span title={o.fulfillmentMode === "pickup" ? "Pickup at Store" : "Delivery"} className="inline-flex items-center gap-1.5">
-                          {o.fulfillmentMode === "pickup"
-                            ? <Store size={ICON_SIZE.sm} className="text-gray-400 shrink-0" aria-label="Pickup at Store" />
-                            : <Truck size={ICON_SIZE.sm} className="text-gray-400 shrink-0" aria-label="Delivery" />}
-                          #{o.id}
+      {isStaff && (
+        <Drawer open={showDrivers} onClose={() => setShowDrivers(false)} width="xl" placement="center"
+          title={<><Truck className="size-4 text-brand" /> Drivers</>}>
+          <div className="p-4">
+            <DriversPanel bare drivers={drivers} now={now} onShowOnMap={showDriverOnMap} loadError={driversError} onRetry={refreshDrivers} />
+          </div>
+        </Drawer>
+      )}
+
+      {/* One list. The tiles above and the toolbar here filter it. */}
+      <section aria-label="Orders" className="overflow-hidden rounded-2xl border border-line bg-surface">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line p-3">
+          <Segmented options={MODES} value={modeFilter} label="Delivery or pickup"
+            onChange={(k) => { setModeFilter(k); if (k === "pickup" && statusFilter === "needs_driver") setStatusFilter("all"); setPage(1); }} />
+          <p className="text-[13px] text-ink-3">
+            <span className="num font-semibold text-ink">{filtered.length}</span> {filtered.length === 1 ? "order" : "orders"}
+            {selectedKey && <> on <span className="font-semibold text-ink-2">{selectedLabel()}</span></>}
+            {modeFilter !== "all" && <> · {modeFilter === "pickup" ? "picked up at the store" : "delivered by a driver"}</>}
+            {filtered.length > 0 && <span className="num"> · {peso(filtered.reduce((s, o) => s + o.totalAmount, 0))}</span>}
+          </p>
+          {filtersOn && <button type="button" onClick={clearFilters} className="ml-auto text-[13px] font-semibold text-brand hover:underline">Clear filters</button>}
+        </div>
+
+        {/* Column labels, desktop only — rows stack into cards on smaller screens */}
+        <div className={`hidden gap-4 border-b border-line px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-ink-4 lg:grid ${COLS}`}>
+          <span>Order</span><span>{isStaff ? <>Customer &amp; items</> : "Items"}</span><span className="text-right">Total</span><span>Status</span>
+          <span className={isStaff ? "" : "sr-only"}>{isStaff ? "Next step" : "Track"}</span>
+        </div>
+
+        {loading ? (
+          <ul className="divide-y divide-line">
+            {Array.from({ length: 5 }, (_, i) => (
+              <li key={i} className="flex items-center gap-4 px-4 py-4">
+                <div className="h-4 w-24 animate-pulse rounded bg-recess" />
+                <div className="h-4 flex-1 animate-pulse rounded bg-recess" />
+                <div className="h-8 w-28 animate-pulse rounded-lg bg-recess" />
+              </li>
+            ))}
+          </ul>
+        ) : paginated.length === 0 ? (
+          <EmptyState icon={Receipt}
+            title={orders.length === 0 ? (isStaff ? "No orders yet" : "You haven't ordered yet") : "No orders match"}
+            description={orders.length === 0
+              ? (isStaff ? "Online orders show up here the moment a customer places one. Take a phone or counter order with New order." : "Browse the shop and place your first order — you can follow it here.")
+              : "Try another search, or clear the filters to see every order."}
+            action={filtersOn ? <Button variant="secondary" size="sm" onClick={clearFilters}>Clear filters</Button> : undefined} />
+        ) : (
+          <ul className="divide-y divide-line">
+            {paginated.map((o) => {
+              const isPickup = o.fulfillmentMode === "pickup";
+              const open = expanded === o.id;
+              const pay = paymentState(o);
+              const pin = pins.find((p) => p.id === o.id);
+              const liveDriver = o.driverId ? drivers.find((x) => x.id === o.driverId) : undefined;
+              const unverified = o.paymentMethod === "GCash" && !o.paymentVerified && o.status !== "cancelled";
+              return (
+                <li key={o.id} className={open ? "bg-subtle" : ""}>
+                  <div onClick={() => setExpanded(open ? null : o.id)}
+                    className={`grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2.5 px-4 py-3.5 transition hover:bg-subtle lg:items-center lg:gap-4 ${COLS}`}>
+
+                    {/* Order: number, how it reaches the customer, when */}
+                    <div className="min-w-0">
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setExpanded(open ? null : o.id); }} aria-expanded={open}
+                        aria-label={`${open ? "Hide" : "Show"} details for order ${o.id}`}
+                        className="flex items-center gap-2 text-left">
+                        <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${isPickup ? "bg-recess text-ink-3" : "bg-brand-soft text-brand"}`}
+                          title={isPickup ? "Pickup at the store" : "Delivery"}>
+                          {isPickup ? <Store className="size-4" /> : <Truck className="size-4" />}
                         </span>
-                        <p className="text-xs text-gray-400 sm:hidden">{customerLabel(o)}</p>
-                      </td>
-                      <td className="py-3 px-4 text-gray-600 hidden sm:table-cell">
-                        {customerLabel(o)}
-                        {isWalkIn(o) && <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 align-middle whitespace-nowrap">WALK-IN</span>}
-                      </td>
-                      <td className="py-3 px-4 font-semibold text-gray-900">
-                        ₱{o.totalAmount.toFixed(2)}
-                        {(() => {
-                          const st = paymentState(o);
-                          if (o.status === "cancelled" || st !== "partial") return null;
-                          return (
-                            <span className="block text-[10.5px] font-semibold whitespace-nowrap" style={{ color: "var(--warn)" }}>
-                              Paid ₱{(o.amountPaid ?? 0).toFixed(2)} · ₱{outstanding(o).toFixed(2)} left
-                            </span>
-                          );
-                        })()}
-                      </td>
-                      <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-1.5">
-                          <button onClick={() => setStatusOrderId(o.id)} title="View order progress" aria-label={`Order #${o.id} progress`}
-                            className="rounded-full transition hover:ring-2 hover:ring-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
-                            <StatusBadge status={o.status} pickup={o.fulfillmentMode === "pickup"} />
-                          </button>
-                          {o.paymentMethod === "GCash" && !o.paymentVerified && o.status !== "cancelled" && (
-                            <span title="GCash payment not verified yet">
-                              <ShieldAlert size={13} style={{ color: "var(--warn)" }} />
-                            </span>
-                          )}
-                        </div>
-                        {isStaff && o.fulfillmentMode !== "pickup" && o.driverId && (o.status === "confirmed" || o.status === "out_for_delivery") && (() => {
-                          const d = drivers.find((x) => x.id === o.driverId);
-                          return (
-                            <p className="mt-1 flex items-center gap-1.5 text-[11px] text-gray-500">
-                              <Truck size={11} className="text-gray-400 shrink-0" />
-                              <span className="font-medium text-gray-700 truncate max-w-[110px]">{d?.username ?? o.driver?.username ?? "Driver"}</span>
-                              {d && <DriverStatusChip driver={d} />}
-                            </p>
-                          );
-                        })()}
-                        {showNextText(o) && (
-                          <button onClick={() => setStatusOrderId(o.id)}
-                            className="block text-left mt-1 text-[11px] leading-snug text-gray-500 hover:text-blue-600 max-w-[240px] transition">
-                            <span className="font-semibold" style={{ color: "var(--brand)" }}>Next:</span> {nextStepText(o, isStaff ? "staff" : "customer")}
-                          </button>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-gray-400 text-xs hidden xl:table-cell whitespace-nowrap w-px">
-                        {new Date(o.dateTime).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
-                      </td>
-                      {/* Secondary actions stay icon-only so the Next Step column
-                          at the end always has room to render in full. */}
-                      <td className="py-3 px-2 w-px" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-1">
-                          {(o.status === "confirmed" || o.status === "delivered" || o.status === "out_for_delivery") && (
-                            <button onClick={() => setReceipt(o)} title="View receipt" aria-label="View receipt"
-                              className="w-7 h-7 flex items-center justify-center text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition">
-                              <Receipt size={ICON_SIZE.xs} />
-                            </button>
-                          )}
-                          {isStaff && (
-                            <button onClick={() => setLocationOrder(o)} title="Set delivery location" aria-label="Set delivery location"
-                              className="w-7 h-7 flex items-center justify-center text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition">
-                              <MapPin size={ICON_SIZE.xs} />
-                            </button>
-                          )}
-                          {canCancelOrder(o) && (
-                            <button onClick={() => setCancelTarget(o)} title="Cancel order" aria-label="Cancel order"
-                              className="w-7 h-7 flex items-center justify-center text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition">
-                              <Ban size={ICON_SIZE.xs} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                      {isStaff && (
-                        <td className="py-3 px-4 text-right w-px whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex justify-end">
-                            <NextStepCell order={o} drivers={drivers} canAssign={canAssign} onStatus={updateStatus} onAssign={assignDriver} />
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                    {expanded === o.id && (
-                      <tr className="bg-gray-50">
-                        <td colSpan={isStaff ? 8 : 7} className="px-4 sm:px-8 py-3">
-                          <div className="text-xs text-gray-600 space-y-1">
-                            <p className="font-semibold text-gray-700 mb-2">Items:</p>
-                            {o.items.map((i) => (
-                              <div key={i.id} className="flex justify-between max-w-sm">
-                                <span>{i.product.name} × {i.quantity}</span>
-                                <span className="font-medium">₱{(i.price * i.quantity).toFixed(2)}</span>
-                              </div>
-                            ))}
-                            {(() => {
-                              const pin = pins.find((p) => p.id === o.id);
-                              return pin?.distanceLabel ? (
-                                <div className="mt-2 pt-2 border-t border-gray-200 flex gap-4">
-                                  <span className="text-gray-500 inline-flex items-center gap-1"><Route size={12} /> {pin.distanceLabel} from store</span>
-                                  <span className="text-gray-500 inline-flex items-center gap-1"><Clock size={12} /> {pin.durationLabel}</span>
-                                </div>
-                              ) : null;
-                            })()}
-                            <div className="mt-2 pt-2 border-t border-gray-200 flex flex-wrap gap-x-4 gap-y-1">
-                              <span className="text-gray-500 inline-flex items-center gap-1">
-                                {o.fulfillmentMode === "pickup" ? <><Store size={12} /> Pickup at Store</> : <><Truck size={12} /> Delivery</>}
-                              </span>
-                              {o.fulfillmentMode !== "pickup" && (
-                                <span className="text-gray-500">Delivery fee <span className="font-medium text-gray-700">{o.deliveryFee ? `₱${o.deliveryFee.toFixed(2)}` : "free"}</span>
-                                  {o.deliveryFeeNote && <span className="text-gray-400"> (changed: {o.deliveryFeeNote})</span>}</span>
-                              )}
-                              {o.paymentMethod && <span className="text-gray-500 inline-flex items-center gap-1"><CreditCard size={12} /> {o.paymentMethod}</span>}
-                              {customerPhone(o) && isStaff && (
-                                <a href={`tel:${customerPhone(o)}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 font-medium hover:underline" style={{ color: "var(--brand)" }}>
-                                  <Phone size={12} /> {customerPhone(o)}
-                                </a>
-                              )}
-                            </div>
-                            {o.proofImage && (
-                              <div className="mt-2 pt-2 border-t border-gray-200 flex items-center gap-3">
-                                <button onClick={(e) => { e.stopPropagation(); setProofView(o); }} className="relative w-14 h-14 rounded-lg overflow-hidden border border-gray-200 shrink-0" aria-label="View proof of delivery photo">
-                                  <Image src={o.proofImage} alt="Proof of delivery" fill sizes="56px" className="object-cover" />
-                                </button>
-                                <span className="text-gray-500">
-                                  <span className="inline-flex items-center gap-1 font-semibold text-gray-700"><Camera size={12} /> Proof of delivery</span>
-                                  {o.deliveredAt && <span className="block">{new Date(o.deliveredAt).toLocaleString("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}{o.driver ? ` · ${o.driver.username}` : ""}</span>}
-                                </span>
-                              </div>
-                            )}
+                        <span className="min-w-0">
+                          <span className="flex items-center gap-1 font-code text-[14px] font-bold text-ink">
+                            #{o.id}
+                            {open ? <ChevronUp className="size-3.5 text-ink-4" /> : <ChevronDown className="size-3.5 text-ink-4" />}
+                          </span>
+                          <span className="block truncate text-[11.5px] text-ink-4">{fmtWhen(o.dateTime)}</span>
+                        </span>
+                      </button>
+                    </div>
 
-                            {o.paymentMethod === "GCash" && (
-                              <div className="mt-2 pt-2 border-t border-gray-200 flex flex-wrap items-center gap-x-4 gap-y-2">
-                                <span className="inline-flex items-center gap-1.5 text-gray-500">
-                                  <Smartphone size={ICON_SIZE.xs} className="text-blue-500 shrink-0" />
-                                  From <span className="font-medium text-gray-700 num">{o.gcashNumber ?? "—"}</span>
-                                </span>
-                                <span className="text-gray-500">
-                                  Ref. No. <span className="font-medium text-gray-700 num">{o.gcashReference ?? "—"}</span>
-                                </span>
-                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
-                                  o.paymentVerified ? "bg-green-50 text-green-600 border-green-200" : "bg-yellow-50 text-yellow-600 border-yellow-200"
-                                }`}>
-                                  {o.paymentVerified ? <ShieldCheck size={ICON_SIZE.xs} /> : <ShieldAlert size={ICON_SIZE.xs} />}
-                                  {o.paymentVerified ? "Payment verified" : "Payment unverified"}
-                                </span>
-                                {(() => {
-                                  const paid = o.amountPaid ?? 0;
-                                  const bal = Math.max(0, Math.round((o.totalAmount - paid) * 100) / 100);
-                                  // This block only renders for GCash orders, so a
-                                  // shortfall here always means a real balance owed.
-                                  if (bal <= 0) return null;
-                                  return (
-                                    <>
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border"
-                                        style={{ background: "var(--warn-soft)", color: "var(--warn)", borderColor: "var(--warn)" }}>
-                                        <AlertTriangle size={ICON_SIZE.xs} />
-                                        Paid ₱{paid.toFixed(2)} · Balance ₱{bal.toFixed(2)}
-                                      </span>
-                                      {(role === "admin" || role === "cashier") && (
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); settleBalance(o.id, o.totalAmount); }}
-                                          className="text-[11px] font-semibold px-2 py-1 rounded-lg transition text-emerald-600 bg-emerald-50 hover:bg-emerald-100"
-                                        >
-                                          Balance collected
-                                        </button>
-                                      )}
-                                    </>
-                                  );
-                                })()}
-                                {(role === "admin" || role === "cashier") && (
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); setPaymentVerified(o.id, !o.paymentVerified); }}
-                                    className={`text-[11px] font-semibold px-2 py-1 rounded-lg transition ${
-                                      o.paymentVerified
-                                        ? "text-gray-500 bg-gray-100 hover:bg-gray-200"
-                                        : "text-emerald-600 bg-emerald-50 hover:bg-emerald-100"
-                                    }`}
-                                  >
-                                    {o.paymentVerified ? "Undo verification" : "Mark as received"}
-                                  </button>
-                                )}
-                              </div>
+                    {/* Total — top-right on phones, its own column on desktop */}
+                    <div className="col-start-2 row-start-1 text-right lg:col-start-3">
+                      <p className="num font-display text-[15px] font-extrabold text-ink">{peso(o.totalAmount)}</p>
+                      {o.status !== "cancelled" && pay === "partial" ? (
+                        <p className="num whitespace-nowrap text-[11px] font-semibold text-warn">{peso(outstanding(o))} left</p>
+                      ) : null}
+                    </div>
+
+                    {/* Customer and what they bought */}
+                    <div className="col-span-2 min-w-0 lg:col-span-1 lg:col-start-2 lg:row-start-1">
+                      <p className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-[14px] font-semibold text-ink">{isStaff ? customerLabel(o) : `${o.items.length} ${o.items.length === 1 ? "item" : "items"}`}</span>
+                        {isWalkIn(o) && <span className="shrink-0 rounded bg-recess px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-ink-3">WALK-IN</span>}
+                      </p>
+                      <p className="truncate text-[12px] text-ink-3" title={o.items.map((i) => `${i.product.name} ×${i.quantity}`).join("\n")}>
+                        {itemsLine(o.items)}
+                      </p>
+                    </div>
+
+                    {/* Status, driver, what happens next */}
+                    <div className="col-span-2 min-w-0 lg:col-span-1 lg:col-start-4 lg:row-start-1" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <button type="button" onClick={() => setStatusOrderId(o.id)} title="See order progress" aria-label={`Order #${o.id} progress`}
+                          className="rounded-full transition hover:ring-2 hover:ring-brand/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+                          <StatusPill status={o.status} pickup={isPickup} />
+                        </button>
+                        {unverified && (
+                          <span title="GCash payment not checked yet" className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5 text-[11px] font-semibold text-warn">
+                            <ShieldAlert className="size-3" /> GCash to check
+                          </span>
+                        )}
+                        {isStaff && !isPickup && o.driverId && (o.status === "confirmed" || o.status === "out_for_delivery") && (
+                          <span className="inline-flex min-w-0 items-center gap-1 text-[12px] text-ink-3">
+                            <Truck className="size-3 shrink-0 text-ink-4" />
+                            <span className="max-w-[120px] truncate font-medium text-ink-2">{liveDriver?.username ?? o.driver?.username ?? "Driver"}</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* The one next step — everything else lives in the opened order */}
+                    <div className="col-span-2 flex items-center lg:col-span-1 lg:col-start-5 lg:row-start-1 lg:justify-end" onClick={(e) => e.stopPropagation()}>
+                      {isStaff ? (
+                        <NextStepCell order={o} drivers={drivers} canAssign={canAssign} onStatus={updateStatus} onAssign={assignDriver} />
+                      ) : (
+                        <button type="button" onClick={() => setStatusOrderId(o.id)}
+                          className="ml-auto inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-[12.5px] font-semibold text-brand transition hover:bg-brand-soft">
+                          Track <ChevronRight className="size-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Opened order: the receipt, getting it there, and the money */}
+                  {open && (
+                    <div className="grid gap-3 px-4 pb-4 md:grid-cols-2 xl:grid-cols-3">
+                      <DetailBlock title="Items" icon={<Receipt className="size-3.5" />}>
+                        <ul className="space-y-1.5">
+                          {o.items.map((i) => (
+                            <li key={i.id} className="flex items-baseline justify-between gap-3">
+                              <span className="min-w-0">
+                                <span className="text-ink">{i.product.name}</span>
+                                <span className="num block text-[11.5px] text-ink-4">{Number(i.quantity.toFixed(2))} {i.product.unit ?? "pc"} × {peso(i.price)}</span>
+                              </span>
+                              <span className="num shrink-0 font-semibold text-ink">{peso(i.price * i.quantity)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        {!isPickup && (
+                          <div className="flex justify-between border-t border-dashed border-line pt-2 text-ink-3">
+                            <span>Delivery fee{o.deliveryFeeNote && <span className="block text-[11px] text-ink-4">Changed: {o.deliveryFeeNote}</span>}</span>
+                            <span className="num">{o.deliveryFee ? peso(o.deliveryFee) : "Free"}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between border-t border-line pt-2 font-display text-[15px] font-extrabold text-ink">
+                          <span>Total</span><span className="num">{peso(o.totalAmount)}</span>
+                        </div>
+                      </DetailBlock>
+
+                      <DetailBlock title={isPickup ? "Pickup" : "Delivery"} icon={isPickup ? <Store className="size-3.5" /> : <Truck className="size-3.5" />}>
+                        {isPickup ? (
+                          <p className="text-ink-3">The customer collects this at the store — no driver needed.</p>
+                        ) : (
+                          <>
+                            <p className="flex items-start gap-1.5">
+                              <MapPin className="mt-0.5 size-3.5 shrink-0 text-ink-4" />
+                              <span>{o.deliveryAddress || <span className="text-ink-4">No address pinned yet</span>}</span>
+                            </p>
+                            {pin?.distanceLabel && (
+                              <p className="flex flex-wrap gap-x-3 text-ink-3">
+                                <span className="inline-flex items-center gap-1"><Route className="size-3.5" /> {pin.distanceLabel} from the store</span>
+                                <span className="inline-flex items-center gap-1"><Clock className="size-3.5" /> {pin.durationLabel}</span>
+                              </p>
                             )}
-                            {o.fulfillmentMode === "pickup" ? (
-                              <div className="mt-2 pt-2 border-t border-gray-200 flex items-center gap-2 text-gray-400">
-                                <Truck size={ICON_SIZE.xs} className="shrink-0" />
-                                <span>Pickup — no driver needed</span>
-                              </div>
-                            ) : canAssign ? (
-                              <div className="mt-2 pt-2 border-t border-gray-200 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                <Truck size={ICON_SIZE.xs} className="text-indigo-500 shrink-0" />
-                                <span className="text-gray-500">Driver:</span>
-                                <select
-                                  value={o.driverId ?? ""}
-                                  onChange={(e) => assignDriver(o.id, e.target.value)}
-                                  className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white"
-                                >
+                            {canAssign ? (
+                              <label className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                <span className="text-ink-3">Driver</span>
+                                <select value={o.driverId ?? ""} onChange={(e) => assignDriver(o.id, e.target.value)}
+                                  className="h-8 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 text-[13px] focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20">
                                   <option value="">— Unassigned —</option>
                                   {drivers.map((d) => {
                                     const opt = driverOption(d);
@@ -1209,47 +1118,126 @@ export default function OrdersPage() {
                                     return <option key={d.id} value={d.id} disabled={opt.disabled && d.id !== o.driverId}>{opt.label}</option>;
                                   })}
                                 </select>
-                              </div>
+                              </label>
                             ) : o.driver ? (
-                              <div className="mt-2 pt-2 border-t border-gray-200 flex items-center gap-2">
-                                <Truck size={ICON_SIZE.xs} className="text-indigo-500 shrink-0" />
-                                <span className="text-gray-500">
-                                  Driver: <span className="font-medium text-gray-700">{o.driver.username}</span>
-                                  {o.driver.contact && <span className="text-gray-400"> · {o.driver.contact}</span>}
-                                </span>
-                                {(() => { const d = drivers.find((x) => x.id === o.driverId); return d ? <DriverStatusChip driver={d} /> : null; })()}
-                              </div>
-                            ) : null}
-                            {/* Manual status override for the rare case the
-                                Next Step button doesn't cover (e.g. reverting). */}
-                            {isStaff && (
-                              <div className="mt-2 pt-2 border-t border-gray-200 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                <span className="text-gray-500">Change status:</span>
-                                <select
-                                  value={o.status}
-                                  onChange={(e) => (e.target.value === "cancelled" ? setCancelTarget(o) : updateStatus(o.id, e.target.value))}
-                                  className={`text-xs border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-semibold cursor-pointer
-                                    ${STATUS_CONFIG[o.status]?.bg} ${STATUS_CONFIG[o.status]?.text} ${STATUS_CONFIG[o.status]?.border}`}
-                                >
-                                  {(o.fulfillmentMode === "pickup" ? STATUSES.filter((s) => s !== "out_for_delivery") : STATUSES)
-                                    .map((s) => <option key={s} value={s}>{STATUS_CONFIG[s]?.label ?? s}</option>)}
-                                </select>
-                              </div>
+                              <p className="flex flex-wrap items-center gap-1.5">
+                                <Truck className="size-3.5 text-ink-4" />
+                                <span className="font-semibold text-ink">{o.driver.username}</span>
+                                {o.driver.contact && <a href={`tel:${o.driver.contact}`} className="num text-brand hover:underline">{o.driver.contact}</a>}
+                                {liveDriver && <DriverStatusChip driver={liveDriver} />}
+                              </p>
+                            ) : (
+                              <p className="text-ink-4">No driver yet</p>
                             )}
-                            <p className="text-gray-400 mt-2 xl:hidden">{new Date(o.dateTime).toLocaleString()}</p>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                          </>
+                        )}
+                        {customerPhone(o) && isStaff && (
+                          <a href={`tel:${customerPhone(o)}`} onClick={(e) => e.stopPropagation()} className="num inline-flex items-center gap-1.5 font-semibold text-brand hover:underline">
+                            <Phone className="size-3.5" /> Call {customerPhone(o)}
+                          </a>
+                        )}
+                        {o.proofImage && (
+                          <button type="button" onClick={(e) => { e.stopPropagation(); setProofView(o); }}
+                            className="flex w-full items-center gap-3 rounded-lg border border-line p-2 text-left transition hover:bg-subtle">
+                            <span className="relative size-12 shrink-0 overflow-hidden rounded-md border border-line">
+                              <Image src={o.proofImage} alt="Proof of delivery" fill sizes="48px" className="object-cover" />
+                            </span>
+                            <span className="text-[12px] text-ink-3">
+                              <span className="flex items-center gap-1 font-semibold text-ink"><Camera className="size-3.5" /> Proof of delivery</span>
+                              {o.deliveredAt && <>{new Date(o.deliveredAt).toLocaleString("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}{o.driver ? ` · ${o.driver.username}` : ""}</>}
+                            </span>
+                          </button>
+                        )}
+                      </DetailBlock>
 
-          <Pagination page={currentPage} totalPages={Math.max(1, totalPages)} total={filtered.length} pageSize={PER_PAGE} onChange={setPage} noun="orders" />
-        </div>
-      </div>
+                      <DetailBlock title="Payment" icon={<CreditCard className="size-3.5" />}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-ink-3">{o.paymentMethod ?? "—"}</span>
+                          {o.status !== "cancelled" && (
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                              pay === "paid" ? "bg-good-soft text-good" : pay === "partial" ? "bg-warn-soft text-warn" : "bg-recess text-ink-3"}`}>
+                              {pay === "paid" ? "Paid in full" : pay === "partial" ? `Paid ${peso(o.amountPaid ?? 0)}` : "Not paid yet"}
+                            </span>
+                          )}
+                        </div>
+                        {o.status !== "cancelled" && pay !== "paid" && (
+                          <p className="flex justify-between text-ink-3">Left to collect <span className="num font-semibold text-ink">{peso(outstanding(o))}</span></p>
+                        )}
+                        {o.paymentMethod === "GCash" && (
+                          <div className="space-y-1.5 rounded-lg bg-subtle p-2.5 text-[12px]">
+                            <p className="flex justify-between gap-2"><span className="inline-flex items-center gap-1 text-ink-3"><Smartphone className="size-3.5" /> From</span><span className="num font-semibold text-ink">{o.gcashNumber ?? "—"}</span></p>
+                            <p className="flex justify-between gap-2"><span className="text-ink-3">Ref. no.</span><span className="num font-semibold text-ink">{o.gcashReference ?? "—"}</span></p>
+                            <p className={`inline-flex items-center gap-1 font-semibold ${o.paymentVerified ? "text-good" : "text-warn"}`}>
+                              {o.paymentVerified ? <ShieldCheck className="size-3.5" /> : <ShieldAlert className="size-3.5" />}
+                              {o.paymentVerified ? "Payment verified" : "Not checked in GCash yet"}
+                            </p>
+                          </div>
+                        )}
+                        {isStaff && (
+                          <div className="flex flex-wrap gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
+                            {o.paymentMethod === "GCash" && (
+                              <button type="button" onClick={() => setPaymentVerified(o.id, !o.paymentVerified)}
+                                className={`h-8 rounded-lg px-3 text-[12px] font-semibold transition ${o.paymentVerified ? "bg-recess text-ink-3 hover:text-ink" : "border border-good/40 bg-good-soft text-good hover:border-good"}`}>
+                                {o.paymentVerified ? "Undo verification" : "Mark as received"}
+                              </button>
+                            )}
+                            {o.paymentMethod === "GCash" && o.status !== "cancelled" && outstanding(o) > 0.005 && (
+                              <button type="button" onClick={() => settleBalance(o.id, o.totalAmount)}
+                                className="h-8 rounded-lg border border-good/40 bg-good-soft px-3 text-[12px] font-semibold text-good transition hover:border-good">
+                                Balance collected
+                              </button>
+                            )}
+                            <button type="button" onClick={() => setStatusOrderId(o.id)}
+                              className="h-8 rounded-lg border border-line px-3 text-[12px] font-semibold text-ink-2 transition hover:border-brand/40 hover:bg-brand-soft hover:text-brand-ink">
+                              Record payment
+                            </button>
+                          </div>
+                        )}
+                        {isStaff && (
+                          <label className="flex items-center gap-2 border-t border-line pt-2" onClick={(e) => e.stopPropagation()}>
+                            <span className="text-ink-3">Status</span>
+                            <select value={o.status}
+                              onChange={(e) => (e.target.value === "cancelled" ? setCancelTarget(o) : updateStatus(o.id, e.target.value))}
+                              className={`h-8 min-w-0 flex-1 cursor-pointer rounded-lg border border-line px-2 text-[12.5px] font-semibold focus:outline-none focus:ring-2 focus:ring-brand/20 ${ORDER_STATUS_STYLE[o.status]?.pill ?? ""}`}>
+                              {(isPickup ? STATUSES.filter((s) => s !== "out_for_delivery") : STATUSES)
+                                .map((s) => <option key={s} value={s} className="bg-surface text-ink">{statusLabel(s, isPickup)}</option>)}
+                            </select>
+                          </label>
+                        )}
+                        <p className="text-[11.5px] text-ink-4">Placed {new Date(o.dateTime).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })}</p>
+                      </DetailBlock>
+
+                      <div className="flex flex-wrap items-center gap-2 md:col-span-2 xl:col-span-3" onClick={(e) => e.stopPropagation()}>
+                        <button type="button" onClick={() => setStatusOrderId(o.id)} className={DETAIL_BTN}>
+                          <Clock className="size-3.5" /> Order progress
+                        </button>
+                        {(o.status === "confirmed" || o.status === "delivered" || o.status === "out_for_delivery") && (
+                          <button type="button" onClick={() => setReceipt(o)} className={DETAIL_BTN}>
+                            <Receipt className="size-3.5" /> Receipt
+                          </button>
+                        )}
+                        {isStaff && !isPickup && (
+                          <button type="button" onClick={() => setLocationOrder(o)} className={DETAIL_BTN}>
+                            <MapPin className="size-3.5" /> {o.latitude ? "Change delivery pin" : "Pin delivery location"}
+                          </button>
+                        )}
+                        {canCancelOrder(o) && (
+                          <button type="button" onClick={() => setCancelTarget(o)}
+                            className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[12.5px] font-semibold text-bad transition hover:bg-bad-soft">
+                            <Ban className="size-3.5" /> Cancel order
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <Pagination page={currentPage} totalPages={Math.max(1, totalPages)} total={filtered.length} pageSize={PER_PAGE} onChange={setPage} noun="orders" />
+      </section>
     </div>
   );
 }

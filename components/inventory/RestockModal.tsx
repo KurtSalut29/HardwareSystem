@@ -20,7 +20,7 @@ export type Line = {
 };
 
 const UNITS = ["pc", "kg", "g", "meter", "ft", "bag", "pack", "box", "roll", "bundle", "pair", "set", "sheet", "liter", "gallon", "length", "sack"];
-const inputCls = "w-full border border-gray-200 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition bg-white";
+const inputCls = "w-full border border-line rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition bg-surface";
 const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 let nextKey = 1;
@@ -118,8 +118,8 @@ export default function RestockModal({ open, initialLines, products, categories,
       size="xl"
       footer={
         <div className="flex flex-wrap items-center gap-2">
-          <div className="text-xs text-gray-500 mr-auto">
-            {lines.length} product{lines.length === 1 ? "" : "s"} · <span className="font-bold text-gray-900 text-sm num">{peso(total)}</span>
+          <div className="text-xs text-ink-3 mr-auto">
+            {lines.length} product{lines.length === 1 ? "" : "s"} · <span className="font-bold text-ink text-sm num">{peso(total)}</span>
           </div>
           <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
           <Button type="submit" form="restock-form" loading={saving}>Save delivery</Button>
@@ -129,19 +129,19 @@ export default function RestockModal({ open, initialLines, products, categories,
       <form id="restock-form" onSubmit={save} className="space-y-4">
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
-            <label htmlFor="rs-supplier" className="block text-xs font-medium text-gray-600 mb-1">Supplier <span className="text-gray-400">(optional)</span></label>
+            <label htmlFor="rs-supplier" className="block text-xs font-medium text-ink-2 mb-1">Supplier <span className="text-ink-4">(optional)</span></label>
             <input id="rs-supplier" value={supplierName} onChange={(e) => setSupplierName(e.target.value)} className={inputCls} placeholder="e.g. ABC Steel Supply" />
           </div>
           <div>
-            <label htmlFor="rs-ref" className="block text-xs font-medium text-gray-600 mb-1">DR / receipt no. <span className="text-gray-400">(optional)</span></label>
+            <label htmlFor="rs-ref" className="block text-xs font-medium text-ink-2 mb-1">DR / receipt no. <span className="text-ink-4">(optional)</span></label>
             <input id="rs-ref" value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} className={inputCls} placeholder="e.g. DR-10482" />
           </div>
         </div>
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <p className="text-xs font-semibold text-gray-600">Products on this delivery</p>
-            <p className="text-[11px] text-gray-400">Quantity × unit cost (what you paid per unit)</p>
+            <p className="text-xs font-semibold text-ink-2">Products on this delivery</p>
+            <p className="text-[11px] text-ink-4">Quantity × unit cost (what you paid per unit)</p>
           </div>
           <ul className="space-y-2">
             {lines.map((l, i) => {
@@ -149,13 +149,13 @@ export default function RestockModal({ open, initialLines, products, categories,
               const plan = product ? planBy.get(product.id) : undefined;
               const unit = l.newProduct ? l.newProduct.unit : product?.unit;
               return (
-                <li key={l.key} className="rounded-xl border border-gray-200 p-2.5 space-y-2">
+                <li key={l.key} className="rounded-xl border border-line p-2.5 space-y-2">
                   <div className="flex items-start gap-2">
-                    <span className="w-5 h-5 mt-2 rounded-full bg-gray-100 text-[10px] font-bold text-gray-500 flex items-center justify-center shrink-0">{i + 1}</span>
+                    <span className="w-5 h-5 mt-2 rounded-full bg-recess text-[10px] font-bold text-ink-3 flex items-center justify-center shrink-0">{i + 1}</span>
                     <div className="flex-1 min-w-0 space-y-2">
                       {l.newProduct ? (
-                        <div className="rounded-lg p-2 space-y-2" style={{ background: "var(--info-soft)" }}>
-                          <p className="text-[11px] font-semibold flex items-center gap-1" style={{ color: "var(--brand)" }}><Sparkles size={11} /> New product — added to Products with this delivery</p>
+                        <div className="rounded-lg p-2 space-y-2 bg-info-soft">
+                          <p className="text-[11px] font-semibold flex items-center gap-1 text-brand"><Sparkles size={11} /> New product — added to Products with this delivery</p>
                           <input aria-label="New product name" required value={l.newProduct.name} onChange={(e) => updateNew(l.key, { name: e.target.value })} className={inputCls} placeholder="Product name" />
                           <div className="grid grid-cols-3 gap-2">
                             <select aria-label="Category" required value={l.newProduct.categoryId} onChange={(e) => updateNew(l.key, { categoryId: e.target.value })} className={inputCls}>
@@ -191,30 +191,30 @@ export default function RestockModal({ open, initialLines, products, categories,
                         <div className="relative">
                           <input aria-label={`Quantity, line ${i + 1}`} required type="number" step="0.01" min="0.01" value={l.quantity}
                             onChange={(e) => update(l.key, { quantity: e.target.value })} className={`${inputCls} pr-10`} placeholder="Qty" />
-                          {unit && <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-gray-400 pointer-events-none">{unit}</span>}
+                          {unit && <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-ink-4 pointer-events-none">{unit}</span>}
                         </div>
                         <div className="relative">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">₱</span>
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-ink-4 pointer-events-none">₱</span>
                           <input aria-label={`Unit cost, line ${i + 1}`} required type="number" step="0.01" min="0" value={l.unitCost}
                             onChange={(e) => update(l.key, { unitCost: e.target.value })} className={`${inputCls} pl-6`} placeholder="Unit cost" />
                         </div>
-                        <span className="text-sm font-semibold text-gray-900 num w-[92px] text-right">{peso(lineTotal(l))}</span>
+                        <span className="text-sm font-semibold text-ink num w-[92px] text-right">{peso(lineTotal(l))}</span>
                       </div>
                       {plan && (
-                        <p className="text-[11px] text-gray-500 flex flex-wrap items-center gap-x-2">
+                        <p className="text-[11px] text-ink-3 flex flex-wrap items-center gap-x-2">
                           {plan.eoq != null ? <>EOQ suggests <b>{plan.eoq} {plan.unit}</b></> : <>No sales yet, no EOQ suggestion</>}
-                          <span className="text-gray-300">·</span> reorder at {plan.reorderPoint}
-                          {plan.costSource === "restock" && <><span className="text-gray-300">·</span> last paid {peso(plan.unitCost)}</>}
+                          <span className="text-ink-4">·</span> reorder at {plan.reorderPoint}
+                          {plan.costSource === "restock" && <><span className="text-ink-4">·</span> last paid {peso(plan.unitCost)}</>}
                           {plan.eoq != null && l.quantity !== String(plan.eoq) && (
-                            <button type="button" className="font-semibold hover:underline" style={{ color: "var(--brand)" }}
+                            <button type="button" className="font-semibold hover:underline text-brand"
                               onClick={() => update(l.key, { quantity: String(plan.eoq) })}>Use {plan.eoq}</button>
                           )}
                         </p>
                       )}
                     </div>
                     <button type="button" onClick={() => remove(l.key)} disabled={lines.length === 1} aria-label={`Remove line ${i + 1}`}
-                      className="w-8 h-8 mt-0.5 shrink-0 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:hover:bg-transparent transition">
-                      <Trash2 size={ICON_SIZE.sm} />
+                      className="mt-0.5 inline-flex h-8 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-bad transition hover:bg-bad-soft disabled:opacity-30 disabled:hover:bg-transparent">
+                      <Trash2 className="size-3.5" /> Remove
                     </button>
                   </div>
                 </li>
@@ -223,22 +223,22 @@ export default function RestockModal({ open, initialLines, products, categories,
           </ul>
           <div className="flex flex-wrap gap-2 mt-2">
             <button type="button" onClick={() => setLines((ls) => [...ls, newLine()])}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 transition">
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg text-brand bg-brand-soft hover:bg-brand-soft transition">
               <Plus size={ICON_SIZE.xs} /> Add another product
             </button>
             <button type="button" onClick={() => setLines((ls) => [...ls, newLine({ newProduct: { name: "", categoryId: "", unit: "pc", price: "" } })])}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg text-gray-600 bg-gray-100 hover:bg-gray-200 transition">
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg text-ink-2 bg-recess hover:bg-line transition">
               <PackagePlus size={ICON_SIZE.xs} /> New product (not in the system yet)
             </button>
           </div>
         </div>
 
         <div>
-          <label htmlFor="rs-note" className="block text-xs font-medium text-gray-600 mb-1">Note <span className="text-gray-400">(optional)</span></label>
+          <label htmlFor="rs-note" className="block text-xs font-medium text-ink-2 mb-1">Note <span className="text-ink-4">(optional)</span></label>
           <input id="rs-note" value={note} onChange={(e) => setNote(e.target.value)} className={inputCls} placeholder="Remarks about this delivery" />
         </div>
 
-        {error && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+        {error && <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
       </form>
     </Modal>
   );

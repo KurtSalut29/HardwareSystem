@@ -12,7 +12,7 @@ type DrawerProps = {
   title?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  width?: "sm" | "md" | "lg";
+  width?: "sm" | "md" | "lg" | "xl";
   /**
    * Where the panel sits. "edge" is the classic side sheet; "center" floats it
    * in the middle of the screen — which is what the cart uses, so the customer
@@ -26,6 +26,7 @@ const WIDTH_CLASS: Record<string, string> = {
   sm: "max-w-sm",
   md: "max-w-md",
   lg: "max-w-lg",
+  xl: "max-w-3xl",
 };
 
 export default function Drawer({
@@ -74,20 +75,20 @@ export default function Drawer({
       <div
         className={
           centered
-            ? `relative w-full ${WIDTH_CLASS[width]} max-h-full bg-white shadow-2xl rounded-2xl flex flex-col overflow-hidden transition-all duration-200 ${open ? "opacity-100 scale-100 animate-panel-in" : "opacity-0 scale-95"}`
-            : `relative w-full ${WIDTH_CLASS[width]} h-full bg-white shadow-2xl flex flex-col transition-transform duration-200 ${open ? "translate-x-0 animate-drawer-in" : "translate-x-full"}`
+            ? `relative w-full ${WIDTH_CLASS[width]} max-h-full bg-surface shadow-2xl rounded-2xl flex flex-col overflow-hidden transition-all duration-200 ${open ? "opacity-100 scale-100 animate-panel-in" : "opacity-0 scale-95"}`
+            : `relative w-full ${WIDTH_CLASS[width]} h-full bg-surface shadow-2xl flex flex-col transition-transform duration-200 ${open ? "translate-x-0 animate-drawer-in" : "translate-x-full"}`
         }
       >
         {title && (
-          <div className="flex items-center justify-between p-5 border-b border-gray-100 shrink-0">
-            <div className="font-semibold text-gray-800 flex items-center gap-2">{title}</div>
+          <div className="flex items-center justify-between p-5 border-b border-line shrink-0">
+            <div className="flex items-center gap-2 font-display text-base font-extrabold tracking-tight text-ink">{title}</div>
             <IconButton icon={<X size={ICON_SIZE.md} />} onClick={onClose} title="Close" />
           </div>
         )}
         <div className="flex-1 overflow-y-auto min-h-0">{children}</div>
         {/* max-h + scroll so an unusually tall footer can never push its own
             controls past the bottom of the panel with no way to reach them. */}
-        {footer && <div className="border-t border-gray-100 shrink-0 max-h-[60vh] overflow-y-auto">{footer}</div>}
+        {footer && <div className="border-t border-line shrink-0 max-h-[60vh] overflow-y-auto">{footer}</div>}
       </div>
     </div>,
     document.body

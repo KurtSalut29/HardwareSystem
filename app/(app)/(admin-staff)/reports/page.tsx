@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Printer, Send, Inbox, FileText, CalendarDays, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowLeft, Printer, Send, Inbox, FileText, CalendarDays, CheckCircle2, Loader2, MessageSquareText } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
@@ -9,7 +9,7 @@ import Pagination, { usePagination } from "@/components/ui/Pagination";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/ToastProvider";
 import ReportSheet, { SheetSummary } from "@/components/reports/ReportSheet";
-import { ICON_SIZE } from "@/lib/constants/icon-size";
+import Segmented from "@/components/ui/Segmented";
 import { roleLabel } from "@/lib/roles";
 
 type Summary = SheetSummary & { periodStart: string; periodEnd: string };
@@ -76,11 +76,11 @@ export default function ReportsPage() {
   }, []);
 
   if (role === null) {
-    return <p className="text-sm py-16 text-center" style={{ color: "var(--text-faint)" }}>Loading…</p>;
+    return <SheetSkeleton />;
   }
   if (role === "cashier") return <StaffReports username={username} />;
   if (role === "admin") return <AdminReports username={username} />;
-  return <p className="text-sm py-16 text-center" style={{ color: "var(--text-faint)" }}>Reports aren&apos;t available for your account.</p>;
+  return <p className="py-16 text-center text-sm text-ink-4">Reports aren&apos;t available for your account.</p>;
 }
 
 /* ================================================================== */
@@ -133,7 +133,7 @@ function StaffReports({ username }: { username: string }) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <ConfirmModal
         open={confirmSend}
         onClose={() => setConfirmSend(false)}
@@ -141,22 +141,23 @@ function StaffReports({ username }: { username: string }) {
         title="Send this report to the admin?"
         body={`Your sales for ${periodLabel(from, to)} will be sent to the admin as an accomplishment report. The figures are locked in at the moment you send.`}
         variant="info"
-        confirmLabel={sending ? "Sending…" : "Yes, Send Report"}
+        confirmLabel={sending ? "Sending…" : "Yes, send report"}
       />
 
       <div className="no-print">
         <PageHeader
-          title="Sales & Accomplishment Report"
+          eyebrow="Reporting"
+          title="Sales report"
           subtitle="Compile your takings for a day, print a copy, and send it to the admin."
           action={
-            <div className="flex gap-2">
-              <Button variant="secondary" icon={<Printer size={ICON_SIZE.sm} />} onClick={() => window.print()} disabled={!summary}>
+            <>
+              <Button variant="secondary" icon={<Printer className="size-4" />} onClick={() => window.print()} disabled={!summary}>
                 Print
               </Button>
-              <Button icon={<Send size={ICON_SIZE.sm} />} onClick={() => setConfirmSend(true)} disabled={!summary || loading}>
-                Send to Admin
+              <Button icon={<Send className="size-4" />} onClick={() => setConfirmSend(true)} disabled={!summary || loading}>
+                Send to admin
               </Button>
-            </div>
+            </>
           }
         />
       </div>
@@ -177,20 +178,21 @@ function StaffReports({ username }: { username: string }) {
       )}
 
       {/* Remarks are part of the printed sheet above, edited here. */}
-      <div className="no-print bg-white rounded-2xl border p-5" style={{ borderColor: "var(--border)" }}>
-        <label className="block text-xs font-bold uppercase tracking-wide mb-2" style={{ color: "var(--text-muted)" }}>
-          Remarks for the admin <span className="font-medium normal-case tracking-normal">(optional)</span>
+      <div className="no-print rounded-2xl border border-line bg-surface p-5">
+        <label htmlFor="report-note" className="mb-2 flex items-center gap-2 font-display text-[15px] font-extrabold text-ink">
+          <span className="grid size-8 place-items-center rounded-lg bg-brand-soft text-brand"><MessageSquareText className="size-4" /></span>
+          Remarks for the admin <span className="font-sans text-xs font-medium text-ink-4">optional</span>
         </label>
         <textarea
+          id="report-note"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={3}
           maxLength={2000}
           placeholder="Anything the admin should know — stock that ran out, a refund, an unusual sale…"
-          className="w-full text-sm border rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-4 transition"
-          style={{ borderColor: "var(--border-strong)", ["--tw-ring-color" as string]: "var(--brand-soft)" }}
+          className="w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm text-ink transition placeholder:text-ink-4 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
         />
-        <p className="text-[11px] mt-1.5" style={{ color: "var(--text-faint)" }}>
+        <p className="mt-1.5 text-[11.5px] text-ink-4">
           Whatever you type here appears on the printed sheet and is sent with the report.
         </p>
       </div>
@@ -264,25 +266,26 @@ function AdminReports({ username }: { username: string }) {
   }, [open]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="no-print">
         <PageHeader
-          title="Sales Reports"
+          eyebrow="Reporting"
+          title="Sales reports"
           subtitle="The store's overall sales, and the accomplishment reports your staff have sent in."
           action={
-            <Button variant="secondary" icon={<Printer size={ICON_SIZE.sm} />} onClick={() => window.print()}>
+            <Button variant="secondary" icon={<Printer className="size-4" />} onClick={() => window.print()}>
               Print
             </Button>
           }
         />
 
-        <div className="flex gap-1 p-1 rounded-xl w-fit mb-4" style={{ background: "var(--bg-muted)" }}>
-          <TabButton active={tab === "store"} onClick={() => { setTab("store"); setOpen(null); }} icon={<FileText size={ICON_SIZE.sm} />}>
-            Store sales
-          </TabButton>
-          <TabButton active={tab === "received"} onClick={() => setTab("received")} icon={<Inbox size={ICON_SIZE.sm} />} badge={unread || undefined}>
-            From staff
-          </TabButton>
+        <div className="mt-5">
+          <Segmented label="Report" value={tab}
+            onChange={(k) => { setTab(k); if (k === "store") setOpen(null); }}
+            options={[
+              { key: "store", label: "Store sales", icon: <FileText className="size-4" /> },
+              { key: "received", label: "From staff", icon: <Inbox className="size-4" />, count: unread || undefined },
+            ]} />
         </div>
       </div>
 
@@ -304,13 +307,13 @@ function AdminReports({ username }: { username: string }) {
       ) : open && openSummary ? (
         <>
           <div className="no-print flex flex-wrap items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setOpen(null)}>← Back to inbox</Button>
+            <Button variant="secondary" size="sm" icon={<ArrowLeft className="size-3.5" />} onClick={() => setOpen(null)}>Back to inbox</Button>
             {open.status !== "read" && (
-              <Button size="sm" icon={<CheckCircle2 size={ICON_SIZE.sm} />} onClick={() => markRead(open)}>
+              <Button variant="soft" size="sm" icon={<CheckCircle2 className="size-3.5" />} onClick={() => markRead(open)}>
                 Mark as read
               </Button>
             )}
-            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            <span className="text-xs text-ink-3">
               Sent {new Date(open.createdAt).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })}
             </span>
           </div>
@@ -338,67 +341,30 @@ function AdminReports({ username }: { username: string }) {
 
 /* ============================== shared ============================== */
 
-function TabButton({ active, onClick, icon, badge, children }: {
-  active: boolean; onClick: () => void; icon: React.ReactNode; badge?: number; children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold transition"
-      style={active
-        ? { background: "var(--bg-card)", color: "var(--text-primary)", boxShadow: "0 1px 2px rgba(16,24,64,0.08)" }
-        : { color: "var(--text-muted)" }}
-    >
-      {icon}
-      {children}
-      {badge != null && (
-        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white num" style={{ background: "var(--brand)" }}>
-          {badge}
-        </span>
-      )}
-    </button>
-  );
-}
-
-// Daily / Weekly / Monthly presets plus the date inputs above them for a
-// user-defined custom period — both admin and staff get the same set, since
-// both generate reports day to day.
+// Daily / Weekly / Monthly presets plus date inputs for a custom period —
+// admin and staff get the same set, since both generate reports day to day.
 function RangePicker({ from, to, setFrom, setTo }: {
   from: string; to: string; setFrom: (v: string) => void; setTo: (v: string) => void;
 }) {
-  const presets: { label: string; apply: () => void }[] = [
-    { label: "Today", apply: () => { setFrom(todayISO()); setTo(todayISO()); } },
-    { label: "Yesterday", apply: () => { setFrom(shiftISO(-1)); setTo(shiftISO(-1)); } },
-    { label: "This Week", apply: () => { setFrom(startOfWeekISO()); setTo(todayISO()); } },
-    { label: "This Month", apply: () => { setFrom(startOfMonthISO()); setTo(todayISO()); } },
+  const presets: { key: string; label: string; from: string; to: string }[] = [
+    { key: "today", label: "Today", from: todayISO(), to: todayISO() },
+    { key: "yesterday", label: "Yesterday", from: shiftISO(-1), to: shiftISO(-1) },
+    { key: "week", label: "This week", from: startOfWeekISO(), to: todayISO() },
+    { key: "month", label: "This month", from: startOfMonthISO(), to: todayISO() },
   ];
+  const active = presets.find((p) => p.from === from && p.to === to)?.key ?? "custom";
+  const DATE = "h-9 rounded-xl border border-line bg-surface px-2.5 text-[13px] text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20";
 
   return (
-    <div className="no-print bg-white rounded-2xl border p-4 flex flex-wrap items-end gap-3" style={{ borderColor: "var(--border)" }}>
-      <div className="flex items-center gap-2 mr-1">
-        <CalendarDays size={ICON_SIZE.md} style={{ color: "var(--brand)" }} />
-        <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Period</span>
-      </div>
-      <div>
-        <label className="block text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--text-faint)" }}>From</label>
-        <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)}
-          className="text-sm border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 transition"
-          style={{ borderColor: "var(--border-strong)", ["--tw-ring-color" as string]: "var(--brand-soft)" }} />
-      </div>
-      <div>
-        <label className="block text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--text-faint)" }}>To</label>
-        <input type="date" value={to} min={from} max={todayISO()} onChange={(e) => setTo(e.target.value)}
-          className="text-sm border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 transition"
-          style={{ borderColor: "var(--border-strong)", ["--tw-ring-color" as string]: "var(--brand-soft)" }} />
-      </div>
-      <div className="flex flex-wrap gap-1.5 ml-auto">
-        {presets.map((p) => (
-          <button key={p.label} onClick={p.apply}
-            className="px-3 py-2 rounded-lg text-xs font-bold border transition hover:bg-[color:var(--bg-muted)]"
-            style={{ borderColor: "var(--border-strong)", color: "var(--text-secondary)" }}>
-            {p.label}
-          </button>
-        ))}
+    <div className="no-print flex flex-wrap items-center gap-2">
+      <Segmented label="Period" value={active}
+        onChange={(k) => { const p = presets.find((x) => x.key === k); if (p) { setFrom(p.from); setTo(p.to); } }}
+        options={[...presets.map((p) => ({ key: p.key, label: p.label })), { key: "custom", label: "Custom" }]} />
+      <div className="flex items-center gap-1.5">
+        <CalendarDays className="size-4 text-ink-4" />
+        <input type="date" aria-label="From" value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} className={DATE} />
+        <span className="text-xs text-ink-4">to</span>
+        <input type="date" aria-label="To" value={to} min={from} max={todayISO()} onChange={(e) => e.target.value && setTo(e.target.value)} className={DATE} />
       </div>
     </div>
   );
@@ -406,9 +372,9 @@ function RangePicker({ from, to, setFrom, setTo }: {
 
 function SheetSkeleton() {
   return (
-    <div className="bg-white rounded-2xl border p-8 flex items-center justify-center gap-2" style={{ borderColor: "var(--border)", minHeight: 320 }}>
-      <Loader2 size={ICON_SIZE.md} className="animate-spin" style={{ color: "var(--brand)" }} />
-      <span className="text-sm" style={{ color: "var(--text-muted)" }}>Compiling figures…</span>
+    <div className="flex min-h-[320px] items-center justify-center gap-2 rounded-2xl border border-line bg-surface p-8">
+      <Loader2 className="size-4 animate-spin text-brand" />
+      <span className="text-sm text-ink-3">Compiling figures…</span>
     </div>
   );
 }
@@ -418,46 +384,43 @@ function SentList({ reports, emptyText, onOpen, showAuthor }: {
 }) {
   const paging = usePagination(reports, 8);
   return (
-    <div className="no-print bg-white rounded-2xl border overflow-hidden" style={{ borderColor: "var(--border)" }}>
-      <div className="px-5 py-3.5 border-b" style={{ borderColor: "var(--border)" }}>
-        <h2 className="font-display text-sm font-extrabold" style={{ color: "var(--text-primary)" }}>
-          {showAuthor ? "Reports received" : "Reports you've sent"}
-        </h2>
-      </div>
+    <section className="no-print overflow-hidden rounded-2xl border border-line bg-surface">
+      <h2 className="flex items-center gap-2 border-b border-line px-4 py-3 font-display text-[15px] font-extrabold text-ink">
+        <span className="grid size-8 place-items-center rounded-lg bg-brand-soft text-brand"><Inbox className="size-4" /></span>
+        {showAuthor ? "Reports received" : "Reports you've sent"}
+        <span className="num font-sans text-sm font-normal text-ink-4">{reports.length}</span>
+      </h2>
       {reports.length === 0 ? (
         <EmptyState icon={Inbox} title="Nothing here yet" description={emptyText} />
       ) : (
-        <ul>
+        <ul className="divide-y divide-line">
           {paging.pageItems.map((r) => {
+            const unread = r.status !== "read";
             const row = (
-              <div className="flex flex-wrap items-center gap-3 px-5 py-3.5">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${unread && showAuthor ? "bg-brand-soft text-brand" : "bg-recess text-ink-3"}`}>
+                  <FileText className="size-4" />
+                </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold truncate" style={{ color: "var(--text-primary)" }}>{r.title}</p>
-                  <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                  <p className={`truncate text-[14px] text-ink ${unread && showAuthor ? "font-bold" : "font-semibold"}`}>{r.title}</p>
+                  <p className="truncate text-[12px] text-ink-4">
                     {showAuthor && <>{r.author.username} · </>}
                     {new Date(r.createdAt).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })}
-                    {" · "}{r.totalTransactions} transaction{r.totalTransactions === 1 ? "" : "s"}
+                    {" · "}{r.totalTransactions} sale{r.totalTransactions === 1 ? "" : "s"}
                   </p>
                 </div>
-                <p className="font-display text-base font-extrabold num shrink-0" style={{ color: "var(--text-primary)" }}>
-                  ₱{r.totalSales.toFixed(2)}
+                <p className="num shrink-0 font-display text-[15px] font-extrabold text-ink">
+                  ₱{r.totalSales.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                <span
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0"
-                  style={r.status === "read"
-                    ? { background: "var(--good-soft)", color: "var(--good)" }
-                    : { background: "var(--brand-soft)", color: "var(--brand)" }}
-                >
-                  {r.status === "read" ? "Read" : "Sent"}
+                <span className={`hidden shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold sm:inline ${r.status === "read" ? "bg-good-soft text-good" : "bg-brand-soft text-brand-ink"}`}>
+                  {r.status === "read" ? "Read" : showAuthor ? "New" : "Sent"}
                 </span>
               </div>
             );
             return (
-              <li key={r.id} className="border-b last:border-b-0" style={{ borderColor: "var(--border)" }}>
+              <li key={r.id}>
                 {onOpen ? (
-                  <button onClick={() => onOpen(r)} className="w-full text-left transition hover:bg-[color:var(--bg-subtle)]">
-                    {row}
-                  </button>
+                  <button type="button" onClick={() => onOpen(r)} className="w-full text-left transition hover:bg-subtle">{row}</button>
                 ) : row}
               </li>
             );
@@ -465,6 +428,6 @@ function SentList({ reports, emptyText, onOpen, showAuthor }: {
         </ul>
       )}
       <Pagination {...paging} onChange={paging.setPage} noun="reports" />
-    </div>
+    </section>
   );
 }

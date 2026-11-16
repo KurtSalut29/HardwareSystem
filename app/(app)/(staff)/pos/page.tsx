@@ -2,20 +2,19 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Search, ShoppingCart, Trash2, Clock, Package, ChevronDown, ChevronRight, PackageSearch } from "lucide-react";
-import PageHeader from "@/components/ui/PageHeader";
+import { ShoppingCart, Trash2, Clock, Package, PackageSearch, Minus, Plus, Banknote, Smartphone, CreditCard, Receipt as ReceiptIcon, ScanLine } from "lucide-react";
 import Drawer from "@/components/ui/Drawer";
 import ConfirmModal from "@/components/ui/ConfirmModal";
-import Button from "@/components/ui/Button";
-import EmptyState from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/ToastProvider";
-import { ICON_SIZE } from "@/lib/constants/icon-size";
-import Image from "next/image";
+import ProductThumb from "@/components/catalog/ProductThumb";
+import CatalogToolbar, { type SortKey } from "@/components/catalog/CatalogToolbar";
+import { fmtQty, peso, stockState } from "@/lib/catalog-ui";
+import { filterProducts } from "@/lib/useCatalog";
 
 import { customerLabel } from "@/lib/customer";
 import ReceiptModal, { type ReceiptData } from "@/components/receipts/Receipt";
 type Category = { id: number; name: string };
-type Product = { brand?: string | null; id: number; name: string; category: Category; subcategory: string | null; price: number; unit: string; stock: number; image: string | null; description: string | null };
+type Product = { brand?: string | null; id: number; name: string; categoryId: number; category: Category; subcategory: string | null; price: number; unit: string; stock: number; image: string | null; description: string | null };
 // `orderQty` is how much of the line came from a customer's online order (stock already reserved).
 type CartItem = Product & { quantity: number; fromOrder?: boolean; orderQty?: number };
 type OItem = { id: number; quantity: number; price: number; product: { name: string }; productId: number };
@@ -26,17 +25,112 @@ type ActiveTab = "products" | "orders";
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const stepFor = (unit: string) => (unit === "kg" ? 0.25 : 1);
 const KG_PRESETS: { label: string; value: number }[] = [
-  { label: "¼ kg", value: 0.25 },
-  { label: "½ kg", value: 0.5 },
+  { label: "¼", value: 0.25 },
+  { label: "½", value: 0.5 },
   { label: "1 kg", value: 1 },
 ];
+const PAYMENTS = [
+  { value: "Cash", icon: Banknote },
+  { value: "GCash", icon: Smartphone },
+  { value: "Card", icon: CreditCard },
+] as const;
+
+/** The sale being rung up, like a receipt growing at the counter. Shown beside the products on a desktop, in a drawer on a phone. */
+function Ticket({ cart, total, count, loadedOrderIds, paymentMethod, busy, onPayment, onQty, onRemove, onClear, onCharge }: {
+  cart: CartItem[]; total: number; count: number; loadedOrderIds: number[]; paymentMethod: string; busy: boolean;
+  onPayment: (m: string) => void; onQty: (id: number, q: number) => void; onRemove: (id: number) => void; onClear: () => void; onCharge: () => void;
+}) {
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex items-center justify-between gap-2 border-b border-dashed border-line-strong px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-ink-4">Current sale</p>
+          <p className="font-display text-base font-extrabold text-ink">{cart.length ? `${cart.length} line${cart.length === 1 ? "" : "s"} · ${fmtQty(count)} item${count === 1 ? "" : "s"}` : "Nothing yet"}</p>
+        </div>
+        {cart.length > 0 && (
+          <button type="button" onClick={onClear} className="rounded-lg px-2 py-1 text-xs font-semibold text-ink-4 transition hover:bg-bad-soft hover:text-bad">Clear</button>
+        )}
+      </div>
+
+      {loadedOrderIds.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 border-b border-line px-4 py-2">
+          {loadedOrderIds.map((id) => (
+            <span key={id} className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-brand-ink">
+              <ReceiptIcon className="size-3" /> Order #{id}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+        {cart.length === 0 ? (
+          <div className="grid h-full place-items-center px-6 py-10 text-center">
+            <div>
+              <ScanLine className="mx-auto size-10 text-ink-4" strokeWidth={1.4} />
+              <p className="mt-3 text-sm font-semibold text-ink-2">Tap a product to start a sale</p>
+              <p className="mt-1 text-xs text-ink-4">Or load a customer&apos;s online order from Pending orders.</p>
+            </div>
+          </div>
+        ) : (
+          <ul className="space-y-1">
+            {cart.map((i) => (
+              <li key={i.id} className="rounded-xl px-2 py-2 transition hover:bg-subtle">
+                <div className="flex items-start gap-2.5">
+                  <ProductThumb size="row" image={i.image} name={i.name} category={i.category?.name} subcategory={i.subcategory} className="!size-9" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-semibold text-ink">{i.name}</p>
+                    <p className="num text-[11.5px] text-ink-4">{peso(i.price)} / {i.unit}{i.orderQty ? <span className="text-brand"> · online order</span> : null}</p>
+                  </div>
+                  <p className="num shrink-0 text-[13px] font-bold text-ink">{peso(i.price * i.quantity)}</p>
+                </div>
+                <div className="mt-1.5 flex items-center justify-between pl-[46px]">
+                  <div className="flex items-center rounded-lg border border-line bg-surface">
+                    <button type="button" onClick={() => onQty(i.id, i.quantity - stepFor(i.unit))} aria-label={`One less ${i.name}`}
+                      className="grid size-7 place-items-center rounded-l-lg text-ink-3 transition hover:bg-recess hover:text-ink"><Minus className="size-3.5" /></button>
+                    <span className="num min-w-[3.25rem] text-center text-[13px] font-semibold text-ink">{fmtQty(i.quantity)}{i.unit === "kg" ? " kg" : ""}</span>
+                    <button type="button" onClick={() => onQty(i.id, i.quantity + stepFor(i.unit))} aria-label={`One more ${i.name}`}
+                      className="grid size-7 place-items-center rounded-r-lg text-ink-3 transition hover:bg-recess hover:text-ink"><Plus className="size-3.5" /></button>
+                  </div>
+                  <button type="button" onClick={() => onRemove(i.id)} aria-label={`Remove ${i.name}`}
+                    className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg px-2 text-[11.5px] font-semibold text-bad transition hover:bg-bad-soft"><Trash2 className="size-3" /> Remove</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="space-y-3 border-t border-dashed border-line-strong bg-subtle px-4 py-4">
+        <div className="flex items-baseline justify-between">
+          <span className="text-sm font-semibold text-ink-3">Total</span>
+          <span className="num font-display text-[28px] font-extrabold leading-none tracking-tight text-ink">{peso(total)}</span>
+        </div>
+        <div className="grid grid-cols-3 gap-1 rounded-xl border border-line bg-surface p-1" role="group" aria-label="Payment method">
+          {PAYMENTS.map(({ value, icon: Icon }) => (
+            <button key={value} type="button" onClick={() => onPayment(value)} aria-pressed={paymentMethod === value}
+              className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-lg text-[13px] font-semibold transition ${
+                paymentMethod === value ? "bg-brand text-white" : "text-ink-3 hover:bg-recess hover:text-ink"}`}>
+              <Icon className="size-4" /> {value}
+            </button>
+          ))}
+        </div>
+        <button type="button" onClick={onCharge} disabled={!cart.length || busy}
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand text-[15px] font-bold text-white shadow-[0_10px_22px_-12px_rgba(30,79,216,0.9)] transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-line-strong disabled:shadow-none">
+          {busy ? "Recording the sale…" : cart.length ? <>Charge {peso(total)}</> : "Charge"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function POSPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [search, setSearch] = useState("");
-  const [filterCat, setFilterCat] = useState("All");
+  const [catId, setCatId] = useState<number | null>(null);
+  const [sub, setSub] = useState<string | null>(null);
+  const [sort, setSort] = useState<SortKey>("name");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [saleReceipt, setSaleReceipt] = useState<ReceiptData | null>(null);
   // Online orders loaded into the cart, linked to the sale at checkout.
@@ -45,12 +139,9 @@ export default function POSPage() {
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [loading, setLoading] = useState(false);
   const showToast = useToast();
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [activeSub, setActiveSub] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<ActiveTab>("products");
   const [activePopover, setActivePopover] = useState<number | null>(null);
   const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
-  const [kgInputs, setKgInputs] = useState<Record<number, string>>({});
   const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -85,28 +176,13 @@ export default function POSPage() {
     }
   }
 
-  const filtered = products.filter((p) => {
-    const q = search.toLowerCase();
-    const matchSearch = p.name.toLowerCase().includes(q) || (p.subcategory ?? "").toLowerCase().includes(q) || (p.brand ?? "").toLowerCase().includes(q);
-    const matchCat = filterCat === "All" || p.category.name === filterCat;
-    return matchSearch && matchCat;
-  });
-
-  const grouped = categories.reduce<Record<string, Product[]>>((acc, cat) => {
-    const items = filtered.filter((p) => p.category.id === cat.id);
-    if (items.length > 0) acc[cat.name] = items;
-    return acc;
-  }, {});
-
-  function getSubcats(items: Product[]) {
-    const seen = new Map<string, string>();
-    items.forEach((p) => {
-      if (!p.subcategory) return;
-      const key = p.subcategory.trim().toLowerCase();
-      if (!seen.has(key)) seen.set(key, p.subcategory);
-    });
-    return [...seen.values()];
-  }
+  // Categories that have products, A to Z, and the chosen one's subcategories.
+  const catList = categories
+    .map((c) => ({ ...c, count: products.filter((p) => p.categoryId === c.id).length }))
+    .filter((c) => c.count > 0)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const subList = catId === null ? [] : [...new Set(products.filter((p) => p.categoryId === catId && p.subcategory).map((p) => p.subcategory as string))].sort();
+  const list = filterProducts(products, { categoryId: catId, sub }, search, sort);
 
   function addToCart(product: Product, qty = 1, fromOrder = false) {
     if (product.stock === 0) return;
@@ -193,325 +269,194 @@ export default function POSPage() {
     setCartOpen(true);
   }
 
+  const pendingOrders = orders.filter((o) => o.status === "pending");
+  const ticket = (
+    <Ticket cart={cart} total={total} count={cartCount} loadedOrderIds={loadedOrderIds} paymentMethod={paymentMethod} busy={loading}
+      onPayment={setPaymentMethod} onQty={updateQty} onRemove={(id) => setCart((prev) => prev.filter((c) => c.id !== id))}
+      onClear={() => setShowClearConfirm(true)} onCharge={() => setShowCheckoutConfirm(true)} />
+  );
+
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title="Point of Sale"
-        subtitle="Process transactions and manage customer orders"
-        action={
-          cartCount > 0 ? (
-            <button onClick={() => setCartOpen(true)}
-              className="flex items-center gap-2.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl shadow-sm font-semibold text-sm transition active:scale-[0.98]">
-              <ShoppingCart size={ICON_SIZE.md} />
-              <span>{cartCount} item{cartCount > 1 ? "s" : ""}</span>
-              <span className="bg-white/20 rounded-lg px-2 py-0.5">₱{total.toFixed(2)}</span>
-            </button>
-          ) : undefined
-        }
-      />
-
-      {/* Tab Bar */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-        <button onClick={() => setActiveTab("products")}
-          className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition ${activeTab === "products" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
-          Products
-        </button>
-        <button onClick={() => setActiveTab("orders")}
-          className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold transition ${activeTab === "orders" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
-          Pending Orders
-          {totalPending > 0 && <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{totalPending}</span>}
-        </button>
-      </div>
-
-      {activeTab === "products" && (
-        <div className="space-y-3">
-          <div className="relative max-w-md">
-            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products by name..."
-              className="w-full pl-11 pr-4 py-3 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 transition placeholder:text-gray-400" />
+    <div className={`grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1fr)_360px] ${cart.length > 0 ? "pb-24 xl:pb-0" : ""}`}>
+      <div className="min-w-0 space-y-4">
+        <header className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-brand">Counter</p>
+            <h1 className="mt-1 font-display text-[28px] font-extrabold leading-none tracking-tight text-ink">Point of Sale</h1>
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap md:overflow-visible md:pb-0">
-            {["All", ...categories.map((c) => c.name)].map((c) => (
-              <button key={c} onClick={() => setFilterCat(c)}
-                className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium transition ${filterCat === c ? "bg-blue-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
-                {c}
+          <div className="flex rounded-xl border border-line bg-surface p-1" role="tablist" aria-label="Sell from">
+            {(["products", "orders"] as const).map((t) => (
+              <button key={t} type="button" role="tab" aria-selected={activeTab === t} onClick={() => setActiveTab(t)}
+                className={`inline-flex h-9 items-center gap-2 rounded-lg px-3.5 text-[13px] font-semibold transition ${
+                  activeTab === t ? "bg-brand-soft text-brand-ink" : "text-ink-3 hover:text-ink"}`}>
+                {t === "products" ? "Products" : "Pending orders"}
+                {t === "orders" && totalPending > 0 && (
+                  <span className="rounded-full bg-warn px-1.5 py-px text-[10.5px] font-bold text-white">{totalPending}</span>
+                )}
               </button>
             ))}
           </div>
-        </div>
-      )}
+        </header>
 
-      {/* Products Tab — full width */}
-      {activeTab === "products" && (
-        <div className="space-y-6">
-          {Object.keys(grouped).length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200">
-              <EmptyState icon={PackageSearch} title="No products found" description="Try a different search or category filter." />
-            </div>
-          ) : Object.entries(grouped).map(([catName, items]) => (
-            <div key={catName}>
-              <button onClick={() => setCollapsed((prev) => ({ ...prev, [catName]: !prev[catName] }))}
-                className="flex items-center gap-2.5 mb-3">
-                {collapsed[catName] ? <ChevronRight size={ICON_SIZE.sm} className="text-gray-400" /> : <ChevronDown size={ICON_SIZE.sm} className="text-gray-400" />}
-                <span className="font-bold text-gray-900 text-sm">{catName}</span>
-                <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">{items.length}</span>
-              </button>
+        {activeTab === "products" ? (
+          <>
+            <CatalogToolbar query={search} onQuery={setSearch} sort={sort} onSort={setSort}
+              sorts={["name", "category", "price_asc", "price_desc"]} placeholder="Scan or type a product, brand or code" />
 
-              {!collapsed[catName] && (() => {
-                const subcats = getSubcats(items);
-                const currentSub = activeSub[catName] ?? "All";
-                const visibleItems = currentSub === "All" ? items : items.filter((p) =>
-                  p.subcategory?.trim().toLowerCase() === currentSub.trim().toLowerCase()
-                );
-                return (
-                  <>
-                    {subcats.length > 0 && (
-                      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap md:overflow-visible md:pb-0 mb-3">
-                        {["All", ...subcats].map((s) => (
-                          <button key={s} onClick={() => setActiveSub((prev) => ({ ...prev, [catName]: s }))}
-                            className={`shrink-0 whitespace-nowrap px-3 py-1 rounded-lg text-xs font-medium transition border ${currentSub === s ? "bg-blue-600 text-white border-blue-600" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
-                      {visibleItems.map((p) => {
-                        const pendingEntries = productOrderMap.get(p.id) ?? [];
-                        const pendingQty = pendingEntries.reduce((s, e) => s + e.quantity, 0);
-                        const isOpen = activePopover === p.id;
-                        const inCart = cart.find((i) => i.id === p.id);
-                        const stockStyle =
-                          p.stock === 0
-                            ? { background: "var(--bad-soft)", color: "var(--bad)" }
-                            : p.stock <= 5
-                            ? { background: "var(--warn-soft)", color: "var(--warn)" }
-                            : { background: "var(--good-soft)", color: "var(--good)" };
-                        const stockLabel = p.stock === 0 ? "Out of stock" : p.stock <= 5 ? `${p.stock} left` : "In stock";
-                        return (
-                          <div key={p.id} className={`group relative bg-white rounded-2xl border flex flex-col shadow-sm transition-[transform,border-color] duration-200 hover:-translate-y-0.5
-                            ${inCart ? "border-blue-300 ring-2 ring-blue-100" : pendingEntries.length > 0 ? "border-amber-300 ring-2 ring-amber-100" : "border-[color:var(--border-strong)] hover:border-blue-300"}`}>
-
-                            {pendingEntries.length > 0 && (
-                              <button onClick={(e) => {
-                                if (isOpen) { setActivePopover(null); setPopoverPos(null); return; }
-                                const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                                const popoverWidth = 240;
-                                const rawLeft = rect.left + window.scrollX - 180;
-                                const clampedLeft = Math.max(8, Math.min(rawLeft, window.innerWidth - popoverWidth - 8));
-                                setPopoverPos({ top: rect.bottom + window.scrollY + 6, left: clampedLeft });
-                                setActivePopover(p.id);
-                              }}
-                                className={`absolute top-2 right-2 z-10 flex items-center gap-1 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow transition
-                                  ${isOpen ? "bg-amber-600" : "bg-amber-500 hover:bg-amber-600"}`}>
-                                <Package size={ICON_SIZE.xs} /> {pendingEntries.length} · {pendingQty}
-                              </button>
-                            )}
-
-                            <div className="relative w-full aspect-[4/3] bg-gray-50 overflow-hidden rounded-t-2xl">
-                              {p.image ? (
-                                <Image
-                                  src={p.image}
-                                  alt={p.name}
-                                  fill
-                                  sizes="(max-width: 640px) 50vw, (max-width: 1280px) 25vw, 20vw"
-                                  className="object-cover transition-transform duration-300 group-hover:scale-[1.06]"
-                                />
-                              ) : (
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                  <div
-                                    className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-display font-extrabold text-lg shadow-sm"
-                                    style={{ background: "linear-gradient(155deg, var(--brand), var(--brand-ink))" }}
-                                  >
-                                    {p.name.charAt(0)}
-                                  </div>
-                                </div>
-                              )}
-                              {/* Stock chip — only when it's not already covered by the pending-orders badge on the right */}
-                              <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-[3px] rounded-full shadow-sm" style={stockStyle}>
-                                {stockLabel}
-                              </span>
-                            </div>
-
-                            <div className="p-2.5 flex flex-col flex-1">
-                              {p.subcategory && (
-                                <span
-                                  className="self-start text-[9px] font-bold px-1.5 py-[2px] rounded uppercase tracking-wider mb-1"
-                                  style={{ background: "var(--bg-muted)", color: "var(--text-muted)" }}
-                                >
-                                  {p.subcategory}
-                                </span>
-                              )}
-                              {p.brand && <p className="text-[9.5px] font-bold uppercase tracking-wide truncate" style={{ color: "var(--brand)" }}>{p.brand}</p>}
-                              <p className="text-xs font-semibold text-gray-900 leading-tight line-clamp-2">{p.name}</p>
-                              <div className="mt-auto pt-2 border-t border-gray-50">
-                                <span className="text-sm font-bold text-gray-900 num">₱{p.price.toFixed(2)}</span>
-                              </div>
-                            </div>
-
-                            <div className="px-2.5 pb-2.5">
-                              {inCart ? (
-                                <div className="flex items-center justify-between gap-1">
-                                  <button onClick={() => updateQty(p.id, inCart.quantity - stepFor(p.unit))} className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm flex items-center justify-center">−</button>
-                                  <span className="text-sm font-semibold text-gray-800">{inCart.quantity}{p.unit === "kg" ? " kg" : ""}</span>
-                                  <button onClick={() => updateQty(p.id, inCart.quantity + stepFor(p.unit))} className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm flex items-center justify-center">+</button>
-                                  <button onClick={() => setCart((prev) => prev.filter((c) => c.id !== p.id))} className="w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 flex items-center justify-center"><Trash2 size={ICON_SIZE.xs} /></button>
-                                </div>
-                              ) : p.unit === "kg" ? (
-                                <div className="space-y-1">
-                                  <div className="grid grid-cols-3 gap-1">
-                                    {KG_PRESETS.map((preset) => (
-                                      <button key={preset.value} type="button"
-                                        onClick={() => setKgInputs((prev) => ({ ...prev, [p.id]: String(preset.value) }))}
-                                        className="py-1 text-[10px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition">
-                                        {preset.label}
-                                      </button>
-                                    ))}
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <input
-                                      type="number" step="0.01" min="0.01" placeholder="kg"
-                                      value={kgInputs[p.id] ?? ""}
-                                      onChange={(e) => setKgInputs((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                                      className="w-12 text-[11px] border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const qty = round2(parseFloat(kgInputs[p.id] ?? "0"));
-                                        if (!qty || qty <= 0) return;
-                                        addToCart(p, qty);
-                                        setKgInputs((prev) => ({ ...prev, [p.id]: "" }));
-                                      }}
-                                      disabled={p.stock === 0}
-                                      className="flex-1 py-1 text-[10px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed">
-                                      + Add
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <button onClick={() => addToCart(p)} disabled={p.stock === 0}
-                                  className="w-full py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed">
-                                  + Add
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Pending Orders Tab */}
-      {activeTab === "orders" && (
-        <div className="space-y-3">
-          {orders.filter((o) => o.status === "pending").length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400 text-sm">
-              <Clock size={ICON_SIZE.xl} className="mx-auto mb-2 opacity-30" />
-              No pending orders right now.
-            </div>
-          ) : orders.filter((o) => o.status === "pending").map((order) => (
-            <div key={order.id} className="bg-white rounded-xl border border-amber-200 overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 bg-amber-50/60 border-b border-amber-100">
-                <div className="flex items-center gap-2">
-                  <Clock size={ICON_SIZE.sm} className="text-amber-500" />
-                  <span className="font-semibold text-gray-900 text-sm">Order #{order.id}</span>
-                  <span className="text-xs text-gray-500">— {customerLabel(order)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-gray-900">₱{order.totalAmount.toFixed(2)}</span>
-                  <button onClick={() => loadOrderToCart(order)}
-                    className="flex items-center gap-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg transition">
-                    <ShoppingCart size={ICON_SIZE.xs} /> Load to Cart
+            <div className="-mx-4 min-w-0 space-y-2 sm:mx-0">
+              <div className="flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:flex-wrap sm:px-0" role="group" aria-label="Categories">
+                <button type="button" onClick={() => { setCatId(null); setSub(null); }} aria-pressed={catId === null}
+                  className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition ${catId === null ? "border-brand bg-brand text-white" : "border-line bg-surface text-ink-2 hover:border-line-strong"}`}>
+                  All
+                </button>
+                {catList.map((c) => (
+                  <button key={c.id} type="button" onClick={() => { setCatId(c.id); setSub(null); }} aria-pressed={catId === c.id}
+                    className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition ${catId === c.id ? "border-brand bg-brand text-white" : "border-line bg-surface text-ink-2 hover:border-line-strong"}`}>
+                    {c.name} <span className={catId === c.id ? "text-white/70" : "text-ink-4"}>{c.count}</span>
                   </button>
-                </div>
+                ))}
               </div>
-              <div className="divide-y divide-gray-50">
-                {order.items.map((item) => {
-                  const product = products.find((p) => p.id === item.productId);
+              {subList.length > 0 && (
+                <div className="flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:flex-wrap sm:px-0" role="group" aria-label="Subcategories">
+                  {[null, ...subList].map((s) => (
+                    <button key={s ?? "all"} type="button" onClick={() => setSub(s)} aria-pressed={sub === s}
+                      className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition ${sub === s ? "bg-brand-soft text-brand-ink ring-1 ring-brand/30" : "text-ink-3 hover:bg-recess hover:text-ink"}`}>
+                      {s ?? "All types"}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {list.length === 0 ? (
+              <div className="grid place-items-center rounded-2xl border border-dashed border-line-strong bg-surface px-6 py-14 text-center">
+                <PackageSearch className="size-10 text-ink-4" strokeWidth={1.5} />
+                <p className="mt-3 font-semibold text-ink-2">No product matches “{search}”</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+                {list.map((p) => {
+                  const pendingEntries = productOrderMap.get(p.id) ?? [];
+                  const pendingQty = pendingEntries.reduce((sum, e) => sum + e.quantity, 0);
+                  const isOpen = activePopover === p.id;
+                  const inCart = cart.find((i) => i.id === p.id);
+                  const st = stockState(p.stock, 5);
+                  const out = st === "out";
                   return (
-                    <div key={item.id} className="flex items-center gap-3 px-4 py-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                        {product?.image ? <Image src={product.image} alt={product.name} width={32} height={32} className="w-full h-full object-cover" /> : <Package size={ICON_SIZE.sm} className="text-gray-300" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{item.product.name}</p>
-                        {product?.subcategory && <p className="text-[11px] text-blue-500">{product.subcategory}</p>}
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-xs text-gray-500">× {item.quantity}</p>
-                        <p className="text-sm font-semibold text-gray-900">₱{(item.price * item.quantity).toFixed(2)}</p>
-                      </div>
+                    <div key={p.id} className={`group relative flex flex-col overflow-hidden rounded-xl border bg-surface transition ${
+                      inCart ? "border-brand ring-2 ring-brand/20" : "border-line hover:border-brand/40 hover:shadow-[0_10px_24px_-16px_rgba(18,50,127,0.5)]"} ${out ? "opacity-60" : ""}`}>
+                      {pendingEntries.length > 0 && (
+                        <button type="button" onClick={(e) => {
+                          if (isOpen) { setActivePopover(null); setPopoverPos(null); return; }
+                          const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                          const popoverWidth = 240;
+                          const rawLeft = rect.left + window.scrollX - 180;
+                          const clampedLeft = Math.max(8, Math.min(rawLeft, window.innerWidth - popoverWidth - 8));
+                          setPopoverPos({ top: rect.bottom + window.scrollY + 6, left: clampedLeft });
+                          setActivePopover(p.id);
+                        }}
+                          title={`${pendingEntries.length} online order${pendingEntries.length === 1 ? "" : "s"} waiting for ${fmtQty(pendingQty)} ${p.unit}`}
+                          className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-warn px-2 py-0.5 text-[10.5px] font-bold text-white shadow-sm transition hover:brightness-110">
+                          <Package className="size-3" /> {pendingEntries.length} order{pendingEntries.length === 1 ? "" : "s"}
+                        </button>
+                      )}
+                      {inCart && (
+                        <span className="num absolute left-2 top-2 z-10 rounded-full bg-brand px-2 py-0.5 text-[10.5px] font-bold text-white shadow-sm">
+                          × {fmtQty(inCart.quantity)}{p.unit === "kg" ? " kg" : ""}
+                        </span>
+                      )}
+
+                      <button type="button" onClick={() => addToCart(p)} disabled={out} aria-label={`Add ${p.name}`}
+                        className="flex flex-1 flex-col text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand disabled:cursor-not-allowed">
+                        <ProductThumb image={p.image} name={p.name} category={p.category?.name} subcategory={p.subcategory} className="aspect-[16/10]" />
+                        <span className="flex flex-1 flex-col px-3 pb-2.5 pt-2">
+                          <span className="line-clamp-2 min-h-[2.5em] text-[13px] font-semibold leading-tight text-ink">{p.name}</span>
+                          <span className="mt-1.5 flex items-baseline justify-between gap-2">
+                            <span className="num font-display text-[15px] font-extrabold text-ink">{peso(p.price)}<span className="font-sans text-[11px] font-medium text-ink-4">/{p.unit}</span></span>
+                            <span className={`num shrink-0 text-[11px] font-medium ${out ? "text-bad" : st === "low" ? "text-warn" : "text-ink-4"}`}>
+                              {out ? "Out" : `${fmtQty(p.stock)} left`}
+                            </span>
+                          </span>
+                        </span>
+                      </button>
+
+                      {p.unit === "kg" && !out && (
+                        <div className="grid grid-cols-3 gap-1 border-t border-line p-1.5">
+                          {KG_PRESETS.map((preset) => (
+                            <button key={preset.value} type="button" onClick={() => addToCart(p, preset.value)}
+                              className="rounded-md py-1 text-[11px] font-semibold text-brand transition hover:bg-brand-soft">
+                              + {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
-            </div>
-          ))}
-        </div>
+            )}
+          </>
+        ) : pendingOrders.length === 0 ? (
+          <div className="grid place-items-center rounded-2xl border border-dashed border-line-strong bg-surface px-6 py-16 text-center">
+            <Clock className="size-10 text-ink-4" strokeWidth={1.5} />
+            <p className="mt-3 font-semibold text-ink-2">No online orders waiting</p>
+            <p className="mt-1 text-sm text-ink-4">New orders from the shop show up here to load into a sale.</p>
+          </div>
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {pendingOrders.map((order) => (
+              <article key={order.id} className="overflow-hidden rounded-2xl border border-line bg-surface">
+                <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="font-display text-base font-extrabold text-ink">Order #{order.id}</p>
+                    <p className="truncate text-xs text-ink-3">{customerLabel(order)} · {new Date(order.dateTime).toLocaleString("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>
+                  </div>
+                  <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[11px] font-bold text-warn">Waiting</span>
+                </div>
+                <ul className="divide-y divide-line">
+                  {order.items.map((item) => {
+                    const product = products.find((p) => p.id === item.productId);
+                    return (
+                      <li key={item.id} className="flex items-center gap-3 px-4 py-2">
+                        <ProductThumb size="row" image={product?.image ?? null} name={item.product.name} category={product?.category?.name} subcategory={product?.subcategory} className="!size-8" />
+                        <p className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">{item.product.name}</p>
+                        <p className="num shrink-0 text-xs text-ink-4">× {fmtQty(item.quantity)}</p>
+                        <p className="num w-20 shrink-0 text-right text-[13px] font-semibold text-ink">{peso(item.price * item.quantity)}</p>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="flex items-center justify-between gap-3 bg-subtle px-4 py-3">
+                  <span className="num font-display text-lg font-extrabold text-ink">{peso(order.totalAmount)}</span>
+                  <button type="button" onClick={() => loadOrderToCart(order)}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand px-3.5 text-[13px] font-semibold text-white transition hover:brightness-110">
+                    <ShoppingCart className="size-4" /> Load into sale
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Desktop: the ticket stays beside the products */}
+      <aside className="sticky top-4 hidden h-[calc(100vh-6.5rem)] self-start overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_1px_2px_rgba(16,24,64,0.04)] xl:block" aria-label="Current sale">
+        {ticket}
+      </aside>
+
+      {/* Smaller screens: a bar that opens the ticket */}
+      {cart.length > 0 && !cartOpen && (
+        <button type="button" onClick={() => setCartOpen(true)}
+          className="fixed inset-x-4 bottom-4 z-30 flex items-center justify-between rounded-2xl bg-brand px-5 py-3.5 text-white shadow-[0_18px_40px_-14px_rgba(18,50,127,0.7)] xl:hidden">
+          <span className="flex items-center gap-2 text-sm font-semibold"><ShoppingCart className="size-4" /> Current sale · {cart.length}</span>
+          <span className="num font-display text-base font-extrabold">{peso(total)}</span>
+        </button>
       )}
 
-
-      {/* Cart Drawer */}
-      <Drawer
-        open={cartOpen}
-        onClose={() => setCartOpen(false)}
-        placement="center"
-        width="lg"
-        title={
-          <>
-            <ShoppingCart size={ICON_SIZE.md} className="text-blue-600" />
-            <span>Cart</span>
-            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">{cartCount} items</span>
-          </>
-        }
-        footer={
-          <div className="p-4 space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">Total</span>
-              <span className="font-bold text-gray-900 text-xl">₱{total.toFixed(2)}</span>
-            </div>
-            <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition bg-white">
-              <option>Cash</option>
-              <option>GCash</option>
-              <option>Card</option>
-            </select>
-            <Button onClick={() => setShowCheckoutConfirm(true)} disabled={!cart.length} className="w-full" size="md">
-              {`Checkout — ₱${total.toFixed(2)}`}
-            </Button>
-            <button onClick={() => setShowClearConfirm(true)} className="w-full text-xs text-gray-400 hover:text-red-500 transition py-1">Clear cart</button>
-          </div>
-        }
-      >
-        <div className="p-4 space-y-3">
-          {cart.map((i) => (
-            <div key={i.id} className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
-              <div className="w-10 h-10 rounded-lg bg-white border border-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                {i.image ? <Image src={i.image} alt={i.name} width={40} height={40} className="w-full h-full object-cover" /> : <Package size={ICON_SIZE.sm} className="text-gray-300" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{i.name}</p>
-                <p className="text-xs text-gray-400">₱{i.price.toFixed(2)} each</p>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <button onClick={() => updateQty(i.id, i.quantity - stepFor(i.unit))} className="w-6 h-6 rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-xs flex items-center justify-center">−</button>
-                <span className="min-w-[2.5rem] text-center text-sm font-semibold">{i.quantity}{i.unit === "kg" ? " kg" : ""}</span>
-                <button onClick={() => updateQty(i.id, i.quantity + stepFor(i.unit))} className="w-6 h-6 rounded-lg bg-white border border-gray-200 text-gray-600 font-bold text-xs flex items-center justify-center">+</button>
-              </div>
-              <div className="text-right shrink-0">
-                <p className="text-sm font-bold text-gray-900">₱{(i.price * i.quantity).toFixed(2)}</p>
-                <button onClick={() => setCart((prev) => prev.filter((c) => c.id !== i.id))} className="text-[10px] text-red-400 hover:text-red-600 transition">remove</button>
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* Cart drawer (phones and tablets) */}
+      <Drawer open={cartOpen} onClose={() => setCartOpen(false)} placement="center" width="lg"
+        title={<><ShoppingCart className="size-4 text-brand" /> <span>Current sale</span></>}>
+        <div className="h-[70vh]">{ticket}</div>
       </Drawer>
 
       {saleReceipt && <ReceiptModal title="Sale complete" data={saleReceipt} onClose={() => setSaleReceipt(null)} />}
@@ -520,7 +465,7 @@ export default function POSPage() {
         onClose={() => setShowCheckoutConfirm(false)}
         onConfirm={handleCheckout}
         title="Complete this sale?"
-        body={<>Charge <span className="font-semibold text-gray-800">₱{total.toFixed(2)}</span> via {paymentMethod} for {cartCount} item{cartCount > 1 ? "s" : ""}. Stock will be deducted immediately.</>}
+        body={<>Charge <span className="font-semibold text-ink">₱{total.toFixed(2)}</span> via {paymentMethod} for {cartCount} item{cartCount > 1 ? "s" : ""}. Stock will be deducted immediately.</>}
         variant="info"
         confirmLabel="Yes, Checkout"
       />
@@ -540,19 +485,19 @@ export default function POSPage() {
         if (!p) return null;
         return createPortal(
           <div ref={popoverRef} style={{ position: "absolute", top: popoverPos.top, left: popoverPos.left }}
-            className="z-[200] w-60 bg-white border border-amber-200 rounded-xl shadow-xl p-3 space-y-2">
-            <p className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
-              <Package size={ICON_SIZE.xs} className="text-amber-500" /> Pending for <span className="text-amber-600 truncate">{p.name}</span>
+            className="z-[200] w-60 space-y-2 rounded-xl border border-line bg-surface p-3 shadow-xl">
+            <p className="text-xs font-semibold text-ink-2 flex items-center gap-1.5">
+              <Package className="size-3.5 text-warn" /> Waiting for <span className="truncate text-ink">{p.name}</span>
             </p>
             <div className="space-y-1.5 max-h-48 overflow-y-auto">
               {pendingEntries.map((entry) => (
-                <div key={entry.orderItemId} className="flex items-center justify-between bg-amber-50 rounded-lg px-2.5 py-2">
+                <div key={entry.orderItemId} className="flex items-center justify-between rounded-lg bg-subtle px-2.5 py-2">
                   <div>
-                    <p className="text-xs font-medium text-gray-800">{entry.customer}</p>
-                    <p className="text-[10px] text-gray-500">Order #{entry.orderId} · qty {entry.quantity}</p>
+                    <p className="text-xs font-medium text-ink">{entry.customer}</p>
+                    <p className="text-[10px] text-ink-3">Order #{entry.orderId} · qty {entry.quantity}</p>
                   </div>
                   <button onClick={() => fulfillOrder(entry.orderId, p, entry.quantity)}
-                    className="text-[10px] font-semibold bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded-lg transition shrink-0">
+                    className="shrink-0 rounded-lg bg-brand px-2 py-1 text-[10.5px] font-semibold text-white transition hover:brightness-110">
                     Add
                   </button>
                 </div>

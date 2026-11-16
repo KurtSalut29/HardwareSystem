@@ -12,17 +12,17 @@ const qty = (n: number) => String(Math.round(n * 100) / 100);
 const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const STATUS_STYLE = {
-  out: { label: "Out of stock", fg: "var(--bad)", bg: "var(--bad-soft)" },
-  reorder: { label: "Reorder now", fg: "var(--warn)", bg: "var(--warn-soft)" },
-  ok: { label: "OK", fg: "var(--good)", bg: "var(--good-soft)" },
+  out: { label: "Out of stock", pill: "bg-bad-soft text-bad", text: "text-bad" },
+  reorder: { label: "Reorder now", pill: "bg-warn-soft text-warn", text: "text-warn" },
+  ok: { label: "OK", pill: "bg-good-soft text-good", text: "text-good" },
 } as const;
 
 /** Column heading with a one-line plain explanation under it. */
 function Th({ label, hint, className = "" }: { label: string; hint: string; className?: string }) {
   return (
     <th className={`text-right py-2.5 px-4 align-bottom ${className}`}>
-      <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{label}</span>
-      <span className="block text-[10px] font-normal text-gray-400 normal-case tracking-normal leading-tight mt-0.5">{hint}</span>
+      <span className="block text-xs font-semibold text-ink-3 uppercase tracking-wide whitespace-nowrap">{label}</span>
+      <span className="block text-[10px] font-normal text-ink-4 normal-case tracking-normal leading-tight mt-0.5">{hint}</span>
     </th>
   );
 }
@@ -32,7 +32,7 @@ const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
 export function StatusChip({ status }: { status: ReorderRow["status"] }) {
   const s = STATUS_STYLE[status];
   return (
-    <span className="inline-block text-[10px] font-bold px-2 py-[3px] rounded-full whitespace-nowrap" style={{ background: s.bg, color: s.fg }}>
+    <span className={`inline-block text-[10.5px] font-bold px-2 py-[3px] rounded-full whitespace-nowrap ${s.pill}`}>
       {s.label}
     </span>
   );
@@ -70,18 +70,18 @@ export default function ReorderPlanner({
   const s = plan?.settings;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200">
-      <div className="flex flex-wrap items-start gap-3 p-4 border-b border-gray-100">
+    <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+      <div className="flex flex-wrap items-start gap-3 p-4 border-b border-line">
         <div className="flex items-start gap-3 min-w-0 flex-1">
-          <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
+          <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-brand-soft text-brand">
             <Calculator size={ICON_SIZE.md} />
           </span>
           <div className="min-w-0">
-            <h2 className="font-display font-extrabold text-gray-900 flex items-center gap-2">
+            <h2 className="font-display font-extrabold text-ink flex items-center gap-2">
               Reorder planner
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: "var(--bg-muted)", color: "var(--text-muted)" }}>EOQ</span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-recess text-ink-3">EOQ</span>
             </h2>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="mt-0.5 hidden text-xs text-ink-4 sm:block">
               What to order, how many, and when, based on the last {plan?.windowDays ?? 90} days of sales.
             </p>
           </div>
@@ -93,14 +93,14 @@ export default function ReorderPlanner({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-gray-100">
-        <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: "var(--bad-soft)", color: "var(--bad)" }}>
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-line">
+        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-bad-soft text-bad">
           {outCount} out of stock
         </span>
-        <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: "var(--warn-soft)", color: "var(--warn)" }}>
+        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-warn-soft text-warn">
           {reorderCount} at reorder point
         </span>
-        <div className="ml-auto flex rounded-lg border border-gray-200 p-0.5 text-xs font-semibold" role="tablist" aria-label="Products shown">
+        <div className="ml-auto flex rounded-lg border border-line p-0.5 text-xs font-semibold" role="tablist" aria-label="Products shown">
           {[
             { all: false, label: `Needs ordering (${attention.length})` },
             { all: true, label: `All products (${rows.length})` },
@@ -111,8 +111,7 @@ export default function ReorderPlanner({
               role="tab"
               aria-selected={showAll === t.all}
               onClick={() => { setShowAll(t.all); paging.setPage(1); }}
-              className="px-2.5 py-1 rounded-md transition"
-              style={showAll === t.all ? { background: "var(--brand)", color: "#fff" } : { color: "var(--text-muted)" }}
+              className={`px-2.5 py-1 rounded-md transition ${showAll === t.all ? "bg-brand-soft text-brand-ink" : "text-ink-3 hover:text-ink"}`}
             >
               {t.label}
             </button>
@@ -121,14 +120,14 @@ export default function ReorderPlanner({
       </div>
 
       {!plan ? (
-        <p className="text-sm text-gray-400 py-10 text-center">Loading...</p>
+        <p className="text-sm text-ink-4 py-10 text-center">Loading...</p>
       ) : visible.length === 0 ? (
-        <p className="text-sm text-gray-400 py-10 text-center">Nothing needs ordering right now. Every product is above its reorder point.</p>
+        <p className="text-sm text-ink-4 py-10 text-center">Nothing needs ordering right now. Every product is above its reorder point.</p>
       ) : (
         <div>
         {/* How to read the table, in one line */}
-        <div className="flex items-start gap-2 px-4 py-2.5 text-xs text-gray-600 border-b border-gray-100" style={{ background: "var(--info-soft)" }}>
-          <Info size={ICON_SIZE.sm} className="shrink-0 mt-px" style={{ color: "var(--brand)" }} />
+        <div className="flex items-start gap-2 px-4 py-2.5 text-xs text-ink-2 border-b border-line bg-info-soft">
+          <Info size={ICON_SIZE.sm} className="shrink-0 mt-px text-brand" />
           <p>
             <b>How to read:</b> when <b>In stock</b> falls to <b>Reorder at</b>, buy the <b>Order qty</b>.
             {" "}<b>Days left</b> shows how soon it runs out, so the fewer days, the more urgent.
@@ -137,10 +136,10 @@ export default function ReorderPlanner({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
+              <tr className="border-b border-line bg-subtle">
                 <th className="text-left py-2.5 px-4 align-bottom">
-                  <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Product</span>
-                  <span className="block text-[10px] font-normal text-gray-400 mt-0.5">and its stock status</span>
+                  <span className="block text-xs font-semibold text-ink-3 uppercase tracking-wide">Product</span>
+                  <span className="block text-[10px] font-normal text-ink-4 mt-0.5">and its stock status</span>
                 </th>
                 <Th label="In stock" hint="on hand now" />
                 <Th label="Sold / day" hint={`average, last ${plan.windowDays} days`} className="hidden md:table-cell" />
@@ -150,40 +149,39 @@ export default function ReorderPlanner({
                 <th className="py-2.5 px-4" aria-label="Action" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-line">
               {paging.pageItems.map((r) => (
-                <tr key={r.productId} className="hover:bg-gray-50/50 transition-colors">
+                <tr key={r.productId} className="hover:bg-subtle transition-colors">
                   <td className="py-2.5 px-4">
-                    <p className="font-medium text-gray-900 truncate max-w-[220px]">{r.name}</p>
+                    <p className="font-medium text-ink truncate max-w-[220px]">{r.name}</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <StatusChip status={r.status} />
-                      <span className="text-[11px] text-gray-400 truncate">{r.category}</span>
+                      <span className="text-[11px] text-ink-4 truncate">{r.category}</span>
                     </div>
                   </td>
-                  <td className="py-2.5 px-4 text-right font-semibold num whitespace-nowrap" style={{ color: STATUS_STYLE[r.status].fg }}>
-                    {qty(r.stock)} <span className="text-[11px] font-normal text-gray-400">{r.unit}</span>
+                  <td className={`py-2.5 px-4 text-right font-semibold num whitespace-nowrap ${STATUS_STYLE[r.status].text}`}>
+                    {qty(r.stock)} <span className="text-[11px] font-normal text-ink-4">{r.unit}</span>
                     {r.daysLeft != null && r.status !== "out" && (
-                      <span className="block md:hidden text-[10px] font-normal text-gray-400">{days(r.daysLeft)} left</span>
+                      <span className="block md:hidden text-[10px] font-normal text-ink-4">{days(r.daysLeft)} left</span>
                     )}
                   </td>
-                  <td className="py-2.5 px-4 text-right text-gray-500 num hidden md:table-cell whitespace-nowrap">
-                    {r.dailyDemand > 0 ? <>{qty(r.dailyDemand)} <span className="text-[11px] text-gray-400">{r.unit}</span></> : <span title="No sales in this period">—</span>}
+                  <td className="py-2.5 px-4 text-right text-ink-3 num hidden md:table-cell whitespace-nowrap">
+                    {r.dailyDemand > 0 ? <>{qty(r.dailyDemand)} <span className="text-[11px] text-ink-4">{r.unit}</span></> : <span title="No sales in this period">—</span>}
                   </td>
-                  <td className="py-2.5 px-4 text-right text-gray-700 num" title={r.reorderBasis === "default" ? "No sales yet: a fixed minimum is used" : undefined}>
-                    {r.reorderPoint} <span className="text-[11px] text-gray-400">{r.unit}</span>{r.reorderBasis === "default" && <span className="text-[10px] text-gray-400"> *</span>}
+                  <td className="py-2.5 px-4 text-right text-ink-2 num" title={r.reorderBasis === "default" ? "No sales yet: a fixed minimum is used" : undefined}>
+                    {r.reorderPoint} <span className="text-[11px] text-ink-4">{r.unit}</span>{r.reorderBasis === "default" && <span className="text-[10px] text-ink-4"> *</span>}
                   </td>
-                  <td className="py-2.5 px-4 text-right font-bold text-gray-900 num" title={r.costSource === "price" ? "No purchase cost recorded yet: selling price used as an estimate" : undefined}>
-                    {r.eoq ?? <span className="font-normal text-gray-400" title="No sales yet, so there is no demand to base an order on">—</span>}
-                    {r.eoq != null && <span className="text-[11px] font-normal text-gray-400"> {r.unit}</span>}
-                    {r.eoq != null && r.costSource === "price" && <span className="text-[10px] font-normal text-gray-400"> est.</span>}
+                  <td className="py-2.5 px-4 text-right font-bold text-ink num" title={r.costSource === "price" ? "No purchase cost recorded yet: selling price used as an estimate" : undefined}>
+                    {r.eoq ?? <span className="font-normal text-ink-4" title="No sales yet, so there is no demand to base an order on">—</span>}
+                    {r.eoq != null && <span className="text-[11px] font-normal text-ink-4"> {r.unit}</span>}
+                    {r.eoq != null && r.costSource === "price" && <span className="text-[10px] font-normal text-ink-4"> est.</span>}
                   </td>
-                  <td className="py-2.5 px-4 text-right num hidden md:table-cell whitespace-nowrap"
-                    style={{ color: r.daysLeft != null && r.daysLeft <= (s?.leadTimeDays ?? 0) ? "var(--bad)" : undefined }}
+                  <td className={`py-2.5 px-4 text-right num hidden md:table-cell whitespace-nowrap ${r.daysLeft != null && r.daysLeft <= (s?.leadTimeDays ?? 0) ? "text-bad" : ""}`}
                     title={r.daysLeft != null && r.daysLeft <= (s?.leadTimeDays ?? 0) ? "Runs out before a new order could arrive" : undefined}>
-                    {r.status === "out" ? <span className="font-semibold">Out now</span> : r.daysLeft == null ? <span className="text-gray-400">—</span> : <span className={r.daysLeft <= (s?.leadTimeDays ?? 0) ? "font-semibold" : "text-gray-500"}>{days(r.daysLeft)}</span>}
+                    {r.status === "out" ? <span className="font-semibold">Out now</span> : r.daysLeft == null ? <span className="text-ink-4">—</span> : <span className={r.daysLeft <= (s?.leadTimeDays ?? 0) ? "font-semibold" : "text-ink-3"}>{days(r.daysLeft)}</span>}
                   </td>
                   <td className="py-2.5 px-4 text-right">
-                    <Button size="sm" variant={r.status === "ok" ? "secondary" : "primary"} onClick={() => onOrder(r)} icon={<PackagePlus size={ICON_SIZE.sm} />}>
+                    <Button size="sm" variant={r.status === "ok" ? "secondary" : "soft"} onClick={() => onOrder(r)} icon={<PackagePlus size={ICON_SIZE.sm} />}>
                       <span className="whitespace-nowrap">{r.eoq != null ? `Order ${r.eoq}` : "Order"}</span>
                     </Button>
                   </td>
@@ -197,24 +195,24 @@ export default function ReorderPlanner({
       )}
 
       {s && (
-        <details className="group border-t border-gray-100">
-          <summary className="flex items-center gap-2 px-4 py-3 text-xs font-semibold cursor-pointer select-none list-none" style={{ color: "var(--brand)" }}>
+        <details className="group border-t border-line">
+          <summary className="flex items-center gap-2 px-4 py-3 text-xs font-semibold cursor-pointer select-none list-none text-brand">
             <ChevronDown size={ICON_SIZE.sm} className="transition-transform group-open:rotate-180" />
             How these numbers are computed
           </summary>
-          <div className="px-4 pb-4 grid gap-3 md:grid-cols-2 text-xs text-gray-600 leading-relaxed">
-            <div className="rounded-lg p-3" style={{ background: "var(--bg-muted)" }}>
-              <p className="font-bold text-gray-900 mb-1">Order quantity: EOQ = √(2 × D × S ÷ H)</p>
+          <div className="px-4 pb-4 grid gap-3 md:grid-cols-2 text-xs text-ink-2 leading-relaxed">
+            <div className="rounded-lg p-3 bg-recess">
+              <p className="font-bold text-ink mb-1">Order quantity: EOQ = √(2 × D × S ÷ H)</p>
               <p><b>D</b> = yearly demand: units sold in the last {plan.windowDays} days, scaled to a year.</p>
               <p><b>S</b> = cost of placing one order: <b>{peso(s.orderCost)}</b>.</p>
               <p><b>H</b> = yearly cost of keeping one unit in stock: <b>{s.holdingRate}%</b> of its unit cost (the latest purchase cost on this page).</p>
             </div>
-            <div className="rounded-lg p-3" style={{ background: "var(--bg-muted)" }}>
-              <p className="font-bold text-gray-900 mb-1">Reorder point = sold per day × (lead time + safety days)</p>
+            <div className="rounded-lg p-3 bg-recess">
+              <p className="font-bold text-ink mb-1">Reorder point = sold per day × (lead time + safety days)</p>
               <p>Lead time: <b>{s.leadTimeDays} {s.leadTimeDays === 1 ? "day" : "days"}</b> from ordering until stock arrives.</p>
               <p>Safety stock: <b>{s.safetyDays} {s.safetyDays === 1 ? "day" : "days"}</b> of extra sales, for late deliveries or busy days.</p>
-              <p className="mt-1 text-gray-400">* No sales yet: reorder at 5. <i>est.</i> No purchase recorded yet: the selling price stands in for the unit cost. — No sales in the last {plan.windowDays} days, so no order quantity yet.</p>
-              <p className="mt-1 text-gray-400">Days left in <span style={{ color: "var(--bad)" }} className="font-semibold">red</span>: it runs out within the {days(s.leadTimeDays)} a new order takes to arrive.</p>
+              <p className="mt-1 text-ink-4">* No sales yet: reorder at 5. <i>est.</i> No purchase recorded yet: the selling price stands in for the unit cost. — No sales in the last {plan.windowDays} days, so no order quantity yet.</p>
+              <p className="mt-1 text-ink-4">Days left in <span className="font-semibold text-bad">red</span>: it runs out within the {days(s.leadTimeDays)} a new order takes to arrive.</p>
             </div>
           </div>
         </details>
@@ -278,10 +276,10 @@ function EoqSettingsModal({ open, initial, onClose, onSaved }: { open: boolean; 
       }
     >
       <form id="eoq-settings-form" onSubmit={save} className="space-y-4">
-        <p className="text-xs text-gray-500">These apply to every product. Order quantities and reorder points update as soon as you save.</p>
+        <p className="text-xs text-ink-3">These apply to every product. Order quantities and reorder points update as soon as you save.</p>
         {FIELDS.map((f) => (
           <div key={f.key}>
-            <label htmlFor={`eoq-${f.key}`} className="block text-xs font-medium text-gray-600 mb-1">{f.label}</label>
+            <label htmlFor={`eoq-${f.key}`} className="block text-xs font-medium text-ink-2 mb-1">{f.label}</label>
             <div className="flex items-center gap-2">
               <input
                 id={`eoq-${f.key}`}
@@ -291,14 +289,14 @@ function EoqSettingsModal({ open, initial, onClose, onSaved }: { open: boolean; 
                 step={f.step}
                 value={form[f.key]}
                 onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}
-                className="w-32 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
+                className="w-32 border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition"
               />
-              <span className="text-xs text-gray-500">{f.suffix}</span>
+              <span className="text-xs text-ink-3">{f.suffix}</span>
             </div>
-            <p className="text-[11px] text-gray-400 mt-1">{f.hint}</p>
+            <p className="text-[11px] text-ink-4 mt-1">{f.hint}</p>
           </div>
         ))}
-        {error && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+        {error && <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
       </form>
     </Modal>
   );

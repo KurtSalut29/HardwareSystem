@@ -1,20 +1,22 @@
 import { LucideIcon } from "lucide-react";
-import { ICON_SIZE } from "@/lib/constants/icon-size";
 
 type Props = {
   icon: LucideIcon;
   title: string;
   description?: string;
+  /** Optional next step, e.g. a "Clear filters" button. */
+  action?: React.ReactNode;
 };
 
-export default function EmptyState({ icon: Icon, title, description }: Props) {
+export default function EmptyState({ icon: Icon, title, description, action }: Props) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-      <div className="w-12 h-12 rounded-full flex items-center justify-center mb-3" style={{ background: "var(--bg-muted)" }}>
-        <Icon size={ICON_SIZE.xl} style={{ color: "var(--text-faint)" }} />
-      </div>
-      <p className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>{title}</p>
-      {description && <p className="text-xs mt-1 max-w-xs" style={{ color: "var(--text-muted)" }}>{description}</p>}
+    <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
+      <span className="grid size-12 place-items-center rounded-2xl bg-recess text-ink-4">
+        <Icon className="size-6" strokeWidth={1.6} />
+      </span>
+      <p className="mt-3 font-display text-base font-extrabold text-ink">{title}</p>
+      {description && <p className="mt-1 max-w-sm text-sm text-ink-3">{description}</p>}
+      {action && <div className="mt-4 flex gap-2">{action}</div>}
     </div>
   );
 }

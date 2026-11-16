@@ -1,18 +1,25 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Plus, Search, Pencil, Trash2, ChevronDown, ChevronRight, ImageIcon, PackageSearch, Boxes, PackagePlus } from "lucide-react";
+import { Plus, Pencil, Trash2, ImageIcon, PackageSearch, Boxes, PackagePlus, ArrowRight, Package, PackageCheck, PackageX, TriangleAlert } from "lucide-react";
+import FilterTiles, { type FilterTile } from "@/components/ui/FilterTiles";
 import Link from "next/link";
+import Image from "next/image";
 import StockModal from "@/components/inventory/StockModal";
-import PageHeader from "@/components/ui/PageHeader";
 import Modal from "@/components/ui/Modal";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import Button from "@/components/ui/Button";
-import EmptyState from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 import type { ReorderPlan } from "@/lib/inventory";
-import Image from "next/image";
+import ShelfCard from "@/components/catalog/ShelfCard";
+import ProductThumb from "@/components/catalog/ProductThumb";
+import StockMeter from "@/components/catalog/StockMeter";
+import CategoryRail, { type RailValue } from "@/components/catalog/CategoryRail";
+import CatalogToolbar, { type SortKey } from "@/components/catalog/CatalogToolbar";
+import CategoryGlyph from "@/components/catalog/CategoryGlyph";
+import { fmtQty, peso, productCode, stockState, type StockState } from "@/lib/catalog-ui";
+import { filterProducts, groupByCategory, railCategories, usePreference } from "@/lib/useCatalog";
 
 type Subcategory = { id: number; name: string };
 type Category = { id: number; name: string; description: string | null; subcategories?: Subcategory[] };
@@ -47,15 +54,16 @@ const EMPTY_FORM = { id: 0, name: "", brand: "", categoryId: "", subcategoryId: 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [search, setSearch] = useState("");
-  const [filterCat, setFilterCat] = useState("All");
+  const [query, setQuery] = useState("");
+  const [rail, setRail] = useState<RailValue>({ categoryId: null, sub: null });
+  const [sort, setSort] = useState<SortKey>("category");
+  const [stockFilter, setStockFilter] = useState<"all" | StockState>("all");
+  const [view, setView] = usePreference("rm-products-view", "grid", ["grid", "list"] as const);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [activeSub, setActiveSub] = useState<Record<string, string>>({});
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
@@ -99,28 +107,19 @@ export default function ProductsPage() {
     setNewSub(null); setError("");
   }
 
-  const filtered = products.filter((p) => {
-    const q = search.toLowerCase();
-    const matchSearch = p.name.toLowerCase().includes(q) || (p.subcategory ?? "").toLowerCase().includes(q) || (p.brand ?? "").toLowerCase().includes(q);
-    const matchCat = filterCat === "All" || p.category.name === filterCat;
-    return matchSearch && matchCat;
-  });
+  // Low means at or below the product's own reorder point (EOQ planning); 5 until there's sales history.
+  const reorderAtOf = (p: Product) => planBy.get(p.id)?.reorderPoint ?? 5;
+  const stateOf = (p: Product) => stockState(p.stock, reorderAtOf(p));
+  const stockCounts = { all: products.length, ok: 0, low: 0, out: 0 } as Record<"all" | StockState, number>;
+  for (const p of products) stockCounts[stateOf(p)]++;
+  const shelfValue = products.reduce((sum, p) => sum + Math.max(0, p.stock) * p.price, 0);
 
-  const grouped = categories.reduce<Record<string, Product[]>>((acc, cat) => {
-    const items = filtered.filter((p) => p.categoryId === cat.id);
-    if (items.length > 0) acc[cat.name] = items;
-    return acc;
-  }, {});
-
-  function getSubcats(items: Product[]) {
-    const seen = new Map<string, string>();
-    items.forEach((p) => {
-      if (!p.subcategory) return;
-      const key = p.subcategory.trim().toLowerCase();
-      if (!seen.has(key)) seen.set(key, p.subcategory);
-    });
-    return [...seen.values()];
-  }
+  const rails = railCategories(categories, products);
+  const list = filterProducts(products, rail, query, sort, (p) => stockFilter === "all" || stateOf(p) === stockFilter);
+  const grouped = view === "grid" && sort === "category" && rail.categoryId === null && !query.trim() ? groupByCategory(list) : null;
+  const activeCat = rails.find((c) => c.id === rail.categoryId);
+  const filtersOn = rail.categoryId !== null || !!query.trim() || stockFilter !== "all";
+  const clearFilters = () => { setRail({ categoryId: null, sub: null }); setQuery(""); setStockFilter("all"); };
 
   function openAdd() {
     setForm(EMPTY_FORM); setEditing(false); setError(""); setImagePreview(null); setNewSub(null); setShowModal(true);
@@ -178,177 +177,197 @@ export default function ProductsPage() {
     showToast("Product deleted successfully");
   }
 
+  const pct = (k: StockState) => (products.length ? `${Math.round((stockCounts[k] / products.length) * 100)}%` : undefined);
+  const STOCK_TABS: FilterTile<"all" | StockState>[] = [
+    { key: "all", label: "All products", value: stockCounts.all, icon: <Package className="size-5" />, tone: "brand" },
+    { key: "ok", label: "In stock", value: stockCounts.ok, icon: <PackageCheck className="size-5" />, tone: "good", hint: pct("ok") },
+    { key: "low", label: "Running low", value: stockCounts.low, icon: <TriangleAlert className="size-5" />, tone: "warn", hint: pct("low") },
+    { key: "out", label: "Out of stock", value: stockCounts.out, icon: <PackageX className="size-5" />, tone: "bad", hint: pct("out") },
+  ];
+
+  const FOOT_BTN = "inline-flex h-8 min-w-0 items-center justify-center gap-1 rounded-lg border border-line px-1 text-xs font-semibold transition";
+  const cardFooter = (p: Product) => (
+    <div className="grid grid-cols-3 gap-1.5">
+      <button type="button" onClick={() => openEdit(p)} aria-label={`Edit ${p.name}`}
+        className={`${FOOT_BTN} text-ink-2 hover:border-brand/40 hover:bg-brand-soft hover:text-brand-ink`}>
+        <Pencil className="size-3.5 shrink-0" /> Edit
+      </button>
+      <button type="button" onClick={() => setStockTarget(p)} aria-label={`Stock for ${p.name}`}
+        className={`${FOOT_BTN} text-ink-2 hover:border-brand/40 hover:bg-brand-soft hover:text-brand-ink`}>
+        <Boxes className="size-3.5 shrink-0" /> Stock
+      </button>
+      <button type="button" onClick={() => setDeleteTarget(p)} aria-label={`Delete ${p.name}`}
+        className={`${FOOT_BTN} text-bad hover:border-bad/40 hover:bg-bad-soft`}>
+        <Trash2 className="size-3.5 shrink-0" /> Delete
+      </button>
+    </div>
+  );
+
+  const card = (p: Product) => (
+    <ShelfCard key={p.id} product={p} reorderAt={reorderAtOf(p)} audience="staff"
+      onOpen={() => openEdit(p)} openLabel={`Edit ${p.name}`} footer={cardFooter(p)} />
+  );
+
   return (
-    <div className="space-y-5">
-      <PageHeader
-        title="Products"
-        subtitle="Manage inventory by category"
-        action={
-          <div className="flex flex-wrap gap-2">
-            <Link href="/restocks?new=1"
-              className="inline-flex items-center gap-2 rounded-[10px] font-semibold py-2.5 px-4 text-sm bg-white border text-gray-700 hover:bg-gray-50 transition"
-              style={{ borderColor: "var(--border)" }}>
-              <PackagePlus size={ICON_SIZE.md} /> Add Inventory
-            </Link>
-            <Button onClick={openAdd} icon={<Plus size={ICON_SIZE.md} />}>Add New Product</Button>
-          </div>
-        }
-      />
-
-      {/* Filters */}
-      <div className="space-y-3">
-        {/* Search — its own row, filled background, so it reads as an input, not another pill */}
-        <div className="relative max-w-md">
-          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, brand or subcategory..."
-            className="w-full pl-11 pr-4 py-3 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 transition placeholder:text-gray-400" />
+    <div className="space-y-6">
+      {/* Header */}
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-brand">Inventory</p>
+          <h1 className="mt-1 font-display text-[28px] font-extrabold leading-none tracking-tight text-ink">Products</h1>
+          <p className="mt-2 text-sm text-ink-3">
+            {loading ? "Loading the catalogue…" : <>
+              <span className="font-semibold text-ink-2">{products.length}</span> products in <span className="font-semibold text-ink-2">{rails.length}</span> categories
+              <span className="hidden sm:inline"> · <span className="num font-semibold text-ink-2">{peso(shelfValue)}</span> on the shelves at selling price</span>
+            </>}
+          </p>
         </div>
-
-        {/* Horizontal swipe strip on phones (how a native app would show category chips),
-            wraps to multiple lines once there's room for it on tablet/desktop. */}
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap md:overflow-visible md:pb-0">
-          {["All", ...categories.map((c) => c.name)].map((c) => (
-            <button key={c} onClick={() => setFilterCat(c)}
-              style={filterCat === c ? { background: "var(--brand)" } : undefined}
-              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium transition ${filterCat === c ? "text-white shadow-sm" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
-              {c}
-            </button>
-          ))}
+        <div className="flex flex-wrap gap-2">
+          <Link href="/restocks?new=1"
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-line bg-surface px-4 text-sm font-semibold text-ink-2 shadow-[0_1px_2px_rgba(16,24,64,0.05)] transition hover:border-line-strong hover:text-ink">
+            <PackagePlus className="size-4" /> Add inventory
+          </Link>
+          <button type="button" onClick={openAdd}
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-white shadow-[0_8px_18px_-10px_rgba(30,79,216,0.8)] transition hover:brightness-110 active:scale-[0.98]">
+            <Plus className="size-4" /> New product
+          </button>
         </div>
-      </div>
+      </header>
 
-      {/* Grouped Product Cards */}
-      <div className="space-y-6">
-        {loading ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400 text-sm">Loading...</div>
-        ) : Object.keys(grouped).length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200">
-            <EmptyState icon={PackageSearch} title="No products found" description="Try adjusting your search or add a new product to get started." />
+      {/* Stock status: a summary that doubles as a filter */}
+      <FilterTiles tiles={STOCK_TABS} value={stockFilter} onChange={setStockFilter} label="Filter by stock" loading={loading} />
+
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[232px_minmax(0,1fr)]">
+        <CategoryRail categories={rails} total={products.length} value={rail} onChange={setRail} />
+
+        <section className="min-w-0 space-y-4" aria-label="Products">
+          <CatalogToolbar query={query} onQuery={setQuery} sort={sort} onSort={setSort}
+            sorts={["category", "name", "price_asc", "price_desc", "stock_asc"]} view={view} onView={setView} />
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[13px] text-ink-3">
+              <span className="font-semibold text-ink">{list.length}</span> {list.length === 1 ? "product" : "products"}
+              {activeCat && <> in <span className="font-semibold text-ink-2">{activeCat.name}</span>{rail.sub && <> › <span className="font-semibold text-ink-2">{rail.sub}</span></>}</>}
+              {stockFilter !== "all" && <> · {STOCK_TABS.find((t) => t.key === stockFilter)?.label.toLowerCase()}</>}
+              {query.trim() && <> matching “<span className="font-semibold text-ink-2">{query.trim()}</span>”</>}
+            </p>
+            {filtersOn && (
+              <button type="button" onClick={clearFilters} className="text-[13px] font-semibold text-brand hover:underline">Clear filters</button>
+            )}
           </div>
-        ) : Object.entries(grouped).map(([catName, items]) => (
-          <div key={catName}>
-            <button onClick={() => setCollapsed((prev) => ({ ...prev, [catName]: !prev[catName] }))}
-              className="flex items-center gap-2.5 mb-3">
-              {collapsed[catName] ? <ChevronRight size={ICON_SIZE.sm} className="text-gray-400" /> : <ChevronDown size={ICON_SIZE.sm} className="text-gray-400" />}
-              <span className="font-display font-extrabold text-gray-900 text-sm">{catName}</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "var(--brand-soft)", color: "var(--brand-ink)" }}>{items.length}</span>
-            </button>
 
-            {!collapsed[catName] && (() => {
-              const subcats = getSubcats(items);
-              const currentSub = activeSub[catName] ?? "All";
-              const visibleItems = currentSub === "All" ? items : items.filter((p) =>
-                p.subcategory?.trim().toLowerCase() === currentSub.trim().toLowerCase()
-              );
-              return (
-                <>
-                  {subcats.length > 0 && (
-                    <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap md:overflow-visible md:pb-0 mb-3">
-                      {["All", ...subcats].map((s) => (
-                        <button key={s} onClick={() => setActiveSub((prev) => ({ ...prev, [catName]: s }))}
-                          className={`shrink-0 whitespace-nowrap px-3 py-1 rounded-lg text-xs font-medium transition border ${currentSub === s ? "bg-blue-600 text-white border-blue-600" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
-                    {visibleItems.map((p) => {
-                      // Low means at or below this product's own reorder point (EOQ planning).
-                      const reorder = planBy.get(p.id);
-                      const reorderAt = reorder?.reorderPoint ?? 5;
-                      const stockStyle =
-                        p.stock <= 0
-                          ? { background: "var(--bad-soft)", color: "var(--bad)" }
-                          : p.stock <= reorderAt
-                          ? { background: "var(--warn-soft)", color: "var(--warn)" }
-                          : { background: "var(--good-soft)", color: "var(--good)" };
-                      const stockLabel = p.stock <= 0 ? "Out of stock" : p.stock <= reorderAt ? `${p.stock} left` : "In stock";
-                      return (
-                        <div
-                          key={p.id}
-                          className="group bg-white rounded-2xl border border-[color:var(--border-strong)] overflow-hidden flex flex-col shadow-sm transition-[transform,border-color] duration-200 hover:border-blue-300 hover:-translate-y-1"
-                        >
-                          {/* Image */}
-                          <div className="relative w-full aspect-[4/3] bg-gray-50 overflow-hidden">
-                            {p.image ? (
-                              <Image
-                                src={p.image}
-                                alt={p.name}
-                                fill
-                                sizes="(max-width: 640px) 50vw, (max-width: 1280px) 25vw, 20vw"
-                                className="object-cover transition-transform duration-300 group-hover:scale-[1.06]"
-                              />
-                            ) : (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5">
-                                <div
-                                  className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-display font-extrabold text-lg shadow-sm"
-                                  style={{ background: "linear-gradient(155deg, var(--brand), var(--brand-ink))" }}
-                                >
-                                  {p.name.charAt(0)}
-                                </div>
-                                <span className="text-[10px] text-gray-300 font-medium">No image</span>
-                              </div>
-                            )}
-
-                            {/* Stock chip */}
-                            <span
-                              className="absolute top-2 left-2 text-[10px] font-bold px-2 py-[3px] rounded-full shadow-sm"
-                              style={stockStyle}
-                            >
-                              {stockLabel}
-                            </span>
-                          </div>
-
-                          {/* Details */}
-                          <div className="p-3 flex flex-col flex-1">
-                            {p.subcategory && (
-                              <span
-                                className="self-start text-[9.5px] font-bold px-1.5 py-[3px] rounded uppercase tracking-wider mb-1"
-                                style={{ background: "var(--bg-muted)", color: "var(--text-muted)" }}
-                              >
-                                {p.subcategory}
-                              </span>
-                            )}
-                            {p.brand && <p className="text-[10.5px] font-bold uppercase tracking-wide" style={{ color: "var(--brand)" }}>{p.brand}</p>}
-                            <p className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2">{p.name}</p>
-                            {p.description && <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-1">{p.description}</p>}
-
-                            <div className="mt-auto pt-2.5 border-t border-gray-50 flex items-baseline gap-1">
-                              <span className="font-display text-base font-extrabold text-gray-900 num">₱{p.price.toFixed(2)}</span>
-                              <span className="text-[11px] text-gray-400 font-medium">/{p.unit}</span>
-                            </div>
-                            {reorder && (
-                              <p className="text-[10.5px] text-gray-400 mt-1 num" title="Reorder point and Economic Order Quantity, from the last 90 days of sales">
-                                Reorder at {reorder.reorderPoint} · EOQ {reorder.eoq ?? "—"}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Actions — labeled, not icon-only, so they're unambiguous at a glance */}
-                          <div className="flex gap-1.5 p-2.5 border-t border-gray-100">
-                            <button onClick={() => openEdit(p)}
-                              className="flex-1 flex items-center justify-center gap-1 py-2 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition">
-                              <Pencil size={13} /> Edit
-                            </button>
-                            <button onClick={() => setStockTarget(p)}
-                              className="flex-1 flex items-center justify-center gap-1 py-2 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
-                              <Boxes size={13} /> Stock
-                            </button>
-                            <button onClick={() => setDeleteTarget(p)} aria-label={`Delete ${p.name}`} title="Delete"
-                              className="w-9 shrink-0 flex items-center justify-center py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition">
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
+          {loading ? (
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">
+              {Array.from({ length: 8 }, (_, i) => (
+                <div key={i} className="overflow-hidden rounded-2xl border border-line bg-surface">
+                  <div className="aspect-[4/3] animate-pulse bg-recess" />
+                  <div className="space-y-2 p-3.5">
+                    <div className="h-2.5 w-1/3 animate-pulse rounded bg-recess" />
+                    <div className="h-3.5 w-4/5 animate-pulse rounded bg-recess" />
+                    <div className="h-12 animate-pulse rounded-lg bg-recess" />
                   </div>
-                </>
-              );
-            })()}
-          </div>
-        ))}
+                </div>
+              ))}
+            </div>
+          ) : list.length === 0 ? (
+            <div className="grid place-items-center rounded-2xl border border-dashed border-line-strong bg-surface px-6 py-16 text-center">
+              <PackageSearch className="size-10 text-ink-4" strokeWidth={1.5} />
+              <p className="mt-3 font-display text-lg font-extrabold text-ink">No products match</p>
+              <p className="mt-1 max-w-sm text-sm text-ink-3">
+                {products.length === 0 ? "Add the first product to start the catalogue." : "Try another word, or clear the filters to see everything."}
+              </p>
+              <div className="mt-4 flex gap-2">
+                {filtersOn && <button type="button" onClick={clearFilters} className="h-9 rounded-lg border border-line px-3.5 text-sm font-semibold text-ink-2 hover:bg-recess">Clear filters</button>}
+                <button type="button" onClick={openAdd} className="h-9 rounded-lg bg-brand px-3.5 text-sm font-semibold text-white hover:brightness-110">New product</button>
+              </div>
+            </div>
+          ) : view === "list" ? (
+            <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+              <table className="w-full text-sm">
+                <thead className="border-b border-line bg-subtle text-left text-[11px] font-bold uppercase tracking-[0.08em] text-ink-4">
+                  <tr>
+                    <th className="px-4 py-2.5">Product</th>
+                    <th className="hidden px-3 py-2.5 lg:table-cell">Category</th>
+                    <th className="px-3 py-2.5 text-right">Price</th>
+                    <th className="hidden px-3 py-2.5 sm:table-cell">Stock</th>
+                    <th className="hidden px-3 py-2.5 text-right xl:table-cell">Reorder at</th>
+                    <th className="px-3 py-2.5"><span className="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {list.map((p) => {
+                    const st = stateOf(p);
+                    return (
+                      <tr key={p.id} className="transition hover:bg-subtle">
+                        <td className="px-4 py-2.5">
+                          <button type="button" onClick={() => openEdit(p)} className="flex min-w-0 items-center gap-3 text-left">
+                            <ProductThumb size="row" image={p.image} name={p.name} category={p.category?.name} subcategory={p.subcategory} />
+                            <span className="min-w-0">
+                              <span className="block truncate font-semibold text-ink hover:text-brand">{p.name}</span>
+                              <span className="block truncate text-[11.5px] text-ink-4">
+                                <span className="font-code">{productCode(p)}</span>
+                                {p.brand && <> · <span className="font-semibold text-brand">{p.brand}</span></>}
+                              </span>
+                            </span>
+                          </button>
+                        </td>
+                        <td className="hidden px-3 py-2.5 text-[13px] text-ink-3 lg:table-cell">
+                          {p.category?.name}{p.subcategory && <span className="text-ink-4"> › {p.subcategory}</span>}
+                        </td>
+                        <td className="num whitespace-nowrap px-3 py-2.5 text-right font-semibold text-ink">
+                          {peso(p.price)}<span className="font-normal text-ink-4">/{p.unit}</span>
+                        </td>
+                        <td className="hidden whitespace-nowrap px-3 py-2.5 sm:table-cell">
+                          <span className="flex items-center gap-2">
+                            <StockMeter stock={p.stock} reorderAt={reorderAtOf(p)} state={st} />
+                            <span className={`num text-[13px] ${st === "out" ? "font-semibold text-bad" : st === "low" ? "font-semibold text-warn" : "text-ink-2"}`}>
+                              {fmtQty(p.stock)} <span className="text-ink-4">{p.unit}</span>
+                            </span>
+                          </span>
+                        </td>
+                        <td className="num hidden px-3 py-2.5 text-right text-[13px] text-ink-3 xl:table-cell">
+                          {planBy.get(p.id) ? <>{fmtQty(reorderAtOf(p))} <span className="text-ink-4">{p.unit}</span></> : <span className="text-ink-4">—</span>}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex justify-end gap-1">
+                            <button type="button" onClick={() => openEdit(p)} aria-label={`Edit ${p.name}`}
+                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-line px-2.5 text-xs font-semibold text-ink-2 transition hover:border-brand/40 hover:bg-brand-soft hover:text-brand-ink"><Pencil className="size-3.5" /> Edit</button>
+                            <button type="button" onClick={() => setStockTarget(p)} aria-label={`Stock for ${p.name}`}
+                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-line px-2.5 text-xs font-semibold text-ink-2 transition hover:border-brand/40 hover:bg-brand-soft hover:text-brand-ink"><Boxes className="size-3.5" /> Stock</button>
+                            <button type="button" onClick={() => setDeleteTarget(p)} aria-label={`Delete ${p.name}`}
+                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-line px-2.5 text-xs font-semibold text-bad transition hover:border-bad/40 hover:bg-bad-soft"><Trash2 className="size-3.5" /> Delete</button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : grouped ? (
+            <div className="space-y-8">
+              {grouped.map((g) => {
+                return (
+                  <section key={g.categoryId} aria-labelledby={`cat-${g.categoryId}`}>
+                    <div className="mb-3 flex items-center gap-3">
+                      <span className="grid size-8 place-items-center rounded-lg bg-brand-soft text-brand"><CategoryGlyph category={g.name} className="size-4" /></span>
+                      <h2 id={`cat-${g.categoryId}`} className="font-display text-lg font-extrabold tracking-tight text-ink">{g.name}</h2>
+                      <span className="font-code text-xs text-ink-4">{g.items.length}</span>
+                      <span aria-hidden className="h-px flex-1 bg-line" />
+                      <button type="button" onClick={() => setRail({ categoryId: g.categoryId, sub: null })}
+                        className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-brand hover:underline">
+                        Only {g.name} <ArrowRight className="size-3.5" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">{g.items.map(card)}</div>
+                  </section>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">{list.map(card)}</div>
+          )}
+        </section>
       </div>
 
       {stockTarget && (

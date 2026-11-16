@@ -1,5 +1,37 @@
 @import "tailwindcss";
 
+/* RM Hardware's design tokens as Tailwind utilities (bg-surface, text-ink-3,
+   border-line, bg-brand-soft, text-good, font-code...). They point at the CSS
+   variables below, so every class follows light and dark mode automatically.
+   Palette rule: 60% white surfaces, 30% brand blue, 10% gray structure;
+   good/warn/bad/info are status signals only. */
+@theme inline {
+  --color-canvas: var(--bg-base);
+  --color-surface: var(--bg-card);
+  --color-subtle: var(--bg-subtle);
+  --color-recess: var(--bg-muted);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-ink: var(--text-primary);
+  --color-ink-2: var(--text-secondary);
+  --color-ink-3: var(--text-muted);
+  --color-ink-4: var(--text-faint);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --font-display: var(--font-archivo), var(--font-inter), sans-serif;
+  /* Product codes and counts: the system's own monospace, no download needed. */
+  --font-code: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Roboto Mono", monospace;
+}
+
 * {
   box-sizing: border-box;
 }

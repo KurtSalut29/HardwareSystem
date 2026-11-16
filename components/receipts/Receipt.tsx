@@ -38,8 +38,8 @@ function subtotalOf(r: ReceiptData) {
 function Row({ k, v, tone }: { k: string; v: string; tone?: "good" | "warn" }) {
   return (
     <div className="flex justify-between gap-3 text-xs">
-      <span className="text-gray-500">{k}</span>
-      <span className="text-right font-semibold text-gray-800"
+      <span className="text-ink-3">{k}</span>
+      <span className="text-right font-semibold text-ink"
         style={tone ? { color: tone === "good" ? "var(--good)" : "var(--warn)" } : undefined}>{v}</span>
     </div>
   );
@@ -50,11 +50,11 @@ export function ReceiptBody({ data }: { data: ReceiptData }) {
   return (
     <div className="space-y-3.5">
       <div className="text-center">
-        <p className="font-bold text-gray-900 text-base">{STORE_NAME}</p>
-        <p className="text-[11px] text-gray-400">{STORE_ADDRESS}</p>
-        <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-1">Acknowledgement Receipt</p>
+        <p className="font-bold text-ink text-base">{STORE_NAME}</p>
+        <p className="text-[11px] text-ink-4">{STORE_ADDRESS}</p>
+        <p className="text-[10px] text-ink-4 uppercase tracking-widest mt-1">Acknowledgement Receipt</p>
       </div>
-      <div className="border-t border-dashed border-gray-200" />
+      <div className="border-t border-dashed border-line" />
       <div className="space-y-1">
         <Row k="No." v={data.number} />
         <Row k="Date" v={when(data.date)} />
@@ -65,25 +65,25 @@ export function ReceiptBody({ data }: { data: ReceiptData }) {
         {data.servedBy && <Row k="Served by" v={data.servedBy} />}
         {data.status && <Row k="Status" v={data.status} />}
       </div>
-      <div className="border-t border-dashed border-gray-200" />
+      <div className="border-t border-dashed border-line" />
       <div className="space-y-1.5">
         {data.items.map((i, n) => (
           <div key={n} className="text-xs">
             <div className="flex justify-between gap-3">
-              <span className="text-gray-800 font-medium">{i.name}</span>
-              <span className="font-semibold text-gray-900 num">{peso(i.price * i.quantity)}</span>
+              <span className="text-ink font-medium">{i.name}</span>
+              <span className="font-semibold text-ink num">{peso(i.price * i.quantity)}</span>
             </div>
-            <p className="text-[11px] text-gray-400 num">{qty(i.quantity)}{i.unit ? ` ${i.unit}` : ""} × {peso(i.price)}</p>
+            <p className="text-[11px] text-ink-4 num">{qty(i.quantity)}{i.unit ? ` ${i.unit}` : ""} × {peso(i.price)}</p>
           </div>
         ))}
       </div>
-      <div className="border-t border-dashed border-gray-200" />
+      <div className="border-t border-dashed border-line" />
       <div className="space-y-1">
         {!!data.deliveryFee && <Row k="Subtotal" v={peso(subtotal)} />}
         {!!data.deliveryFee && <Row k="Delivery fee" v={peso(data.deliveryFee)} />}
         <div className="flex justify-between items-center pt-0.5">
-          <span className="font-bold text-gray-900">Total</span>
-          <span className="font-bold text-lg text-gray-900 num">{peso(data.total)}</span>
+          <span className="font-bold text-ink">Total</span>
+          <span className="font-bold text-lg text-ink num">{peso(data.total)}</span>
         </div>
       </div>
       {data.payment.length > 0 && (
@@ -91,8 +91,8 @@ export function ReceiptBody({ data }: { data: ReceiptData }) {
           {data.payment.map((p) => <Row key={p.label} k={p.label} v={p.value} tone={p.tone} />)}
         </div>
       )}
-      <p className="text-center text-[10px] text-gray-400 pt-1">Thank you for your purchase!</p>
-      <p className="text-center text-[9.5px] font-semibold uppercase tracking-wide text-gray-400">This is not an official receipt.</p>
+      <p className="text-center text-[10px] text-ink-4 pt-1">Thank you for your purchase!</p>
+      <p className="text-center text-[9.5px] font-semibold uppercase tracking-wide text-ink-4">This is not an official receipt.</p>
     </div>
   );
 }

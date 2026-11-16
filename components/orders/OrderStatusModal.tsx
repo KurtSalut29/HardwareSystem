@@ -86,10 +86,10 @@ export default function OrderStatusModal({
       <div className="space-y-5">
         {/* What happens next */}
         <div className="rounded-xl px-3.5 py-3 flex items-start gap-2.5" style={{ background: "var(--brand-soft, #EEF3FF)" }}>
-          <ArrowRight size={ICON_SIZE.sm} className="shrink-0 mt-0.5" style={{ color: "var(--brand)" }} />
+          <ArrowRight size={ICON_SIZE.sm} className="shrink-0 mt-0.5 text-brand" />
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--brand)" }}>Next step</p>
-            <p className="text-sm text-gray-800 font-medium">{next}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-brand">Next step</p>
+            <p className="text-sm text-ink font-medium">{next}</p>
           </div>
         </div>
 
@@ -117,12 +117,12 @@ export default function OrderStatusModal({
                   {s.state === "current" && <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: color }} />}
                 </span>
                 <div className="min-w-0 pt-0.5">
-                  <p className={`text-sm font-semibold ${s.state === "upcoming" ? "text-gray-400" : "text-gray-900"}`}>
+                  <p className={`text-sm font-semibold ${s.state === "upcoming" ? "text-ink-4" : "text-ink"}`}>
                     {s.label}
                     {s.state === "current" && <span className="ml-2 text-[10px] font-bold uppercase tracking-wide align-middle px-1.5 py-0.5 rounded-full" style={{ background: "var(--brand-soft, #EEF3FF)", color: "var(--brand)" }}>Now</span>}
                   </p>
-                  <p className={`text-xs ${s.state === "upcoming" ? "text-gray-300" : "text-gray-500"}`}>{s.detail}</p>
-                  {when(s.at) && <p className="text-[11px] text-gray-400 mt-0.5 num">{when(s.at)}</p>}
+                  <p className={`text-xs ${s.state === "upcoming" ? "text-ink-4" : "text-ink-3"}`}>{s.detail}</p>
+                  {when(s.at) && <p className="text-[11px] text-ink-4 mt-0.5 num">{when(s.at)}</p>}
                 </div>
               </li>
             );
@@ -133,32 +133,32 @@ export default function OrderStatusModal({
 
         {/* Delivery fee: computed from distance; the admin can change it on this order */}
         {!pickup && (
-          <div className="rounded-xl border border-gray-200 p-3 space-y-2">
+          <div className="rounded-xl border border-line p-3 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-xs text-gray-500">Delivery fee</p>
-                <p className="text-sm font-semibold text-gray-900 num">
+                <p className="text-xs text-ink-3">Delivery fee</p>
+                <p className="text-sm font-semibold text-ink num">
                   {order.deliveryFee ? `₱${order.deliveryFee.toFixed(2)}` : "Free"}
-                  <span className="text-xs font-normal text-gray-400"> · total ₱{order.totalAmount.toFixed(2)}</span>
+                  <span className="text-xs font-normal text-ink-4"> · total ₱{order.totalAmount.toFixed(2)}</span>
                 </p>
-                {order.deliveryFeeNote && <p className="text-[11px] text-gray-500">Changed by the store: {order.deliveryFeeNote}</p>}
+                {order.deliveryFeeNote && <p className="text-[11px] text-ink-3">Changed by the store: {order.deliveryFeeNote}</p>}
               </div>
               {onAdjustFee && !feeEdit && !order.transactionId && order.status !== "delivered" && order.status !== "cancelled" && (
                 <button onClick={() => setFeeEdit({ fee: String(order.deliveryFee ?? 0), note: "" })}
-                  className="text-xs font-semibold text-blue-600 hover:underline shrink-0">Change fee</button>
+                  className="text-xs font-semibold text-brand hover:underline shrink-0">Change fee</button>
               )}
             </div>
             {feeEdit && onAdjustFee && (
               <div className="space-y-2">
                 <div className="flex gap-2">
                   <div className="relative w-28 shrink-0">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">₱</span>
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-ink-4">₱</span>
                     <input aria-label="New delivery fee" type="number" min="0" step="1" value={feeEdit.fee} onChange={(e) => setFeeEdit({ ...feeEdit, fee: e.target.value })}
-                      className="w-full border border-gray-200 rounded-lg pl-6 pr-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+                      className="w-full border border-line rounded-lg pl-6 pr-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
                   </div>
                   <input aria-label="Reason for the new fee" value={feeEdit.note} onChange={(e) => setFeeEdit({ ...feeEdit, note: e.target.value })} maxLength={200}
                     placeholder="Reason, e.g. same trip as order #1021"
-                    className="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+                    className="flex-1 min-w-0 border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
                 </div>
                 <div className="flex gap-2 justify-end">
                   <Button size="sm" variant="secondary" onClick={() => setFeeEdit(null)} disabled={feeSaving}>Cancel</Button>
@@ -176,21 +176,21 @@ export default function OrderStatusModal({
         )}
 
         {order.proofImage && (
-          <button onClick={onViewProof} className="w-full flex items-center gap-3 rounded-xl border border-gray-200 p-2.5 hover:bg-gray-50 transition text-left">
-            <span className="relative w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-gray-50">
+          <button onClick={onViewProof} className="w-full flex items-center gap-3 rounded-xl border border-line p-2.5 hover:bg-subtle transition text-left">
+            <span className="relative w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-subtle">
               <Image src={order.proofImage} alt="Proof of delivery" fill sizes="56px" className="object-cover" />
             </span>
             <span className="min-w-0">
-              <span className="flex items-center gap-1 text-sm font-semibold text-gray-900"><Camera size={ICON_SIZE.xs} /> Proof of delivery</span>
-              <span className="block text-xs text-gray-500">Photo taken by the driver at the drop-off. Tap to view.</span>
+              <span className="flex items-center gap-1 text-sm font-semibold text-ink"><Camera size={ICON_SIZE.xs} /> Proof of delivery</span>
+              <span className="block text-xs text-ink-3">Photo taken by the driver at the drop-off. Tap to view.</span>
             </span>
           </button>
         )}
 
         {/* Action, with one confirmation before it runs */}
         {pending ? (
-          <div className="rounded-xl border border-gray-200 p-3.5 space-y-3">
-            <p className="text-sm text-gray-800">{pending.confirm}</p>
+          <div className="rounded-xl border border-line p-3.5 space-y-3">
+            <p className="text-sm text-ink">{pending.confirm}</p>
             <div className="flex gap-2 justify-end">
               <Button variant="secondary" size="sm" onClick={() => setPending(null)} disabled={busy}>Back</Button>
               <Button size="sm" onClick={runPending} loading={busy}
@@ -209,11 +209,11 @@ export default function OrderStatusModal({
             )}
             {needsDriver && (canAssign ? (
               drivers.length === 0 ? (
-                <p className="text-xs text-center" style={{ color: "var(--warn)" }}>No drivers registered yet.</p>
+                <p className="text-xs text-center text-warn">No drivers registered yet.</p>
               ) : (
                 <div className="flex gap-2">
                   <select value={driverId} onChange={(e) => setDriverId(e.target.value)} aria-label="Driver"
-                    className="flex-1 min-w-0 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                    className="flex-1 min-w-0 text-sm border border-line rounded-lg px-3 py-2 bg-surface focus:outline-none focus:ring-2 focus:ring-brand/20">
                     <option value="">Choose a driver…</option>
                     {drivers.map((d) => {
                       const o = driverOption(d);
@@ -230,11 +230,11 @@ export default function OrderStatusModal({
                 </div>
               )
             ) : (
-              <p className="text-xs text-center text-gray-500">Staff assigns the driver for this order.</p>
+              <p className="text-xs text-center text-ink-3">Staff assigns the driver for this order.</p>
             ))}
             {canCancel && (
               <button onClick={onCancel}
-                className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg text-red-500 hover:bg-red-50 transition">
+                className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg text-bad hover:bg-bad-soft transition">
                 <Ban size={ICON_SIZE.xs} /> Cancel order
               </button>
             )}

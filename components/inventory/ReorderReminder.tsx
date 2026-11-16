@@ -96,47 +96,47 @@ export default function ReorderReminder({ role, username }: { role: string; user
   return (
     <Modal open={open} onClose={snooze} title="Time to reorder" size="md">
       <div className="space-y-4">
-        <div className="flex items-start gap-3 rounded-xl px-3.5 py-3" style={{ background: "var(--warn-soft)" }}>
-          <AlertTriangle size={ICON_SIZE.md} className="shrink-0 mt-0.5" style={{ color: "var(--warn)" }} />
-          <p className="text-sm text-gray-700">
-            <span className="font-semibold text-gray-900">{rows.length} product{rows.length === 1 ? " is" : "s are"}</span> at or below
-            the reorder point{outCount > 0 && <>, and <span className="font-semibold" style={{ color: "var(--bad)" }}>{outCount} {outCount === 1 ? "is" : "are"} out of stock</span></>}.
+        <div className="flex items-start gap-3 rounded-xl px-3.5 py-3 bg-warn-soft">
+          <AlertTriangle size={ICON_SIZE.md} className="shrink-0 mt-0.5 text-warn" />
+          <p className="text-sm text-ink-2">
+            <span className="font-semibold text-ink">{rows.length} product{rows.length === 1 ? " is" : "s are"}</span> at or below
+            the reorder point{outCount > 0 && <>, and <span className="font-semibold text-bad">{outCount} {outCount === 1 ? "is" : "are"} out of stock</span></>}.
             Order now so they arrive before they run out.
           </p>
         </div>
 
         <div>
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
+          <p className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide mb-2">
             {rows.length > SHOW_TOP ? `Most urgent ${SHOW_TOP}` : "Products to order"}
           </p>
-          <ul className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+          <ul className="divide-y divide-line border border-line rounded-xl overflow-hidden">
             {top.map((r) => (
               <li key={r.productId} className="flex items-center gap-3 px-3 py-2.5">
-                <div className="w-9 h-9 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-lg bg-subtle border border-line overflow-hidden shrink-0 flex items-center justify-center">
                   {r.image
                     ? <Image src={r.image} alt="" width={36} height={36} className="w-full h-full object-cover" />
-                    : r.status === "out" ? <PackageX size={16} className="text-gray-300" /> : <Package size={16} className="text-gray-300" />}
+                    : r.status === "out" ? <PackageX size={16} className="text-ink-4" /> : <Package size={16} className="text-ink-4" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{r.name}</p>
-                  <p className="text-[11px] text-gray-400">
+                  <p className="text-sm font-medium text-ink truncate">{r.name}</p>
+                  <p className="text-[11px] text-ink-4">
                     {r.status === "out"
-                      ? <span className="font-semibold" style={{ color: "var(--bad)" }}>Out of stock</span>
+                      ? <span className="font-semibold text-bad">Out of stock</span>
                       : <>{fmt(r.stock)} {r.unit} left · reorder at {fmt(r.reorderPoint)}</>}
                     {r.daysLeft != null && r.status !== "out" && <> · ~{Math.max(0, Math.floor(r.daysLeft))} day{Math.floor(r.daysLeft) === 1 ? "" : "s"} left</>}
                   </p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Order</p>
-                  <p className="text-sm font-bold text-gray-900 num">{r.eoq != null ? `${fmt(r.eoq)} ${r.unit}` : "—"}</p>
+                  <p className="text-[10px] text-ink-4 uppercase tracking-wide">Order</p>
+                  <p className="text-sm font-bold text-ink num">{r.eoq != null ? `${fmt(r.eoq)} ${r.unit}` : "—"}</p>
                 </div>
               </li>
             ))}
           </ul>
           {rows.length > SHOW_TOP && (
-            <p className="text-[11px] text-gray-400 mt-2">+ {rows.length - SHOW_TOP} more in the restock plan.</p>
+            <p className="text-[11px] text-ink-4 mt-2">+ {rows.length - SHOW_TOP} more in the restock plan.</p>
           )}
-          <p className="text-[11px] text-gray-400 mt-2">&ldquo;Order&rdquo; is the EOQ suggestion from recent sales.</p>
+          <p className="text-[11px] text-ink-4 mt-2">&ldquo;Order&rdquo; is the EOQ suggestion from recent sales.</p>
         </div>
 
         <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">

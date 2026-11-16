@@ -75,9 +75,30 @@ const driverNav: NavGroup[] = [
 
 const navByRole: Record<string, NavGroup[]> = { admin: adminNav, cashier: cashierNav, customer: customerNav, driver: driverNav };
 
+type NavCounts = Record<string, { count: number; detail: string }>;
+
+/** Work waiting behind a link (new orders, deliveries on hand), refreshed every 20 seconds. */
+function useNavCounts(pathname: string): NavCounts {
+  const [counts, setCounts] = useState<NavCounts>({});
+  useEffect(() => {
+    let live = true;
+    const load = () => fetch("/api/nav-counts", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (live && d) setCounts(d); })
+      .catch(() => {});
+    load();
+    const t = setInterval(load, 20000);
+    const onFocus = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onFocus);
+    return () => { live = false; clearInterval(t); document.removeEventListener("visibilitychange", onFocus); };
+  // Re-count on navigation too, so confirming an order updates the badge right away.
+  }, [pathname]);
+  return counts;
+}
+
 // Its own component (not just a JSX fragment) because Sidebar renders two physical copies of the
 // nav — desktop + mobile drawer — and each needs independent refs/measurements for its indicator.
-function SidebarNav({ groups, pathname, collapsed, onNavigate }: { groups: NavGroup[]; pathname: string; collapsed: boolean; onNavigate: () => void }) {
+function SidebarNav({ groups, pathname, collapsed, onNavigate, counts }: { groups: NavGroup[]; pathname: string; collapsed: boolean; onNavigate: () => void; counts: NavCounts }) {
   const itemRefs = useRef<Map<string, HTMLAnchorElement>>(new Map());
   const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null);
   const items = groups.flatMap((g) => g.items);
@@ -119,21 +140,39 @@ function SidebarNav({ groups, pathname, collapsed, onNavigate }: { groups: NavGr
           <div className="space-y-0.5">
             {group.items.map((item) => {
               const active = item.href === activeHref;
+              const badge = counts[item.href];
+              const n = badge?.count ?? 0;
+              const label = n > 0 ? `${item.label}: ${badge.detail}` : item.label;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   ref={(el) => { if (el) itemRefs.current.set(item.href, el); }}
                   onClick={onNavigate}
-                  title={collapsed ? item.label : undefined}
+                  title={collapsed || n > 0 ? label : undefined}
+                  aria-label={n > 0 ? label : undefined}
                   aria-current={active ? "page" : undefined}
                   style={{ color: active ? "var(--nav-active-ink)" : "var(--nav-ink-dim)" }}
                   className={`relative z-10 flex items-center gap-3 px-3 rounded-lg text-sm font-medium transition-colors border border-transparent hover:text-[color:var(--text-primary)]
                     py-2.5 ${collapsed ? "justify-center" : ""} ${!active ? "hover:bg-[color:var(--bg-muted)]" : ""}
                   `}
                 >
-                  <span className="shrink-0" style={active ? { color: "var(--accent)" } : undefined}>{item.icon}</span>
-                  {!collapsed && <span>{item.label}</span>}
+                  <span className="relative shrink-0" style={active ? { color: "var(--accent)" } : undefined}>
+                    {item.icon}
+                    {collapsed && n > 0 && (
+                      <span aria-hidden className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full text-[9.5px] font-bold leading-4 text-center text-white"
+                        style={{ background: "var(--brand)", boxShadow: "0 0 0 2px var(--nav-bg)" }}>
+                        {n > 99 ? "99+" : n}
+                      </span>
+                    )}
+                  </span>
+                  {!collapsed && <span className="flex-1 min-w-0 truncate">{item.label}</span>}
+                  {!collapsed && n > 0 && (
+                    <span aria-hidden className="ml-auto min-w-[22px] h-[20px] px-1.5 rounded-full text-[11px] font-bold leading-[20px] text-center num"
+                      style={active ? { background: "var(--brand)", color: "#fff" } : { background: "var(--brand-soft)", color: "var(--brand-ink)" }}>
+                      {n > 99 ? "99+" : n}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -149,6 +188,7 @@ export default function Sidebar({ role, mobileOpen, onClose }: { role: string; m
   const [collapsed, setCollapsed] = useState(false);
   const [mobileVisible, setMobileVisible] = useState(mobileOpen);
   const groups = navByRole[role] ?? [];
+  const counts = useNavCounts(pathname);
   const { confirmOpen, requestLogout, cancelLogout, confirmLogout } = useLogout();
 
   useEffect(() => {
@@ -192,7 +232,7 @@ export default function Sidebar({ role, mobileOpen, onClose }: { role: string; m
         </div>
       )}
 
-      <SidebarNav groups={groups} pathname={pathname} collapsed={collapsed} onNavigate={onClose} />
+      <SidebarNav groups={groups} pathname={pathname} collapsed={collapsed} onNavigate={onClose} counts={counts} />
 
       {/* Logout */}
       <div className="px-2 py-4 border-t" style={{ borderColor: "var(--nav-line)" }}>

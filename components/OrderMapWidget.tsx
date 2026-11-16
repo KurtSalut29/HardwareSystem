@@ -41,7 +41,7 @@ export function MapLegend({ compact = false }: { compact?: boolean }) {
 export default function OrderMapWidget({
   compact = false,
   title = 'Live Deliveries',
-  description = 'Where every active order is going and where each driver is right now. Updates every 15 seconds; click a pin for the order.',
+  description = "Today's orders, plus any still on the way, and where each driver is right now. Starts fresh every midnight; updates every 15 seconds.",
 }: {
   compact?: boolean;
   title?: string;
@@ -69,6 +69,7 @@ export default function OrderMapWidget({
   }, []);
 
   const activeCount = pins.filter((p) => p.status === 'out_for_delivery').length;
+  const dayLabel = new Date().toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' });
 
   return (
     <div style={{ isolation: 'isolate' }} className={`bg-white rounded-xl border border-gray-200 ${compact ? 'p-4' : 'p-5'}`}>
@@ -76,6 +77,11 @@ export default function OrderMapWidget({
         <div className="min-w-0">
           <h3 className={`font-display font-extrabold text-gray-900 ${compact ? 'text-sm' : ''}`}>{title}</h3>
           <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{description}</p>
+          {!loading && (
+            <p className="text-[11px] font-semibold mt-1" style={{ color: 'var(--brand-ink)' }}>
+              {dayLabel} · {pins.length} order{pins.length === 1 ? '' : 's'} on the map
+            </p>
+          )}
         </div>
         {activeCount > 0 && (
           <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0" style={{ background: "var(--brand-soft)", color: "var(--brand-ink)" }} title="Orders out for delivery right now">

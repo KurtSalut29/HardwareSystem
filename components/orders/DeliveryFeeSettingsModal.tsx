@@ -90,52 +90,52 @@ export default function DeliveryFeeSettingsModal({ onClose, onSaved }: { onClose
         </div>
       }>
       {!form ? (
-        <p className="text-sm text-gray-400 py-8 text-center">{error || "Loading..."}</p>
+        <p className="text-sm text-ink-4 py-8 text-center">{error || "Loading..."}</p>
       ) : (
         <form id="delivery-fee-form" onSubmit={save} className="space-y-4">
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-ink-3">
             Every delivery pays the base fee, plus a rate per km past the distance it covers. The distance is the real driving
             distance by road from the store&apos;s pin to the customer&apos;s pin (OpenStreetMap routing), so farther places pay more.
             Customers see the fee at checkout before they order, and you can still change it on a single order.
           </p>
-          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide pt-1">Delivery fee</p>
+          <p className="text-[11px] font-semibold text-ink-3 uppercase tracking-wide pt-1">Delivery fee</p>
           {FEE_FIELDS.map((f) => (
             <div key={f.key}>
-              <label htmlFor={`df-${f.key}`} className="block text-xs font-medium text-gray-600 mb-1">{f.label}</label>
+              <label htmlFor={`df-${f.key}`} className="block text-xs font-medium text-ink-2 mb-1">{f.label}</label>
               <div className="flex items-center gap-2">
                 <input id={`df-${f.key}`} required type="number" step={f.step} min={DELIVERY_LIMITS[f.key].min} max={DELIVERY_LIMITS[f.key].max}
                   value={form[f.key]} onChange={(e) => setForm((p) => (p ? { ...p, [f.key]: e.target.value } : p))}
-                  className="w-28 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition" />
-                <span className="text-xs text-gray-500">{f.suffix}</span>
+                  className="w-28 border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
+                <span className="text-xs text-ink-3">{f.suffix}</span>
               </div>
-              <p className="text-[11px] text-gray-400 mt-1">{f.hint}</p>
+              <p className="text-[11px] text-ink-4 mt-1">{f.hint}</p>
             </div>
           ))}
 
-          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide pt-2 border-t border-gray-100">Drivers</p>
+          <p className="text-[11px] font-semibold text-ink-3 uppercase tracking-wide pt-2 border-t border-line">Drivers</p>
           {DRIVER_FIELDS.map((f) => (
             <div key={f.key}>
-              <label htmlFor={`df-${f.key}`} className="block text-xs font-medium text-gray-600 mb-1">{f.label}</label>
+              <label htmlFor={`df-${f.key}`} className="block text-xs font-medium text-ink-2 mb-1">{f.label}</label>
               <div className="flex items-center gap-2">
                 <input id={`df-${f.key}`} required type="number" step={f.step} min={DELIVERY_LIMITS[f.key].min} max={DELIVERY_LIMITS[f.key].max}
                   value={form[f.key]} onChange={(e) => setForm((p) => (p ? { ...p, [f.key]: e.target.value } : p))}
-                  className="w-28 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition" />
-                <span className="text-xs text-gray-500">{f.suffix}</span>
+                  className="w-28 border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
+                <span className="text-xs text-ink-3">{f.suffix}</span>
               </div>
-              <p className="text-[11px] text-gray-400 mt-1">{f.hint}</p>
+              <p className="text-[11px] text-ink-4 mt-1">{f.hint}</p>
             </div>
           ))}
 
           {current && store && (
-            <div className="rounded-xl border border-gray-100 overflow-hidden">
-              <div className="px-3 py-2" style={{ background: "var(--bg-muted)" }}>
-                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Preview — try your rates before saving</p>
-                <p className="text-[10.5px] text-gray-400 mt-0.5">
+            <div className="rounded-xl border border-line overflow-hidden">
+              <div className="px-3 py-2 bg-recess">
+                <p className="text-[11px] font-semibold text-ink-3 uppercase tracking-wide">Preview — try your rates before saving</p>
+                <p className="text-[10.5px] text-ink-4 mt-0.5">
                   Not a price list. This changes as you type, so you can check the rates above before you save.
                   Real orders are priced automatically from the customer&apos;s pin.
                 </p>
               </div>
-              <ul className="divide-y divide-gray-50">
+              <ul className="divide-y divide-line">
                 {EXAMPLES
                   .map((ex) => {
                     // Real road distance once it arrives; the straight-line estimate until then.
@@ -146,15 +146,15 @@ export default function DeliveryFeeSettingsModal({ onClose, onSaved }: { onClose
                   .map(({ ex, q }) => {
                   return (
                     <li key={ex.name} className="flex justify-between gap-3 px-3 py-2 text-xs">
-                      <span className="text-gray-700">{ex.name} <span className="text-gray-400">· {q.source === "road" ? "" : "~"}{q.roadKm.toFixed(1)} km{q.source === "road" ? " by road" : ""}{q.island ? ` + boat ₱${q.boatFee}` : ""}</span></span>
-                      <span className="font-semibold text-gray-900 num">{q.tooFar ? "Too far" : q.fee === 0 ? "Free" : `₱${q.fee}`}</span>
+                      <span className="text-ink-2">{ex.name} <span className="text-ink-4">· {q.source === "road" ? "" : "~"}{q.roadKm.toFixed(1)} km{q.source === "road" ? " by road" : ""}{q.island ? ` + boat ₱${q.boatFee}` : ""}</span></span>
+                      <span className="font-semibold text-ink num">{q.tooFar ? "Too far" : q.fee === 0 ? "Free" : `₱${q.fee}`}</span>
                     </li>
                   );
                 })}
               </ul>
             </div>
           )}
-          {error && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          {error && <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
         </form>
       )}
     </Modal>

@@ -11,8 +11,8 @@ type Props = {
 };
 
 const VARIANTS: Record<string, string> = {
-  default: "text-[color:var(--text-muted)] hover:text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-muted)]",
-  danger: "text-[color:var(--text-muted)] hover:text-[color:var(--bad)] hover:bg-[color:var(--bad-soft)]",
+  default: "text-ink-3 hover:bg-recess hover:text-ink-2",
+  danger: "text-ink-4 hover:bg-bad-soft hover:text-bad",
 };
 
 export default function IconButton({ icon, onClick, variant = "default", title, type = "button", disabled, className = "" }: Props) {
@@ -21,8 +21,9 @@ export default function IconButton({ icon, onClick, variant = "default", title, 
       type={type}
       onClick={onClick}
       title={title}
+      aria-label={title}
       disabled={disabled}
-      className={`p-1.5 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
+      className={`grid size-8 place-items-center rounded-lg transition disabled:cursor-not-allowed disabled:opacity-40 ${VARIANTS[variant]} ${className}`}
     >
       {icon}
     </button>

@@ -14,12 +14,12 @@ type Product = { id: number; name: string; price: number; unit: string; stock: n
 type Customer = { id: number; username: string; contact: string | null };
 type Line = { productId: number; quantity: string };
 
-const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition bg-white";
+const inputCls = "w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition bg-surface";
 const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function Segmented<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: string; icon: React.ReactNode }[]; onChange: (v: T) => void }) {
   return (
-    <div className="grid gap-1 rounded-xl border border-gray-200 p-1" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
+    <div className="grid gap-1 rounded-xl border border-line p-1" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
       {options.map((o) => (
         <button key={o.value} type="button" onClick={() => onChange(o.value)} aria-pressed={value === o.value}
           className="flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition"
@@ -34,8 +34,8 @@ function Segmented<T extends string>({ value, options, onChange }: { value: T; o
 function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2.5">
-      <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-        <span className="w-5 h-5 rounded-full text-[11px] font-bold text-white flex items-center justify-center" style={{ background: "var(--brand)" }}>{n}</span>
+      <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+        <span className="w-5 h-5 rounded-full text-[11px] font-bold text-white flex items-center justify-center bg-brand">{n}</span>
         {title}
       </h3>
       {children}
@@ -149,9 +149,9 @@ export default function NewOrderModal({ onClose, onCreated }: {
     <Modal open onClose={onClose} title="New order (phone or walk-in)" size="xl"
       footer={
         <div className="flex flex-wrap items-center gap-2">
-          <div className="mr-auto text-xs text-gray-500">
+          <div className="mr-auto text-xs text-ink-3">
             {fee > 0 && <>{peso(subtotal)} + {peso(fee)} delivery = </>}
-            <span className="text-sm font-bold text-gray-900 num">{peso(total)}</span>
+            <span className="text-sm font-bold text-ink num">{peso(total)}</span>
           </div>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={submit} loading={saving}>Create order</Button>
@@ -193,28 +193,28 @@ export default function NewOrderModal({ onClose, onCreated }: {
             <Button type="button" onClick={addLine} disabled={!pick} icon={<Plus size={ICON_SIZE.sm} />}>Add</Button>
           </div>
           {lines.length === 0 ? (
-            <p className="text-xs text-gray-400 py-3 text-center border border-dashed border-gray-200 rounded-xl">No products yet.</p>
+            <p className="text-xs text-ink-4 py-3 text-center border border-dashed border-line rounded-xl">No products yet.</p>
           ) : (
-            <ul className="divide-y divide-gray-100 border border-gray-200 rounded-xl">
+            <ul className="divide-y divide-line border border-line rounded-xl">
               {lines.map((l, i) => {
                 const p = productOf(l.productId);
                 if (!p) return null;
                 return (
                   <li key={l.productId} className="flex flex-wrap items-center gap-2 px-3 py-2">
                     <div className="flex-1 min-w-[140px]">
-                      <p className="text-sm font-medium text-gray-900">{p.name}</p>
-                      <p className="text-[11px] text-gray-400">{peso(p.price)} per {p.unit}</p>
-                      {lineError[i] && <p className="text-[11px]" style={{ color: "var(--bad)" }}>{lineError[i]}</p>}
+                      <p className="text-sm font-medium text-ink">{p.name}</p>
+                      <p className="text-[11px] text-ink-4">{peso(p.price)} per {p.unit}</p>
+                      {lineError[i] && <p className="text-[11px] text-bad">{lineError[i]}</p>}
                     </div>
                     <div className="relative w-28">
                       <input aria-label={`Quantity of ${p.name}`} type="number" min="0" step={p.unit === "kg" ? "0.25" : "1"} value={l.quantity}
                         onChange={(e) => setLines((ls) => ls.map((x) => (x.productId === l.productId ? { ...x, quantity: e.target.value } : x)))}
                         className={`${inputCls} pr-10`} />
-                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-gray-400 pointer-events-none">{p.unit}</span>
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-ink-4 pointer-events-none">{p.unit}</span>
                     </div>
-                    <span className="w-24 text-right text-sm font-semibold text-gray-900 num">{peso(p.price * (Number(l.quantity) || 0))}</span>
+                    <span className="w-24 text-right text-sm font-semibold text-ink num">{peso(p.price * (Number(l.quantity) || 0))}</span>
                     <button type="button" onClick={() => setLines((ls) => ls.filter((x) => x.productId !== l.productId))} aria-label={`Remove ${p.name}`}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50"><Trash2 size={ICON_SIZE.sm} /></button>
+                      className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-bad transition hover:bg-bad-soft"><Trash2 className="size-3.5" /> Remove</button>
                   </li>
                 );
               })}
@@ -230,12 +230,12 @@ export default function NewOrderModal({ onClose, onCreated }: {
           {mode === "delivery" && (
             <div className="space-y-2">
               <LocationPicker value={location} onChange={setLocation} />
-              {location && delivery.loading && <p className="rounded-lg px-3 py-2 text-xs text-gray-500 animate-pulse" style={{ background: "var(--bg-muted)" }}>Checking the road distance…</p>}
-              {location && !delivery.loading && delivery.error && <p className="rounded-lg px-3 py-2 text-xs" style={{ background: "var(--bad-soft)", color: "var(--bad)" }}>{delivery.error}</p>}
+              {location && delivery.loading && <p className="rounded-lg px-3 py-2 text-xs text-ink-3 animate-pulse bg-recess">Checking the road distance…</p>}
+              {location && !delivery.loading && delivery.error && <p className="rounded-lg px-3 py-2 text-xs bg-bad-soft text-bad">{delivery.error}</p>}
               {quote && delivery.settings && (
                 <div className="rounded-lg px-3 py-2 text-xs flex justify-between gap-3" style={{ background: quote.tooFar ? "var(--bad-soft)" : "var(--info-soft)" }}>
-                  <span className="text-gray-600">{quote.tooFar ? `About ${quote.roadKm.toFixed(0)} km — beyond the ${delivery.settings.maxKm} km delivery area` : describeQuote(quote, delivery.settings)}</span>
-                  <span className="font-bold text-gray-900 num whitespace-nowrap">{quote.fee === 0 ? "Free" : peso(quote.fee)}</span>
+                  <span className="text-ink-2">{quote.tooFar ? `About ${quote.roadKm.toFixed(0)} km — beyond the ${delivery.settings.maxKm} km delivery area` : describeQuote(quote, delivery.settings)}</span>
+                  <span className="font-bold text-ink num whitespace-nowrap">{quote.fee === 0 ? "Free" : peso(quote.fee)}</span>
                 </div>
               )}
             </div>
@@ -253,12 +253,12 @@ export default function NewOrderModal({ onClose, onCreated }: {
                 <input aria-label="GCash number paid from" value={gcashNumber} onChange={(e) => setGcashNumber(e.target.value.replace(/\D/g, "").slice(0, 11))} className={inputCls} placeholder="Paid from (09…)" inputMode="numeric" />
                 <input aria-label="GCash reference number" value={gcashReference} onChange={(e) => setGcashReference(e.target.value.replace(/\D/g, "").slice(0, 13))} className={inputCls} placeholder="13-digit Ref. No." inputMode="numeric" />
               </div>
-              <p className="text-[11px] text-gray-400">Leave blank if the customer hasn&apos;t sent it yet. It stays &ldquo;not verified&rdquo; until you check it.</p>
+              <p className="text-[11px] text-ink-4">Leave blank if the customer hasn&apos;t sent it yet. It stays &ldquo;not verified&rdquo; until you check it.</p>
             </div>
           )}
           <div className="space-y-1.5">
-            <p className="text-xs font-medium text-gray-600">Paid now</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl border border-gray-200 p-1" role="group" aria-label="Amount paid now">
+            <p className="text-xs font-medium text-ink-2">Paid now</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl border border-line p-1" role="group" aria-label="Amount paid now">
               {PAY_NOW_OPTIONS.map((o) => (
                 <button key={o.value} type="button" onClick={() => setPayNow(o.value)} aria-pressed={payNow === o.value}
                   className="rounded-lg py-2 px-1 text-xs font-semibold transition leading-tight"
@@ -270,22 +270,22 @@ export default function NewOrderModal({ onClose, onCreated }: {
             </div>
             {payNow === "other" && (
               <div className="relative w-40">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">₱</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-ink-4">₱</span>
                 <input aria-label="Amount paid now" type="number" min="0" step="0.01" value={payOther} onChange={(e) => setPayOther(e.target.value)} className={`${inputCls} pl-7`} placeholder="0.00" />
               </div>
             )}
             {paidNow != null && total > 0 && !payOtherInvalid && (
-              <p className="text-[11px] text-gray-500">
+              <p className="text-[11px] text-ink-3">
                 {paidNow >= total ? "Paid in full." : paidNow > 0
-                  ? <>Downpayment {peso(paidNow)} · <b className="text-gray-700">{peso(total - paidNow)}</b> left to collect {mode === "delivery" ? "on delivery" : "at pickup"}.</>
+                  ? <>Downpayment {peso(paidNow)} · <b className="text-ink-2">{peso(total - paidNow)}</b> left to collect {mode === "delivery" ? "on delivery" : "at pickup"}.</>
                   : <>Nothing paid yet · the full {peso(total)} is collected {mode === "delivery" ? "on delivery" : "at pickup"}.</>}
               </p>
             )}
-            {payOtherInvalid && payOther !== "" && <p className="text-[11px]" style={{ color: "var(--bad)" }}>Enter an amount from ₱0 to {peso(total)}.</p>}
+            {payOtherInvalid && payOther !== "" && <p className="text-[11px] text-bad">Enter an amount from ₱0 to {peso(total)}.</p>}
           </div>
         </Section>
 
-        {error && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+        {error && <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
       </div>
     </Modal>
   );

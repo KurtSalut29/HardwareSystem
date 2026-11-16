@@ -63,7 +63,7 @@ export default function Modal({ open, onClose, title, children, footer, size = "
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm transition-opacity duration-150 ${open ? "opacity-100 animate-overlay-in" : "opacity-0"}`}
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(12,16,40,0.45)] backdrop-blur-[3px] transition-opacity duration-150 ${open ? "opacity-100 animate-overlay-in" : "opacity-0"}`}
       onClick={closeOnBackdrop ? onClose : undefined}
     >
       <div
@@ -72,16 +72,16 @@ export default function Modal({ open, onClose, title, children, footer, size = "
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className={`bg-white rounded-2xl shadow-xl w-full ${SIZE_CLASS[size]} outline-none transition-all duration-150 ${open ? "opacity-100 scale-100 animate-panel-in" : "opacity-0 scale-95"}`}
+        className={`bg-surface border border-line rounded-2xl shadow-[0_24px_60px_-20px_rgba(16,24,64,0.45)] w-full ${SIZE_CLASS[size]} outline-none transition-all duration-150 ${open ? "opacity-100 scale-100 animate-panel-in" : "opacity-0 scale-95"}`}
       >
         {title && (
-          <div className="flex items-center justify-between p-5 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900 text-sm">{title}</h2>
+          <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
+            <h2 className="font-display text-base font-extrabold tracking-tight text-ink">{title}</h2>
             <IconButton icon={<X size={ICON_SIZE.md} />} onClick={onClose} title="Close" />
           </div>
         )}
         <div className="p-5 max-h-[85vh] overflow-y-auto">{children}</div>
-        {footer && <div className="p-5 pt-0 border-t border-gray-100">{footer}</div>}
+        {footer && <div className="border-t border-line p-5">{footer}</div>}
       </div>
     </div>,
     document.body

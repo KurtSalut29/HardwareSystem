@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  Plus, Search, Trash2, Pencil, Users2, ShieldCheck, Truck, ShoppingBag, UserX, UserCheck, Clock, MapPin, Mail, Phone,
+  Plus, Trash2, Pencil, Users2, ShieldCheck, ShoppingBag, UserX, UserCheck, MapPin, Mail, Phone,
   CheckCircle2, XCircle, AlertTriangle,
 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
@@ -11,11 +11,11 @@ import Badge from "@/components/ui/Badge";
 import Modal from "@/components/ui/Modal";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import Button from "@/components/ui/Button";
-import StatCard from "@/components/ui/StatCard";
+import FilterTiles, { type FilterTile } from "@/components/ui/FilterTiles";
+import SearchField from "@/components/ui/SearchField";
 import EmptyState from "@/components/ui/EmptyState";
 import Pagination from "@/components/ui/Pagination";
 import { useToast } from "@/components/ui/ToastProvider";
-import { ICON_SIZE } from "@/lib/constants/icon-size";
 import { roleLabel } from "@/lib/roles";
 import type { AccountStatus } from "@/lib/users";
 
@@ -41,16 +41,16 @@ const REJECT_REASONS = [
   "This person already has an account.",
 ];
 
-const STATUS_STYLE: Record<AccountStatus, { label: string; bg: string; fg: string }> = {
-  pending: { label: "Waiting approval", bg: "var(--warn-soft)", fg: "var(--warn)" },
-  approved: { label: "Approved", bg: "var(--good-soft)", fg: "var(--good)" },
-  rejected: { label: "Rejected", bg: "var(--bad-soft)", fg: "var(--bad)" },
+const STATUS_STYLE: Record<AccountStatus, { label: string; pill: string }> = {
+  pending: { label: "Waiting approval", pill: "bg-warn-soft text-warn" },
+  approved: { label: "Approved", pill: "bg-good-soft text-good" },
+  rejected: { label: "Rejected", pill: "bg-bad-soft text-bad" },
 };
 
 function StatusChip({ status }: { status: AccountStatus }) {
   const s = STATUS_STYLE[status] ?? STATUS_STYLE.approved;
   return (
-    <span className="inline-flex items-center gap-1 text-[10.5px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: s.bg, color: s.fg }}>
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${s.pill}`}>
       {s.label}
     </span>
   );
@@ -71,6 +71,16 @@ const ago = (iso: string) => {
   if (h < 24) return `${h}h ago`;
   return new Date(iso).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
 };
+
+/** Initial in a circle, tinted by role so staff, drivers and customers read apart at a glance. */
+function Avatar({ u, size = "md" }: { u: User; size?: "md" | "lg" }) {
+  return (
+    <span className={`grid shrink-0 place-items-center rounded-full font-display font-extrabold ${size === "lg" ? "size-11 text-base" : "size-9 text-sm"} ${
+      u.role === "customer" ? "bg-good-soft text-good" : u.role === "driver" ? "bg-warn-soft text-warn" : "bg-brand-soft text-brand"}`}>
+      {(u.firstName ?? u.username).charAt(0).toUpperCase()}
+    </span>
+  );
+}
 
 function UsersPageInner() {
   const searchParams = useSearchParams();
@@ -189,45 +199,45 @@ function UsersPageInner() {
       ? [editTarget.role, ...CREATABLE_ROLES]
       : [...CREATABLE_ROLES];
 
-  const TABS: { key: Tab; label: string; count: number; urgent?: boolean }[] = [
-    { key: "all", label: "All users", count: users.length },
-    { key: "pending", label: "Waiting approval", count: pending.length, urgent: pending.length > 0 },
-    { key: "customers", label: "Customers", count: customerCount },
-    { key: "staff", label: "Staff & drivers", count: users.length - customerCount },
+  const TILES: FilterTile<Tab>[] = [
+    { key: "all", label: "All users", value: users.length, icon: <Users2 className="size-5" />, tone: "brand" },
+    { key: "pending", label: "To approve", value: pending.length, icon: <UserCheck className="size-5" />, tone: pending.length ? "warn" : "neutral", urgent: pending.length > 0 },
+    { key: "customers", label: "Customers", value: customerCount, icon: <ShoppingBag className="size-5" />, tone: "good" },
+    { key: "staff", label: "Staff & drivers", value: users.length - customerCount, icon: <ShieldCheck className="size-5" />, tone: "brand", hint: `${driverCount} ${driverCount === 1 ? "driver" : "drivers"}` },
   ];
 
   const ReviewButtons = ({ u, full = false }: { u: User; full?: boolean }) => (
     <>
-      <button onClick={() => setApproveTarget(u)} aria-label={`Approve ${u.username}`}
-        className={`${full ? "flex-1 justify-center" : ""} flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white rounded-lg transition hover:opacity-90`}
-        style={{ background: "var(--good)" }}>
-        <CheckCircle2 size={ICON_SIZE.xs} /> Approve
+      <button type="button" onClick={() => setApproveTarget(u)} aria-label={`Approve ${u.username}`}
+        className={`${full ? "flex-1" : ""} inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-good/40 bg-good-soft px-3 text-[12.5px] font-semibold text-good transition hover:border-good`}>
+        <CheckCircle2 className="size-3.5" /> Approve
       </button>
-      <button onClick={() => { setRejectTarget(u); setRejectReason(""); }} aria-label={`Reject ${u.username}`}
-        className={`${full ? "flex-1 justify-center" : ""} flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition`}>
-        <XCircle size={ICON_SIZE.xs} /> Reject
+      <button type="button" onClick={() => { setRejectTarget(u); setRejectReason(""); }} aria-label={`Reject ${u.username}`}
+        className={`${full ? "flex-1" : ""} inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-3 text-[12.5px] font-semibold text-bad transition hover:bg-bad-soft`}>
+        <XCircle className="size-3.5" /> Reject
       </button>
     </>
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <PageHeader
+        eyebrow="Administration"
         title="Users"
-        subtitle="Approve new customers, and add staff and driver accounts."
-        action={<Button onClick={openAdd} icon={<Plus size={ICON_SIZE.md} />}>Add Staff / Driver</Button>}
+        subtitle={loading ? "Loading accounts…" : (
+          <>
+            <span className="font-semibold text-ink-2">{users.length}</span> accounts · <span className="font-semibold text-ink-2">{staffCount}</span> staff, <span className="font-semibold text-ink-2">{driverCount}</span> {driverCount === 1 ? "driver" : "drivers"}, <span className="font-semibold text-ink-2">{customerCount}</span> customers
+            {pending.length > 0 && <> · <span className="font-semibold text-warn">{pending.length} waiting for approval</span></>}
+          </>
+        )}
+        action={<Button onClick={openAdd} icon={<Plus className="size-4" />}>Add staff or driver</Button>}
       />
 
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard title="Total Users" value={users.length} icon={<Users2 size={ICON_SIZE.lg} className="text-blue-600" />} iconBg="bg-blue-50" />
-        <StatCard title="Staff (Admin/Staff)" value={staffCount} icon={<ShieldCheck size={ICON_SIZE.lg} className="text-purple-600" />} iconBg="bg-purple-50" />
-        <StatCard title="Drivers" value={driverCount} icon={<Truck size={ICON_SIZE.lg} className="text-indigo-600" />} iconBg="bg-indigo-50" />
-        <StatCard title="Customers" value={customerCount} icon={<ShoppingBag size={ICON_SIZE.lg} className="text-emerald-600" />} iconBg="bg-emerald-50" />
-      </div>
+      <FilterTiles tiles={TILES} value={tab} onChange={(k) => { setTab(k); setPage(1); }} label="Filter users" loading={loading} />
 
       {!mailReady && (
-        <div className="rounded-xl border px-4 py-3 text-xs flex items-start gap-2" style={{ borderColor: "var(--warn)", background: "var(--warn-soft)", color: "var(--warn)" }}>
-          <AlertTriangle size={ICON_SIZE.sm} className="shrink-0 mt-px" />
+        <div className="flex items-start gap-2.5 rounded-2xl border border-warn/40 bg-warn-soft px-4 py-3 text-[13px] text-warn">
+          <AlertTriangle className="mt-px size-4 shrink-0" />
           <span>
             <b>Approval emails are off.</b> Customers won&apos;t get an email when you approve them until the store&apos;s Gmail is set up
             (GMAIL_USER and GMAIL_APP_PASSWORD in the server settings). Approving still works.
@@ -235,78 +245,47 @@ function UsersPageInner() {
         </div>
       )}
 
-      {/* New customers waiting for approval, front and center */}
-      {pending.length > 0 && tab !== "pending" && (
-        <button onClick={() => { setTab("pending"); setPage(1); }}
-          className="w-full rounded-xl border px-4 py-3 flex items-center gap-3 text-left transition hover:shadow-sm"
-          style={{ borderColor: "var(--warn)", background: "var(--warn-soft)" }}>
-          <Clock size={ICON_SIZE.md} style={{ color: "var(--warn)" }} className="shrink-0" />
-          <span className="flex-1 text-sm" style={{ color: "var(--warn)" }}>
-            <b>{pending.length} new customer{pending.length === 1 ? "" : "s"}</b> waiting for your approval. They can&apos;t sign in until you approve them.
-          </span>
-          <span className="text-xs font-bold shrink-0" style={{ color: "var(--warn)" }}>Review</span>
-        </button>
-      )}
-
-      <div className="bg-white rounded-xl border border-gray-200">
-        <div className="flex flex-wrap items-center gap-2 p-3 border-b border-gray-100">
-          <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter users">
-            {TABS.map((t) => {
-              const on = tab === t.key;
-              return (
-                <button key={t.key} role="tab" aria-selected={on} onClick={() => { setTab(t.key); setPage(1); }}
-                  className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${on ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
-                  {t.label}
-                  <span className={`text-[10.5px] font-bold px-1.5 rounded-full ${on ? "bg-white/20 text-white" : t.urgent ? "text-white" : "bg-gray-100 text-gray-500"}`}
-                    style={!on && t.urgent ? { background: "var(--warn)" } : undefined}>
-                    {t.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="relative w-full sm:w-72 sm:ml-auto">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search name, email or number..."
-              className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 transition placeholder:text-gray-400" />
-          </div>
+      <section aria-label="Users" className="overflow-hidden rounded-2xl border border-line bg-surface">
+        <div className="flex flex-wrap items-center gap-3 border-b border-line p-3">
+          <SearchField value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Name, email or number" label="Search users" className="min-w-0 flex-1 sm:max-w-md" />
+          <p className="ml-auto text-[13px] text-ink-3">
+            <span className="num font-semibold text-ink">{filtered.length}</span> {filtered.length === 1 ? "account" : "accounts"}
+          </p>
         </div>
 
         {tab === "pending" ? (
           /* Approval queue: everything the admin needs to decide, on one card */
           <div className="p-4">
             {loading ? (
-              <p className="py-12 text-center text-gray-400 text-sm">Loading...</p>
+              <p className="py-12 text-center text-sm text-ink-4">Loading…</p>
             ) : paginated.length === 0 ? (
               <EmptyState icon={UserCheck} title="No one is waiting" description="New customer registrations show up here for you to approve." />
             ) : (
               <div className="grid gap-3 lg:grid-cols-2">
                 {paginated.map((u) => (
-                  <div key={u.id} className="rounded-xl border border-gray-200 p-4 flex flex-col gap-3">
+                  <div key={u.id} className="flex flex-col gap-3 rounded-2xl border border-line p-4">
                     <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-display font-extrabold shrink-0" style={{ background: "linear-gradient(155deg, var(--brand), var(--brand-ink))" }}>
-                        {(u.firstName ?? u.username).charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900">{fullLegalName(u) ?? u.username}</p>
-                        <p className="text-[11px] text-gray-400">Registered {ago(u.createdAt)}</p>
+                      <Avatar u={u} size="lg" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[15px] font-semibold text-ink">{fullLegalName(u) ?? u.username}</p>
+                        <p className="text-[12px] text-ink-4">Registered {ago(u.createdAt)}</p>
                       </div>
                       <StatusChip status={u.accountStatus} />
                     </div>
-                    <dl className="text-xs text-gray-600 space-y-1.5">
-                      <div className="flex items-center gap-2"><Mail size={ICON_SIZE.xs} className="text-gray-400 shrink-0" /><dd className="truncate">{u.email ?? "—"}</dd></div>
-                      <div className="flex items-center gap-2"><Phone size={ICON_SIZE.xs} className="text-gray-400 shrink-0" /><dd className="num">{u.contact ?? "—"}</dd></div>
+                    <dl className="space-y-1.5 rounded-xl bg-subtle p-3 text-[13px] text-ink-2">
+                      <div className="flex items-center gap-2"><Mail className="size-3.5 shrink-0 text-ink-4" /><dd className="truncate">{u.email ?? "—"}</dd></div>
+                      <div className="flex items-center gap-2"><Phone className="size-3.5 shrink-0 text-ink-4" /><dd className="num">{u.contact ?? "—"}</dd></div>
                       <div className="flex items-start gap-2">
-                        <MapPin size={ICON_SIZE.xs} className="text-gray-400 shrink-0 mt-0.5" />
+                        <MapPin className="mt-0.5 size-3.5 shrink-0 text-ink-4" />
                         <dd className="min-w-0">
                           {u.defaultAddress ?? "No location"}
                           {u.defaultLat != null && u.defaultLng != null && (
-                            <a href={mapLink(u.defaultLat, u.defaultLng)} target="_blank" rel="noreferrer" className="ml-1.5 font-semibold text-blue-600 hover:underline whitespace-nowrap">View on map</a>
+                            <a href={mapLink(u.defaultLat, u.defaultLng)} target="_blank" rel="noreferrer" className="ml-1.5 whitespace-nowrap font-semibold text-brand hover:underline">View on map</a>
                           )}
                         </dd>
                       </div>
                     </dl>
-                    <div className="flex gap-2 pt-1 border-t border-gray-100 mt-auto">
+                    <div className="mt-auto flex gap-2">
                       <ReviewButtons u={u} full />
                     </div>
                   </div>
@@ -314,114 +293,65 @@ function UsersPageInner() {
               </div>
             )}
           </div>
+        ) : loading ? (
+          <ul className="divide-y divide-line">
+            {Array.from({ length: 5 }, (_, i) => (
+              <li key={i} className="flex items-center gap-3 px-4 py-3.5">
+                <div className="size-9 animate-pulse rounded-full bg-recess" /><div className="h-4 flex-1 animate-pulse rounded bg-recess" />
+              </li>
+            ))}
+          </ul>
+        ) : paginated.length === 0 ? (
+          <EmptyState icon={UserX} title="No users found" description="Try a different search or add a new user." />
         ) : (
           <>
-            {/* Table — tablet and up. A table's columns don't reflow, so on a phone this either
-                clips data or forces sideways scrolling to read a phone number; below md we swap
-                to a stacked card list instead of fighting the grid. */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">User</th>
-                    <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Role</th>
-                    <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Contact</th>
-                    <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Joined</th>
-                    <th className="py-2.5 px-4"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {loading ? (
-                    <tr><td colSpan={5} className="py-12 text-center text-gray-400">Loading...</td></tr>
-                  ) : paginated.length === 0 ? (
-                    <tr><td colSpan={5}><EmptyState icon={UserX} title="No users found" description="Try a different search or add a new user." /></td></tr>
-                  ) : paginated.map((u) => (
-                    <tr key={u.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-display font-extrabold shrink-0" style={{ background: "linear-gradient(155deg, var(--brand), var(--brand-ink))" }}>
-                            {u.username.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <span className="font-medium text-gray-900">{u.username}</span>
-                            {u.email && <p className="text-[11px] text-gray-400 truncate">{u.email}</p>}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <Badge label={roleLabel(u.role)} variant={u.role} />
-                          {u.role === "customer" && u.accountStatus !== "approved" && <StatusChip status={u.accountStatus} />}
-                        </div>
-                        {u.accountStatus === "rejected" && u.statusNote && <p className="text-[11px] text-gray-400 mt-1 max-w-[220px]">{u.statusNote}</p>}
-                      </td>
-                      <td className="py-3 px-4 text-gray-500 num">{u.contact ?? "—"}</td>
-                      <td className="py-3 px-4 text-gray-400 text-xs">{new Date(u.createdAt).toLocaleDateString()}</td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center gap-1.5 justify-end">
-                          {u.role === "customer" && u.accountStatus !== "approved" && <ReviewButtons u={u} />}
-                          <button onClick={() => openEdit(u)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition">
-                            <Pencil size={ICON_SIZE.xs} /> Edit
-                          </button>
-                          <button onClick={() => setDeleteTarget(u)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition">
-                            <Trash2 size={ICON_SIZE.xs} /> Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_130px_110px_168px] gap-4 border-b border-line px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-ink-4 md:grid">
+              <span>User</span><span>Role</span><span>Mobile</span><span>Joined</span><span className="w-[168px] text-right">Actions</span>
             </div>
-
-            {/* Card list — phones only */}
-            <div className="md:hidden divide-y divide-gray-50">
-              {loading ? (
-                <p className="py-12 text-center text-gray-400 text-sm">Loading...</p>
-              ) : paginated.length === 0 ? (
-                <EmptyState icon={UserX} title="No users found" description="Try a different search or add a new user." />
-              ) : paginated.map((u) => (
-                <div key={u.id} className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-display font-extrabold shrink-0" style={{ background: "linear-gradient(155deg, var(--brand), var(--brand-ink))" }}>
-                      {u.username.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-gray-900 truncate">{u.username}</span>
-                        <Badge label={roleLabel(u.role)} variant={u.role} />
+            <ul className="divide-y divide-line">
+              {paginated.map((u) => {
+                const waiting = u.role === "customer" && u.accountStatus !== "approved";
+                return (
+                  <li key={u.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-4 py-3 transition hover:bg-subtle md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_130px_110px_168px]">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Avatar u={u} />
+                      <div className="min-w-0">
+                        <p className="truncate text-[14px] font-semibold text-ink">{fullLegalName(u) ?? u.username}</p>
+                        <p className="truncate text-[12px] text-ink-4">{u.email ?? (fullLegalName(u) ? u.username : "No email — signs in with username")}</p>
                       </div>
-                      {u.email && <p className="text-xs text-gray-500 mt-1 truncate">{u.email}</p>}
-                      <p className="text-xs text-gray-500 mt-0.5">{u.contact ?? "No contact on file"}</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">Joined {new Date(u.createdAt).toLocaleDateString()}</p>
-                      {u.role === "customer" && u.accountStatus !== "approved" && <div className="mt-1.5"><StatusChip status={u.accountStatus} /></div>}
                     </div>
-                  </div>
-                  <div className="flex gap-2 mt-3">
-                    {u.role === "customer" && u.accountStatus !== "approved" && <ReviewButtons u={u} full />}
-                    <button onClick={() => openEdit(u)} className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition">
-                      <Pencil size={ICON_SIZE.xs} /> Edit
-                    </button>
-                    <button onClick={() => setDeleteTarget(u)} className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition">
-                      <Trash2 size={ICON_SIZE.xs} /> Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                    <div className="col-start-2 row-start-1 flex flex-wrap items-center justify-end gap-1.5 md:col-start-auto md:row-start-auto md:justify-start">
+                      <Badge label={roleLabel(u.role)} variant={u.role} />
+                      {waiting && <StatusChip status={u.accountStatus} />}
+                      {u.accountStatus === "rejected" && u.statusNote && <p className="hidden w-full text-[11.5px] text-ink-4 md:block">{u.statusNote}</p>}
+                    </div>
+                    <span className="num hidden text-[13px] text-ink-2 md:block">{u.contact ?? <span className="text-ink-4">—</span>}</span>
+                    <span className="hidden text-[12.5px] text-ink-4 md:block">{new Date(u.createdAt).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}</span>
+                    <div className="col-span-2 flex flex-wrap items-center gap-1.5 md:col-span-1 md:justify-end">
+                      <span className="num mr-auto text-[12px] text-ink-4 md:hidden">{u.contact ?? "No mobile"} · joined {new Date(u.createdAt).toLocaleDateString("en-PH", { month: "short", day: "numeric" })}</span>
+                      {waiting && <ReviewButtons u={u} />}
+                      <button type="button" onClick={() => openEdit(u)} aria-label={`Edit ${u.username}`}
+                        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-line px-2.5 text-xs font-semibold text-ink-2 transition hover:border-brand/40 hover:bg-brand-soft hover:text-brand-ink"><Pencil className="size-3.5" /> Edit</button>
+                      <button type="button" onClick={() => setDeleteTarget(u)} aria-label={`Delete ${u.username}`}
+                        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-line px-2.5 text-xs font-semibold text-bad transition hover:border-bad/40 hover:bg-bad-soft"><Trash2 className="size-3.5" /> Delete</button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           </>
         )}
 
         <Pagination page={currentPage} totalPages={Math.max(1, totalPages)} total={filtered.length} pageSize={PER_PAGE} onChange={setPage} noun="users" />
-      </div>
+      </section>
 
       <ConfirmModal
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
-        title="Delete User?"
-        body={<>Are you sure you want to delete <span className="font-medium text-gray-800">{deleteTarget?.username}</span>? This cannot be undone.</>}
-        confirmLabel="Yes, Delete"
+        title="Delete this user?"
+        body={<>Are you sure you want to delete <span className="font-medium text-ink">{deleteTarget?.username}</span>? This cannot be undone.</>}
+        confirmLabel="Yes, delete"
       />
 
       <ConfirmModal
@@ -431,8 +361,8 @@ function UsersPageInner() {
         title="Approve this customer?"
         variant="info"
         body={<>
-          <span className="font-medium text-gray-800">{approveTarget?.username}</span> will be able to sign in and order.
-          {approveTarget?.email && <> We&apos;ll email <span className="font-medium text-gray-800">{approveTarget.email}</span> to let them know.</>}
+          <span className="font-medium text-ink">{approveTarget?.username}</span> will be able to sign in and order.
+          {approveTarget?.email && <> We&apos;ll email <span className="font-medium text-ink">{approveTarget.email}</span> to let them know.</>}
         </>}
         confirmLabel="Yes, approve"
       />
@@ -452,20 +382,20 @@ function UsersPageInner() {
         }
       >
         <div className="space-y-3">
-          <p className="text-sm text-gray-600">
-            <span className="font-medium text-gray-800">{rejectTarget?.username}</span> won&apos;t be able to sign in. The reason is emailed to them, so keep it polite.
+          <p className="text-sm text-ink-2">
+            <span className="font-medium text-ink">{rejectTarget?.username}</span> won&apos;t be able to sign in. The reason is emailed to them, so keep it polite.
           </p>
           <div className="flex flex-wrap gap-1.5">
             {REJECT_REASONS.map((r) => (
               <button key={r} type="button" onClick={() => setRejectReason(r)}
-                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition ${rejectReason === r ? "bg-blue-50 border-blue-300 text-blue-700" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition ${rejectReason === r ? "bg-brand-soft border-brand/30 text-brand" : "border-line text-ink-2 hover:bg-subtle"}`}>
                 {r}
               </button>
             ))}
           </div>
-          <label htmlFor="reject-reason" className="block text-xs font-medium text-gray-600">Reason</label>
+          <label htmlFor="reject-reason" className="block text-xs font-medium text-ink-2">Reason</label>
           <textarea id="reject-reason" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} maxLength={300} rows={3}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
+            className="w-full border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition"
             placeholder="Why the account can't be approved" />
         </div>
       </Modal>
@@ -473,12 +403,12 @@ function UsersPageInner() {
       <Modal
         open={showModal}
         onClose={() => setShowModal(false)}
-        title={editTarget ? "Edit User" : "Add Staff or Driver"}
+        title={editTarget ? "Edit user" : "Add staff or driver"}
         footer={
           <div className="flex gap-2">
             <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowModal(false)}>Cancel</Button>
             <Button type="submit" form="user-form" className="flex-1" loading={saving}>
-              {editTarget ? "Save Changes" : "Add User"}
+              {editTarget ? "Save changes" : "Add user"}
             </Button>
           </div>
         }
@@ -486,29 +416,29 @@ function UsersPageInner() {
         <form id="user-form" onSubmit={handleSave} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">{editTarget?.role === "customer" ? "Name" : "Username"}</label>
+              <label className="block text-xs font-medium text-ink-2 mb-1">{editTarget?.role === "customer" ? "Name" : "Username"}</label>
               <input
                 required disabled={!!editTarget} value={form.username}
                 onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition disabled:bg-gray-50 disabled:text-gray-400"
+                className="w-full border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition disabled:bg-subtle disabled:text-ink-4"
                 placeholder="Enter username" />
-              {editTarget && <p className="text-[11px] text-gray-400 mt-1">This can&apos;t be changed after the account is made.</p>}
+              {editTarget && <p className="text-[11px] text-ink-4 mt-1">This can&apos;t be changed after the account is made.</p>}
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Email {editTarget && <span className="text-gray-400">(used to sign in)</span>}</label>
+              <label className="block text-xs font-medium text-ink-2 mb-1">Email {editTarget && <span className="text-ink-4">(used to sign in)</span>}</label>
               <input type="email" required={!editTarget} value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition" placeholder="name@gmail.com" />
+                className="w-full border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" placeholder="name@gmail.com" />
             </div>
             {!editTarget && (
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Password</label>
-                <input required type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition" placeholder="Password" />
-                <p className="text-[11px] text-gray-400 mt-1">8+ characters, with a letter and a number.</p>
+                <label className="block text-xs font-medium text-ink-2 mb-1">Password</label>
+                <input required type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} className="w-full border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" placeholder="Password" />
+                <p className="text-[11px] text-ink-4 mt-1">8+ characters, with a letter and a number.</p>
               </div>
             )}
             <div className={editTarget ? "col-span-2" : ""}>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
-              <select value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition bg-white">
+              <label className="block text-xs font-medium text-ink-2 mb-1">Role</label>
+              <select value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))} className="w-full border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition bg-surface">
                 {/* When editing someone who is already a customer or admin, keep
                     their current role in the list — otherwise just opening the
                     form and saving would silently demote them to Staff. */}
@@ -517,17 +447,17 @@ function UsersPageInner() {
                 ))}
               </select>
               {!editTarget && (
-                <p className="text-[11px] text-gray-400 mt-1">Customers create their own accounts when they sign up.</p>
+                <p className="text-[11px] text-ink-4 mt-1">Customers create their own accounts when they sign up.</p>
               )}
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Mobile number <span className="text-gray-400">(optional)</span></label>
+              <label className="block text-xs font-medium text-ink-2 mb-1">Mobile number <span className="text-ink-4">(optional)</span></label>
               <input value={form.contact} onChange={(e) => setForm((p) => ({ ...p, contact: e.target.value }))} inputMode="numeric"
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition" placeholder="0917 123 4567" />
-              <p className="text-[11px] text-gray-400 mt-1">11 digits starting with 09.</p>
+                className="w-full border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" placeholder="0917 123 4567" />
+              <p className="text-[11px] text-ink-4 mt-1">11 digits starting with 09.</p>
             </div>
           </div>
-          {error && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          {error && <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
         </form>
       </Modal>
     </div>
