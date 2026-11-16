@@ -1,24 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Power, Truck, CheckCircle2, Coffee } from "lucide-react";
+import { Truck, CheckCircle2, Coffee } from "lucide-react";
 import { useToast } from "@/components/ui/ToastProvider";
 import { AVAILABILITY_LABEL, type DriverAvailability } from "@/lib/driverStatus";
-import { ICON_SIZE } from "@/lib/constants/icon-size";
 
 type Status = { onDuty: boolean; active: number; maxActive: number; availability: DriverAvailability };
 
-const LOOK: Record<DriverAvailability, { icon: React.ReactNode; bg: string; fg: string; note: (s: Status) => string }> = {
-  available: { icon: <CheckCircle2 size={ICON_SIZE.md} />, bg: "var(--good-soft)", fg: "var(--good)", note: () => "The store can assign you a delivery." },
+const LOOK: Record<DriverAvailability, { icon: React.ReactNode; chip: string; band: string; note: (s: Status) => string }> = {
+  available: {
+    icon: <CheckCircle2 className="size-5" />, chip: "bg-good-soft text-good", band: "from-good-soft",
+    note: () => "The store can assign you a delivery.",
+  },
   delivering: {
-    icon: <Truck size={ICON_SIZE.md} />, bg: "var(--info-soft)", fg: "var(--brand-ink)",
+    icon: <Truck className="size-5" />, chip: "bg-brand-soft text-brand", band: "from-brand-soft",
     note: (s) => `${s.active} on hand. The store can add ${s.maxActive - s.active} more stop${s.maxActive - s.active === 1 ? "" : "s"}.`,
   },
   full: {
-    icon: <Truck size={ICON_SIZE.md} />, bg: "var(--info-soft)", fg: "var(--brand-ink)",
-    note: (s) => `${s.active} on hand. No new delivery is assigned until you finish ${s.active === 1 ? "it" : "one"}.`,
+    icon: <Truck className="size-5" />, chip: "bg-brand-soft text-brand", band: "from-brand-soft",
+    note: (s) => `${s.active} on hand. No new delivery until you finish ${s.active === 1 ? "it" : "one"}.`,
   },
-  off_duty: { icon: <Coffee size={ICON_SIZE.md} />, bg: "var(--bg-muted)", fg: "var(--text-muted)", note: () => "You won't be assigned anything until you go back on duty." },
+  off_duty: {
+    icon: <Coffee className="size-5" />, chip: "bg-recess text-ink-3", band: "from-recess",
+    note: () => "You won't be assigned anything until you go back on duty.",
+  },
 };
 
 /**
@@ -48,24 +53,33 @@ export default function DutyStatusCard({ refreshKey = 0 }: { refreshKey?: number
     showToast(next.onDuty ? "You're on duty — the store can assign you deliveries." : "You're off duty — no new deliveries will be assigned.", next.onDuty ? "success" : "info");
   }
 
-  if (!status) return null;
+  if (!status) return <div className="h-[84px] animate-pulse rounded-2xl border border-line bg-surface" />;
   const look = LOOK[status.availability];
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-center gap-3">
-      <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: look.bg, color: look.fg }}>{look.icon}</span>
-      <div className="flex-1 min-w-[180px]">
-        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Your status</p>
-        <p className="font-display font-extrabold text-gray-900">{AVAILABILITY_LABEL[status.availability]}</p>
-        <p className="text-xs text-gray-500">{look.note(status)}</p>
+    <div className={`flex items-center gap-3.5 rounded-2xl border border-line bg-gradient-to-r ${look.band} to-surface to-60% p-4`}>
+      <span className={`relative grid size-12 shrink-0 place-items-center rounded-2xl ${look.chip}`}>
+        {look.icon}
+        {status.onDuty && (
+          <span className="absolute -right-0.5 -top-0.5 flex size-3">
+            <span className="animate-live-ping absolute inline-flex size-full rounded-full bg-good" />
+            <span className="relative inline-flex size-3 rounded-full bg-good ring-2 ring-surface" />
+          </span>
+        )}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-ink-4">Your status</p>
+        <p className="font-display text-[18px] font-extrabold leading-tight text-ink">{AVAILABILITY_LABEL[status.availability]}</p>
+        <p className="text-[12.5px] leading-snug text-ink-3">{look.note(status)}</p>
       </div>
-      <button onClick={toggle} disabled={saving} role="switch" aria-checked={status.onDuty}
-        className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition disabled:opacity-60"
-        style={status.onDuty
-          ? { borderColor: "var(--border)", color: "var(--text-secondary)" }
-          : { background: "var(--brand)", borderColor: "var(--brand)", color: "#fff" }}>
-        <Power size={ICON_SIZE.xs} /> {status.onDuty ? "Go off duty" : "Go on duty"}
-      </button>
+      <div className="flex shrink-0 flex-col items-center gap-1">
+        <button type="button" onClick={toggle} disabled={saving} role="switch" aria-checked={status.onDuty}
+          aria-label={status.onDuty ? "On duty — tap to go off duty" : "Off duty — tap to go on duty"}
+          className={`relative h-7 w-[52px] rounded-full transition disabled:opacity-60 ${status.onDuty ? "bg-good" : "bg-line-strong"}`}>
+          <span className={`absolute top-0.5 size-6 rounded-full bg-white shadow transition-all ${status.onDuty ? "left-[26px]" : "left-0.5"}`} />
+        </button>
+        <span className={`text-[11px] font-bold ${status.onDuty ? "text-good" : "text-ink-4"}`}>{status.onDuty ? "On duty" : "Off duty"}</span>
+      </div>
     </div>
   );
 }

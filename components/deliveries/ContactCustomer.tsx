@@ -1,5 +1,4 @@
-import { Phone, MessageSquare } from "lucide-react";
-import { ICON_SIZE } from "@/lib/constants/icon-size";
+import { Phone, MessageSquare, PhoneOff } from "lucide-react";
 
 /**
  * One-tap Call and Text buttons so a driver can reach the customer from the
@@ -14,21 +13,21 @@ export default function ContactCustomer({ phone, name, orderId, className = "" }
 }) {
   if (!phone) {
     return (
-      <p className={`text-xs text-gray-400 ${className}`}>No phone number on file for {name}. Ask the store to call them.</p>
+      <p className={`flex items-center gap-2 rounded-xl bg-recess px-3 py-2.5 text-[12.5px] text-ink-3 ${className}`}>
+        <PhoneOff className="size-4 shrink-0 text-ink-4" /> No phone number on file for {name}. Ask the store to call them.
+      </p>
     );
   }
   const sms = `sms:${phone}?body=${encodeURIComponent(`Hi ${name}, this is your RM Hardware driver for order #${orderId}.`)}`;
   return (
     <div className={`flex gap-2 ${className}`}>
       <a href={`tel:${phone}`} aria-label={`Call ${name} at ${phone}`}
-        className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg text-sm font-semibold py-2.5 text-white transition hover:opacity-90 active:scale-[0.98]"
-        style={{ background: "var(--brand)" }}>
-        <Phone size={ICON_SIZE.sm} /> Call <span className="font-normal opacity-90 num">{phone}</span>
+        className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-brand/35 bg-brand-soft text-[14px] font-semibold text-brand-ink transition hover:border-brand active:scale-[0.98]">
+        <Phone className="size-4" /> Call <span className="num font-normal text-brand">{phone}</span>
       </a>
       <a href={sms} aria-label={`Text ${name}`}
-        className="inline-flex items-center justify-center gap-2 rounded-lg border text-sm font-semibold px-4 py-2.5 transition hover:bg-blue-50"
-        style={{ borderColor: "var(--brand)", color: "var(--brand)" }}>
-        <MessageSquare size={ICON_SIZE.sm} /> Text
+        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 text-[14px] font-semibold text-ink-2 transition hover:border-brand/40 hover:text-brand-ink active:scale-[0.98]">
+        <MessageSquare className="size-4" /> Text
       </a>
     </div>
   );

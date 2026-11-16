@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { ClipboardList, ShoppingBag, UserRoundSearch, ChevronDown, ChevronUp, CheckCircle, Clock, CheckCheck, Receipt, Plus, Camera, Phone, MapPin, ChevronLeft, ChevronRight, Truck, Ban, Smartphone, ShieldCheck, ShieldAlert, Upload, Calendar as CalendarIcon, Store, Route, CreditCard, X } from "lucide-react";
+import { ClipboardList, ShoppingBag, UserRoundSearch, ChevronDown, ChevronUp, CheckCircle, Clock, CheckCheck, Receipt, Plus, Camera, Phone, MapPin, ChevronLeft, ChevronRight, Truck, Ban, Smartphone, ShieldCheck, ShieldAlert, Upload, Calendar as CalendarIcon, Store, Route, CreditCard, X, CalendarDays } from "lucide-react";
 import Image from "next/image";
 import PageHeader from "@/components/ui/PageHeader";
 import Modal from "@/components/ui/Modal";
@@ -30,6 +30,7 @@ import Drawer from "@/components/ui/Drawer";
 import { driverOption, canTakeOrder } from "@/lib/driverStatus";
 import { outstanding, paymentState } from "@/lib/payment";
 import { onTodaysBoard } from "@/lib/storeDay";
+import Alert from "@/components/ui/Alert";
 
 type OItem = { id: number; quantity: number; price: number; product: { name: string; unit?: string } };
 type Order = {
@@ -93,14 +94,16 @@ function SetLocationModal({ order, onClose, onSaved }: { order: Order; onClose: 
   }
 
   return (
-    <Modal open onClose={onClose} title={`Delivery Location — Order #${order.id}`}>
+    <Modal open onClose={onClose} title={`Delivery Location — Order #${order.id}`} icon={<MapPin className="size-5" />} description={`Where to drop off ${customerLabel(order)}'s order.`}
+      footer={
+        <div className="flex gap-2">
+          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} loading={saving} disabled={!pickedLocation} className="flex-1">Save location</Button>
+        </div>
+      }>
       <div className="space-y-4">
-        <p className="text-xs text-ink-4 -mt-2">Customer: {customerLabel(order)}</p>
         <LocationPicker value={pickedLocation} onChange={setPickedLocation} />
-        {error && <p className="text-xs text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
-        <Button onClick={handleSave} loading={saving} disabled={!pickedLocation} className="w-full">
-          Save Location
-        </Button>
+        {error && <Alert tone="bad" compact>{error}</Alert>}
       </div>
     </Modal>
   );
@@ -133,21 +136,24 @@ function StoreLocationModal({ current, onClose, onSaved }: {
   }
 
   return (
-    <Modal open onClose={onClose} title="Store Location">
+    <Modal open onClose={onClose} title="Store Location" icon={<Store className="size-5" />} description="Where every delivery starts. Routes and fees are measured from here."
+      footer={
+        <div className="flex gap-2">
+          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} loading={saving} disabled={!pickedLocation} className="flex-1">Save store location</Button>
+        </div>
+      }>
       <div className="space-y-4">
         <div>
-          <label className="block text-xs font-medium text-ink-2 mb-1">Store Name</label>
+          <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Store Name</label>
           <input value={storeName} onChange={(e) => setStoreName(e.target.value)}
-            className="w-full text-sm border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
+            className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-ink-2 mb-1">Store Location on Map</label>
+          <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Store Location on Map</label>
           <LocationPicker value={pickedLocation} onChange={setPickedLocation} />
         </div>
-        {error && <p className="text-xs text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
-        <Button onClick={handleSave} loading={saving} disabled={!pickedLocation} className="w-full">
-          Save Store Location
-        </Button>
+        {error && <Alert tone="bad" compact>{error}</Alert>}
       </div>
     </Modal>
   );
@@ -193,27 +199,30 @@ function GcashSettingsModal({ current, onClose, onSaved }: {
   }
 
   return (
-    <Modal open onClose={onClose} title="GCash Payment Details" size="sm">
+    <Modal open onClose={onClose} title="GCash Payment Details" icon={<Smartphone className="size-5" />} description="Customers see this QR code and number when they pay with GCash." size="sm"
+      footer={
+        <div className="flex gap-2">
+          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} loading={saving} disabled={uploading} className="flex-1">Save GCash details</Button>
+        </div>
+      }>
       <div className="space-y-4">
-        <p className="text-xs text-ink-3 -mt-2">
-          Customers see this QR code and number at checkout when they pay with GCash.
-        </p>
 
         <div>
-          <label className="block text-xs font-medium text-ink-2 mb-1">Account Name</label>
+          <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Account Name</label>
           <input value={gcashName} onChange={(e) => setGcashName(e.target.value)} placeholder="e.g. Juan D."
-            className="w-full text-sm border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
+            className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10" />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-ink-2 mb-1">GCash Number</label>
+          <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">GCash Number</label>
           <input value={gcashNumber} onChange={(e) => setGcashNumber(e.target.value.replace(/\D/g, "").slice(0, 11))}
             inputMode="numeric" placeholder="09XXXXXXXXX"
-            className="w-full text-sm num border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
+            className="w-full num rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10" />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-ink-2 mb-1">QR Code Image</label>
+          <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">QR Code Image</label>
           <div className="flex items-center gap-3">
             <div className="relative w-24 h-24 shrink-0 rounded-lg border border-line bg-subtle overflow-hidden">
               {gcashQr ? (
@@ -233,10 +242,7 @@ function GcashSettingsModal({ current, onClose, onSaved }: {
           </div>
         </div>
 
-        {error && <p className="text-xs text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
-        <Button onClick={handleSave} loading={saving} disabled={uploading} className="w-full">
-          Save GCash Details
-        </Button>
+        {error && <Alert tone="bad" compact>{error}</Alert>}
       </div>
     </Modal>
   );
@@ -748,7 +754,7 @@ export default function OrdersPage() {
       )}
 
       {proofView?.proofImage && (
-        <Modal open onClose={() => setProofView(null)} title={`Proof of delivery — Order #${proofView.id}`} size="lg">
+        <Modal open onClose={() => setProofView(null)} title={`Proof of delivery — Order #${proofView.id}`} icon={<Camera className="size-5" />} description="The photo the driver took at the drop-off." size="lg">
           <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-line bg-subtle">
             <Image src={proofView.proofImage} alt={`Order #${proofView.id} at the drop-off`} fill sizes="512px" className="object-contain" />
           </div>
@@ -771,7 +777,7 @@ export default function OrdersPage() {
       />
 
       {/* Date picker: a modal, so the list always keeps the full width */}
-      <Modal open={showCalendar} onClose={() => setShowCalendar(false)} title="Show orders from" size="sm">
+      <Modal open={showCalendar} onClose={() => setShowCalendar(false)} title="Show orders from" icon={<CalendarDays className="size-5" />} description="Pick a day to see only its orders." size="sm">
         <div>
           <div className="mb-4 flex items-center justify-between">
             <button type="button" onClick={prevMonth} aria-label="Previous month" className="grid size-8 place-items-center rounded-lg text-ink-3 transition hover:bg-recess">

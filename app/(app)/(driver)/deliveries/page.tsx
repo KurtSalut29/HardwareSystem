@@ -1,20 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Truck, MapPin, CheckCircle2, Navigation, Package, Banknote, Smartphone, ShieldAlert } from "lucide-react";
+import { Truck, MapPin, CheckCircle2, Navigation, Package, Banknote, Smartphone, ShieldAlert, Route } from "lucide-react";
 import Link from "next/link";
 import { haversineKm, formatDistance } from "@/lib/distance";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import StatTile from "@/components/ui/StatTile";
 import ProofOfDeliveryModal from "@/components/deliveries/ProofOfDeliveryModal";
 import DutyStatusCard from "@/components/deliveries/DutyStatusCard";
 import ContactCustomer from "@/components/deliveries/ContactCustomer";
 import EmptyState from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/ToastProvider";
-import { ICON_SIZE } from "@/lib/constants/icon-size";
-
 import { customerLabel, customerPhone } from "@/lib/customer";
-type OItem = { id: number; quantity: number; price: number; product: { name: string } };
+
+type OItem = { id: number; quantity: number; price: number; product: { name: string; unit?: string } };
 type Order = {
   id: number;
   totalAmount: number;
@@ -31,6 +31,8 @@ type Order = {
   paymentVerified?: boolean;
   amountPaid?: number;
 };
+
+const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function DeliveriesPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -90,14 +92,12 @@ export default function DeliveriesPage() {
       return a.order.id - b.order.id;
     });
   const totalValue = active.reduce((s, a) => s + a.order.totalAmount, 0);
-  // What the driver actually has to come back with: the full amount on a
-  // cash order, and whatever is still outstanding on a partly-paid GCash one.
   // What's still owed at the door: the total, less any downpayment or GCash transfer.
   const balanceOf = (o: Order) => Math.max(0, Math.round((o.totalAmount - (o.amountPaid ?? 0)) * 100) / 100);
   const toCollect = active.reduce((s, a) => s + balanceOf(a.order), 0);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {deliverTarget && (
         <ProofOfDeliveryModal
           orderId={deliverTarget.id}
@@ -108,115 +108,116 @@ export default function DeliveriesPage() {
         />
       )}
 
-      <PageHeader title="My Deliveries" subtitle="Your assigned stops, closest first." />
+      <PageHeader
+        eyebrow="Deliveries"
+        title="My deliveries"
+        subtitle={loading ? "Loading your stops…" : active.length === 0 ? "Nothing on hand right now." : (
+          <>
+            <span className="font-semibold text-ink-2">{active.length}</span> {active.length === 1 ? "stop" : "stops"}, closest first
+            {toCollect > 0 && <> · <span className="num font-semibold text-good">{peso(toCollect)}</span> to collect</>}
+          </>
+        )}
+      />
 
       <DutyStatusCard refreshKey={active.length} />
 
       {/* At-a-glance run summary */}
-      <div className="grid grid-cols-3 gap-3">
-        <SummaryTile label="To deliver" value={active.length} icon={<Truck size={ICON_SIZE.md} className="text-indigo-600" />} bg="#EEF2FF" />
-        <SummaryTile label="Order value" value={`₱${totalValue.toFixed(2)}`} icon={<Package size={ICON_SIZE.md} style={{ color: "var(--brand)" }} />} bg="var(--brand-soft)" />
-        <SummaryTile label="Cash to collect" value={`₱${toCollect.toFixed(2)}`} icon={<Banknote size={ICON_SIZE.md} className="text-emerald-600" />} bg="#ECFDF5" />
+      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
+        <StatTile icon={<Truck className="size-5" />} label="To deliver" value={loading ? "–" : active.length} caption={active.length === 1 ? "stop" : "stops"} />
+        <StatTile icon={<Banknote className="size-5" />} tone="good" label="Cash to collect" value={loading ? "–" : peso(toCollect)} caption="at the door" />
+        <StatTile className="col-span-2 md:col-span-1" icon={<Package className="size-5" />} tone="neutral" label="Order value" value={loading ? "–" : peso(totalValue)} caption="everything you carry" />
       </div>
 
       {loading ? (
-        <p className="text-sm text-gray-400 py-12 text-center">Loading...</p>
+        <div className="space-y-3">
+          {[0, 1].map((i) => <div key={i} className="h-56 animate-pulse rounded-2xl border border-line bg-surface" />)}
+        </div>
       ) : active.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200">
-          <EmptyState icon={Truck} title="No deliveries right now" description="When the store assigns you a delivery you'll be notified, and it will show up here." />
+        <div className="rounded-2xl border border-dashed border-line-strong bg-surface">
+          <EmptyState icon={Truck} title="No deliveries right now"
+            description="When the store assigns you a delivery you'll hear a chime, and it shows up here." />
         </div>
       ) : (
-        <div className="space-y-3">
+        <ol className="space-y-3">
           {active.map(({ order: o, km }, idx) => {
             const collectCash = o.paymentMethod === "Cash";
             const unverifiedGcash = o.paymentMethod === "GCash" && !o.paymentVerified;
             const due = balanceOf(o);
             const partiallyPaid = due > 0 && (o.amountPaid ?? 0) > 0;
             return (
-              <div key={o.id} className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="min-w-0 flex items-start gap-3">
-                    {active.length > 1 && (
-                      <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 font-display font-extrabold text-xs"
-                        style={{ background: "var(--brand-soft)", color: "var(--brand)" }} title={`Stop ${idx + 1}`}>
-                        {idx + 1}
-                      </span>
-                    )}
+              <li key={o.id} className="overflow-hidden rounded-2xl border border-line bg-surface">
+                {/* Stop header */}
+                <div className="flex items-center gap-3 border-b border-line bg-gradient-to-r from-brand-soft to-surface px-4 py-3">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand font-display text-[15px] font-extrabold text-white" title={`Stop ${idx + 1}`}>
+                    {idx + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-brand">{idx === 0 ? "Next stop" : `Stop ${idx + 1}`}</p>
+                    <p className="font-code text-[14px] font-bold text-ink">Order #{o.id}</p>
+                  </div>
+                  {km != null && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface px-2.5 py-1 text-[12px] font-semibold text-brand-ink ring-1 ring-brand/20">
+                      <Route className="size-3.5" /> {formatDistance(km)}
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-3.5 p-4">
+                  {/* Who and where */}
+                  <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-display text-base font-extrabold text-gray-900">Order #{o.id}</p>
-                      <p className="text-sm text-gray-600">
-                        {customerLabel(o)}
-                        {km != null && <span className="text-gray-400"> · {formatDistance(km)} away</span>}
+                      <p className="font-display text-[18px] font-extrabold leading-tight text-ink">{customerLabel(o)}</p>
+                      <p className="mt-1 flex items-start gap-1.5 text-[13.5px] text-ink-2">
+                        <MapPin className="mt-0.5 size-4 shrink-0 text-ink-4" />
+                        <span>{o.deliveryAddress || "No address recorded — contact the store."}</span>
                       </p>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-display text-lg font-extrabold text-gray-900 num">₱{o.totalAmount.toFixed(2)}</p>
-                    <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                      collectCash ? "bg-emerald-50 text-emerald-600"
-                        : unverifiedGcash ? "bg-yellow-50 text-yellow-600"
-                        : "bg-gray-100 text-gray-500"
-                    }`}>
-                      {collectCash ? <><Banknote size={10} /> Collect cash</>
-                        : unverifiedGcash ? <><ShieldAlert size={10} /> GCash unverified</>
-                        : <><Smartphone size={10} /> Paid ({o.paymentMethod})</>}
+
+                  {/* Money at the door */}
+                  <div className={`flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 ${
+                    collectCash || partiallyPaid ? "bg-good-soft" : unverifiedGcash ? "bg-warn-soft" : "bg-subtle"}`}>
+                    <span className={`flex items-center gap-2 text-[13px] font-semibold ${
+                      collectCash || partiallyPaid ? "text-good" : unverifiedGcash ? "text-warn" : "text-ink-3"}`}>
+                      {collectCash ? <Banknote className="size-4" /> : unverifiedGcash ? <ShieldAlert className="size-4" /> : <Smartphone className="size-4" />}
+                      {due > 0 ? (partiallyPaid ? `Collect the balance (${peso(o.amountPaid ?? 0)} paid)` : "Collect cash")
+                        : unverifiedGcash ? "GCash — store still checking" : `Paid by ${o.paymentMethod}`}
                     </span>
-                    {partiallyPaid && (
-                      <p className="mt-1 text-[11px] font-bold" style={{ color: "var(--warn)" }}>
-                        ₱{(o.amountPaid ?? 0).toFixed(2)} paid · collect ₱{due.toFixed(2)}
-                      </p>
-                    )}
+                    <span className="num text-right">
+                      <span className={`block font-display text-[18px] font-extrabold leading-tight ${due > 0 ? "text-good" : "text-ink"}`}>{peso(due > 0 ? due : o.totalAmount)}</span>
+                      {due > 0 && due !== o.totalAmount && <span className="block text-[11px] text-ink-4">of {peso(o.totalAmount)}</span>}
+                    </span>
+                  </div>
+
+                  {/* What to hand over */}
+                  <div>
+                    <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-4">{o.items.length} {o.items.length === 1 ? "item" : "items"} to hand over</p>
+                    <ul className="flex flex-wrap gap-1.5">
+                      {o.items.map((i) => (
+                        <li key={i.id} className="rounded-lg bg-recess px-2.5 py-1 text-[12.5px] text-ink-2">
+                          {i.product.name} <span className="num font-semibold text-ink">×{Number(i.quantity.toFixed(2))}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <ContactCustomer phone={customerPhone(o)} name={customerLabel(o)} orderId={o.id} />
+
+                  <div className="grid grid-cols-2 gap-2 border-t border-line pt-3.5">
+                    <Link href={`/deliveries/${o.id}`}
+                      className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-line bg-surface text-[15px] font-semibold text-ink-2 transition hover:border-brand/40 hover:bg-brand-soft hover:text-brand-ink active:scale-[0.98]">
+                      <Navigation className="size-4" /> Navigate
+                    </Link>
+                    <Button variant="success" size="lg" onClick={() => setDeliverTarget(o)} icon={<CheckCircle2 className="size-4" />}>
+                      Mark delivered
+                    </Button>
                   </div>
                 </div>
-
-                <div className="rounded-lg px-3 py-2.5 space-y-2" style={{ background: "var(--bg-muted)" }}>
-                  <p className="text-xs text-gray-700 flex items-start gap-1.5">
-                    <MapPin size={ICON_SIZE.xs} className="shrink-0 mt-0.5 text-gray-400" />
-                    <span>{o.deliveryAddress || "No address recorded — contact the store."}</span>
-                  </p>
-                  <p className="text-xs text-gray-500 flex items-start gap-1.5">
-                    <Package size={ICON_SIZE.xs} className="shrink-0 mt-0.5 text-gray-400" />
-                    <span>{o.items.map((i) => `${i.product.name} ×${i.quantity}`).join(", ")}</span>
-                  </p>
-                </div>
-
-                <ContactCustomer phone={customerPhone(o)} name={customerLabel(o)} orderId={o.id} />
-
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Link
-                    href={`/deliveries/${o.id}`}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg border text-sm font-semibold py-2.5 transition hover:bg-blue-50"
-                    style={{ borderColor: "var(--brand)", color: "var(--brand)" }}
-                  >
-                    <Navigation size={ICON_SIZE.sm} /> Navigate
-                  </Link>
-                  <Button
-                    onClick={() => setDeliverTarget(o)}
-                    className="flex-1 !bg-emerald-600 hover:!bg-emerald-700"
-                    icon={<CheckCircle2 size={ICON_SIZE.sm} />}
-                  >
-                    Mark Delivered
-                  </Button>
-                </div>
-              </div>
+              </li>
             );
           })}
-        </div>
+        </ol>
       )}
-    </div>
-  );
-}
-
-function SummaryTile({ label, value, icon, bg }: { label: string; value: string | number; icon: React.ReactNode; bg: string }) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 px-3 py-3 flex items-center gap-2.5">
-      <div className="w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0" style={{ background: bg }}>
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide truncate">{label}</p>
-        <p className="font-display text-base font-extrabold text-gray-900 num truncate leading-tight">{value}</p>
-      </div>
     </div>
   );
 }

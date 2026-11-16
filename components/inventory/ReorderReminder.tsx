@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
-import { AlertTriangle, Package, PackageX } from "lucide-react";
+import { AlertTriangle, Package, PackageX, ClipboardList } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import type { ReorderPlan, ReorderRow } from "@/lib/inventory";
@@ -94,7 +94,7 @@ export default function ReorderReminder({ role, username }: { role: string; user
   }
 
   return (
-    <Modal open={open} onClose={snooze} title="Time to reorder" size="md">
+    <Modal open={open} onClose={snooze} title="Time to reorder" icon={<ClipboardList className="size-5" />} description="These products are at or below their reorder point." size="md">
       <div className="space-y-4">
         <div className="flex items-start gap-3 rounded-xl px-3.5 py-3 bg-warn-soft">
           <AlertTriangle size={ICON_SIZE.md} className="shrink-0 mt-0.5 text-warn" />

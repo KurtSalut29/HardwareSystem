@@ -4,8 +4,7 @@ import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Plus, Trash2, Pencil, Users2, ShieldCheck, ShoppingBag, UserX, UserCheck, MapPin, Mail, Phone,
-  CheckCircle2, XCircle, AlertTriangle,
-} from "lucide-react";
+  CheckCircle2, XCircle, UserPen, UserPlus } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import Badge from "@/components/ui/Badge";
 import Modal from "@/components/ui/Modal";
@@ -18,6 +17,7 @@ import Pagination from "@/components/ui/Pagination";
 import { useToast } from "@/components/ui/ToastProvider";
 import { roleLabel } from "@/lib/roles";
 import type { AccountStatus } from "@/lib/users";
+import Alert from "@/components/ui/Alert";
 
 type User = {
   id: number; username: string; role: string; contact: string | null; email: string | null; createdAt: string;
@@ -236,13 +236,10 @@ function UsersPageInner() {
       <FilterTiles tiles={TILES} value={tab} onChange={(k) => { setTab(k); setPage(1); }} label="Filter users" loading={loading} />
 
       {!mailReady && (
-        <div className="flex items-start gap-2.5 rounded-2xl border border-warn/40 bg-warn-soft px-4 py-3 text-[13px] text-warn">
-          <AlertTriangle className="mt-px size-4 shrink-0" />
-          <span>
-            <b>Approval emails are off.</b> Customers won&apos;t get an email when you approve them until the store&apos;s Gmail is set up
-            (GMAIL_USER and GMAIL_APP_PASSWORD in the server settings). Approving still works.
-          </span>
-        </div>
+        <Alert tone="warn" title="Approval emails are off">
+          Customers won&apos;t get an email when you approve them until the store&apos;s Gmail is set up
+          (GMAIL_USER and GMAIL_APP_PASSWORD in the server settings). Approving still works.
+        </Alert>
       )}
 
       <section aria-label="Users" className="overflow-hidden rounded-2xl border border-line bg-surface">
@@ -370,7 +367,7 @@ function UsersPageInner() {
       <Modal
         open={!!rejectTarget}
         onClose={() => setRejectTarget(null)}
-        title="Turn down this registration?"
+        title="Turn down this registration?" icon={<UserX className="size-5" />} description="They get an email with your reason, so keep it polite."
         footer={
           <div className="flex gap-2">
             <Button type="button" variant="secondary" className="flex-1" onClick={() => setRejectTarget(null)}>Cancel</Button>
@@ -395,7 +392,7 @@ function UsersPageInner() {
           </div>
           <label htmlFor="reject-reason" className="block text-xs font-medium text-ink-2">Reason</label>
           <textarea id="reject-reason" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} maxLength={300} rows={3}
-            className="w-full border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition"
+            className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
             placeholder="Why the account can't be approved" />
         </div>
       </Modal>
@@ -404,6 +401,8 @@ function UsersPageInner() {
         open={showModal}
         onClose={() => setShowModal(false)}
         title={editTarget ? "Edit user" : "Add staff or driver"}
+        icon={editTarget ? <UserPen className="size-5" /> : <UserPlus className="size-5" />}
+        description={editTarget ? "Change the role, sign-in email or mobile number." : "Staff run the counter and orders. Drivers deliver them."}
         footer={
           <div className="flex gap-2">
             <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowModal(false)}>Cancel</Button>
@@ -416,29 +415,29 @@ function UsersPageInner() {
         <form id="user-form" onSubmit={handleSave} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-ink-2 mb-1">{editTarget?.role === "customer" ? "Name" : "Username"}</label>
+              <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">{editTarget?.role === "customer" ? "Name" : "Username"}</label>
               <input
                 required disabled={!!editTarget} value={form.username}
                 onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))}
-                className="w-full border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition disabled:bg-subtle disabled:text-ink-4"
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 disabled:bg-subtle disabled:text-ink-4"
                 placeholder="Enter username" />
               {editTarget && <p className="text-[11px] text-ink-4 mt-1">This can&apos;t be changed after the account is made.</p>}
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-ink-2 mb-1">Email {editTarget && <span className="text-ink-4">(used to sign in)</span>}</label>
+              <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Email {editTarget && <span className="text-ink-4">(used to sign in)</span>}</label>
               <input type="email" required={!editTarget} value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                className="w-full border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" placeholder="name@gmail.com" />
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10" placeholder="name@gmail.com" />
             </div>
             {!editTarget && (
               <div>
-                <label className="block text-xs font-medium text-ink-2 mb-1">Password</label>
-                <input required type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} className="w-full border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" placeholder="Password" />
+                <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Password</label>
+                <input required type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10" placeholder="Password" />
                 <p className="text-[11px] text-ink-4 mt-1">8+ characters, with a letter and a number.</p>
               </div>
             )}
             <div className={editTarget ? "col-span-2" : ""}>
-              <label className="block text-xs font-medium text-ink-2 mb-1">Role</label>
-              <select value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))} className="w-full border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition bg-surface">
+              <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Role</label>
+              <select value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))} className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10">
                 {/* When editing someone who is already a customer or admin, keep
                     their current role in the list — otherwise just opening the
                     form and saving would silently demote them to Staff. */}
@@ -451,13 +450,13 @@ function UsersPageInner() {
               )}
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-ink-2 mb-1">Mobile number <span className="text-ink-4">(optional)</span></label>
+              <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Mobile number <span className="text-ink-4">(optional)</span></label>
               <input value={form.contact} onChange={(e) => setForm((p) => ({ ...p, contact: e.target.value }))} inputMode="numeric"
-                className="w-full border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" placeholder="0917 123 4567" />
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10" placeholder="0917 123 4567" />
               <p className="text-[11px] text-ink-4 mt-1">11 digits starting with 09.</p>
             </div>
           </div>
-          {error && <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
+          {error && <Alert tone="bad" compact>{error}</Alert>}
         </form>
       </Modal>
     </div>

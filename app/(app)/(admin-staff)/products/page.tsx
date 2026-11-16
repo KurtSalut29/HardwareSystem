@@ -20,6 +20,7 @@ import CatalogToolbar, { type SortKey } from "@/components/catalog/CatalogToolba
 import CategoryGlyph from "@/components/catalog/CategoryGlyph";
 import { fmtQty, peso, productCode, stockState, type StockState } from "@/lib/catalog-ui";
 import { filterProducts, groupByCategory, railCategories, usePreference } from "@/lib/useCatalog";
+import Alert from "@/components/ui/Alert";
 
 type Subcategory = { id: number; name: string };
 type Category = { id: number; name: string; description: string | null; subcategories?: Subcategory[] };
@@ -384,7 +385,7 @@ export default function ProductsPage() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         title="Delete Product?"
-        body={<>Are you sure you want to delete <span className="font-medium text-gray-800">{deleteTarget?.name}</span>?</>}
+        body={<>Are you sure you want to delete <span className="font-medium text-ink">{deleteTarget?.name}</span>?</>}
         confirmLabel="Yes, Delete"
       />
 
@@ -392,7 +393,7 @@ export default function ProductsPage() {
       <Modal
         open={showModal}
         onClose={() => setShowModal(false)}
-        title={editing ? "Edit Product" : "Add New Product"}
+        title={editing ? "Edit Product" : "Add New Product"} icon={<Package className="size-5" />} description={editing ? "Update the price, stock levels and photo." : "Add an item to the catalogue. You can restock it later."}
         size="lg"
         footer={
           <div className="flex gap-2">
@@ -407,20 +408,20 @@ export default function ProductsPage() {
 
               {/* Image Upload */}
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Product Image <span className="text-gray-400">(optional)</span></label>
+                <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Product Image <span className="text-ink-4">(optional)</span></label>
                 <div onClick={() => fileRef.current?.click()}
-                  className="border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition min-h-[100px]">
+                  className="border-2 border-dashed border-line rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer hover:border-brand/30 hover:bg-blue-50/30 transition min-h-[100px]">
                   {imagePreview ? (
                     <div className="relative">
                       <Image src={imagePreview} alt="Preview" width={80} height={80} className="w-20 h-20 object-cover rounded-xl" />
                       <button type="button" onClick={(e) => { e.stopPropagation(); setImagePreview(null); setForm((p) => ({ ...p, image: "" })); }}
-                        className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs">×</button>
+                        className="absolute -top-2 -right-2 w-5 h-5 bg-bad text-white rounded-full flex items-center justify-center text-xs">×</button>
                     </div>
                   ) : (
                     <>
-                      <ImageIcon size={ICON_SIZE.xl} className="text-gray-300 mb-1" />
-                      <p className="text-xs text-gray-400">{uploading ? "Uploading..." : "Click to upload image"}</p>
-                      <p className="text-[10px] text-gray-300 mt-0.5">PNG, JPG, WEBP up to 2MB</p>
+                      <ImageIcon size={ICON_SIZE.xl} className="text-ink-4 mb-1" />
+                      <p className="text-xs text-ink-4">{uploading ? "Uploading..." : "Click to upload image"}</p>
+                      <p className="text-[10px] text-ink-4 mt-0.5">PNG, JPG, WEBP up to 2MB</p>
                     </>
                   )}
                 </div>
@@ -431,18 +432,18 @@ export default function ProductsPage() {
               <div className="grid grid-cols-2 gap-3">
                 {/* Product Name */}
                 <div className="col-span-2 sm:col-span-1">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Product Name</label>
+                  <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Product Name</label>
                   <input required value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
+                    className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
                     placeholder="e.g. Portland Cement 40kg" />
                 </div>
 
                 {/* Brand */}
                 <div className="col-span-2 sm:col-span-1">
-                  <label htmlFor="product-brand" className="block text-xs font-medium text-gray-600 mb-1">Brand <span className="text-gray-400">(optional)</span></label>
+                  <label htmlFor="product-brand" className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Brand <span className="text-ink-4">(optional)</span></label>
                   <input id="product-brand" list="product-brands" value={form.brand} maxLength={60}
                     onChange={(e) => setForm((p) => ({ ...p, brand: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
+                    className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
                     placeholder="e.g. Holcim, Boysen, Stanley" />
                   {/* Brands already in use, so the same maker is spelled the same way. */}
                   <datalist id="product-brands">
@@ -452,9 +453,9 @@ export default function ProductsPage() {
 
                 {/* Category */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
+                  <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Category</label>
                   <select required value={form.categoryId} onChange={(e) => { setForm((p) => ({ ...p, categoryId: e.target.value, subcategoryId: "" })); setNewSub(null); }}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition bg-white">
+                    className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10">
                     <option value="">Select category</option>
                     {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -462,11 +463,11 @@ export default function ProductsPage() {
 
                 {/* Subcategory */}
                 <div>
-                  <label htmlFor="product-subcategory" className="block text-xs font-medium text-gray-600 mb-1">Subcategory <span className="text-gray-400">(optional)</span></label>
+                  <label htmlFor="product-subcategory" className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Subcategory <span className="text-ink-4">(optional)</span></label>
                   {newSub === null ? (
                     <select id="product-subcategory" value={form.subcategoryId} disabled={!form.categoryId}
                       onChange={(e) => e.target.value === "__new" ? setNewSub("") : setForm((p) => ({ ...p, subcategoryId: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition bg-white disabled:bg-gray-50 disabled:text-gray-400">
+                      className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 disabled:bg-subtle disabled:text-ink-4">
                       <option value="">{form.categoryId ? "None" : "Pick a category first"}</option>
                       {subcategories.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                       {form.categoryId && <option value="__new">+ New subcategory…</option>}
@@ -476,65 +477,65 @@ export default function ProductsPage() {
                       <input autoFocus value={newSub} onChange={(e) => setNewSub(e.target.value)} placeholder="e.g. Roofing Nails" maxLength={60}
                         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSubcategory(); } if (e.key === "Escape") { e.preventDefault(); setNewSub(null); } }}
                         aria-label="New subcategory name"
-                        className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition" />
-                      <button type="button" onClick={addSubcategory} className="px-3 rounded-xl text-xs font-semibold text-white" style={{ background: "var(--brand)" }}>Add</button>
-                      <button type="button" onClick={() => setNewSub(null)} className="px-2.5 rounded-xl text-xs font-semibold text-gray-500 bg-gray-100">Cancel</button>
+                        className="flex-1 min-w-0 rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10" />
+                      <button type="button" onClick={addSubcategory} className="px-3 rounded-xl text-xs font-semibold text-white bg-brand">Add</button>
+                      <button type="button" onClick={() => setNewSub(null)} className="px-2.5 rounded-xl text-xs font-semibold text-ink-3 bg-recess">Cancel</button>
                     </div>
                   )}
                 </div>
 
                 {/* Price + Unit side by side */}
                 <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Price & Unit</label>
+                  <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Price & Unit</label>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">₱</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-4 text-sm font-medium">₱</span>
                       <input required type="number" min="0" step="0.01" value={form.price}
                         onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))}
-                        className="w-full border border-gray-200 rounded-xl pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
+                        className="w-full border border-line rounded-xl pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition"
                         placeholder="0.00" />
                     </div>
-                    <span className="flex items-center text-sm text-gray-500 font-medium">per</span>
+                    <span className="flex items-center text-sm text-ink-3 font-medium">per</span>
                     <select value={form.unit} onChange={(e) => setForm((p) => ({ ...p, unit: e.target.value }))}
-                      className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition bg-white">
+                      className="rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10">
                       {UNITS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                     </select>
                   </div>
                   {form.price && (
-                    <p className="text-[11px] text-blue-500 font-medium mt-1.5">₱{Number(form.price).toFixed(2)} per {form.unit}</p>
+                    <p className="text-[11px] text-brand font-medium mt-1.5">₱{Number(form.price).toFixed(2)} per {form.unit}</p>
                   )}
                 </div>
 
                 {/* Stock: set once when the product is added; later changes go through
                     a purchase or a recorded adjustment, so each one leaves a trail. */}
                 {editing ? (
-                  <div className="col-span-2 rounded-xl border border-gray-100 px-3 py-2.5 flex flex-wrap items-center gap-2" style={{ background: "var(--bg-muted)" }}>
-                    <span className="text-xs text-gray-500">Stock on hand</span>
-                    <span className="font-semibold text-gray-900 num">{editingProduct?.stock ?? form.stock} {form.unit}</span>
+                  <div className="col-span-2 rounded-xl border border-line px-3 py-2.5 flex flex-wrap items-center gap-2 bg-recess">
+                    <span className="text-xs text-ink-3">Stock on hand</span>
+                    <span className="font-semibold text-ink num">{editingProduct?.stock ?? form.stock} {form.unit}</span>
                     <button type="button" onClick={() => { if (editingProduct) { setShowModal(false); setStockTarget(editingProduct); } }}
-                      className="ml-auto text-xs font-semibold text-blue-600 hover:underline">Add inventory or adjust →</button>
+                      className="ml-auto text-xs font-semibold text-brand hover:underline">Add inventory or adjust →</button>
                   </div>
                 ) : (
                   <div>
-                    <label htmlFor="product-stock" className="block text-xs font-medium text-gray-600 mb-1">Opening stock <span className="text-gray-400">({form.unit})</span></label>
+                    <label htmlFor="product-stock" className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Opening stock <span className="text-ink-4">({form.unit})</span></label>
                     <input id="product-stock" type="number" min="0" step={form.unit === "kg" ? "0.01" : "1"} value={form.stock}
                       onChange={(e) => setForm((p) => ({ ...p, stock: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
+                      className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
                       placeholder="0" />
-                    <p className="text-[10.5px] text-gray-400 mt-1">What&apos;s on the shelf today. Later stock comes in through Add Inventory.</p>
+                    <p className="text-[10.5px] text-ink-4 mt-1">What&apos;s on the shelf today. Later stock comes in through Add Inventory.</p>
                   </div>
                 )}
 
                 {/* Description */}
                 <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Description <span className="text-gray-400">(optional)</span></label>
+                  <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Description <span className="text-ink-4">(optional)</span></label>
                   <textarea value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} rows={2}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition resize-none"
+                    className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 resize-none"
                     placeholder="Brief product description..." />
                 </div>
               </div>
 
-              {error && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+              {error && <Alert tone="bad" compact>{error}</Alert>}
         </form>
       </Modal>
     </div>

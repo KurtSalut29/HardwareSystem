@@ -81,10 +81,10 @@ function orderPopup(pin: OrderPin) {
           className="inline-block w-2 h-2 rounded-full shrink-0" />
         <span className="capitalize">{pin.status.replace(/_/g, ' ')}</span>
       </p>
-      {pin.deliveryAddress && <p className="text-xs text-gray-500 flex items-start gap-1"><MapPin size={12} className="shrink-0 mt-0.5" /> {pin.deliveryAddress}</p>}
-      {pin.customerUsername && <p className="text-xs text-gray-500 flex items-center gap-1"><User size={12} className="shrink-0" /> {pin.customerUsername}</p>}
+      {pin.deliveryAddress && <p className="text-xs text-ink-3 flex items-start gap-1"><MapPin size={12} className="shrink-0 mt-0.5" /> {pin.deliveryAddress}</p>}
+      {pin.customerUsername && <p className="text-xs text-ink-3 flex items-center gap-1"><User size={12} className="shrink-0" /> {pin.customerUsername}</p>}
       {pin.distanceLabel && (
-        <div className="mt-1 pt-1 border-t border-gray-100 text-xs text-gray-600 space-y-0.5">
+        <div className="mt-1 pt-1 border-t border-line text-xs text-ink-2 space-y-0.5">
           <p className="flex items-center gap-1"><Route size={12} className="shrink-0" /> {pin.distanceLabel} from store</p>
           <p className="flex items-center gap-1"><Clock size={12} className="shrink-0" /> {pin.durationLabel} travel time</p>
         </div>
@@ -231,7 +231,7 @@ export default function OrderMapInner({
 
   if (loading) {
     return (
-      <div style={{ height }} className="flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 text-sm">
+      <div style={{ height }} className="flex items-center justify-center rounded-lg bg-recess text-ink-3 text-sm">
         <span className="animate-pulse">Loading map…</span>
       </div>
     );
@@ -309,9 +309,9 @@ export default function OrderMapInner({
             <Popup>
               <div className="text-sm space-y-1 min-w-[140px]">
                 <p className="flex items-center gap-1.5"><Truck size={14} className="shrink-0" /><strong>{pin.driver?.username ?? 'Driver'}</strong></p>
-                <p className="text-xs text-gray-500">Delivering Order #{pin.id}</p>
+                <p className="text-xs text-ink-3">Delivering Order #{pin.id}</p>
                 {timeAgo(pin.driverLocationUpdatedAt) && (
-                  <p className="text-xs text-gray-400">Updated {timeAgo(pin.driverLocationUpdatedAt)}</p>
+                  <p className="text-xs text-ink-4">Updated {timeAgo(pin.driverLocationUpdatedAt)}</p>
                 )}
               </div>
             </Popup>
@@ -325,7 +325,7 @@ export default function OrderMapInner({
             <Popup>
               <div className="text-sm space-y-1 min-w-[140px]">
                 <p className="flex items-center gap-1.5"><Truck size={14} className="shrink-0" /><strong>{focus.label}</strong></p>
-                {focus.detail && <p className="text-xs text-gray-500">{focus.detail}</p>}
+                {focus.detail && <p className="text-xs text-ink-3">{focus.detail}</p>}
               </div>
             </Popup>
           </Marker>
@@ -351,10 +351,10 @@ export default function OrderMapInner({
         >
           {mapContent}
         </MapContainer>
-        <p className="text-center text-xs text-gray-400 mt-2">No delivery locations available.</p>
+        <p className="text-center text-xs text-ink-4 mt-2">No delivery locations available.</p>
         {linkToOrders && (
           <div className="mt-1 text-right">
-            <Link href="/orders" className="text-sm text-blue-600 hover:underline">View all orders →</Link>
+            <Link href="/orders" className="text-sm text-brand hover:underline">View all orders →</Link>
           </div>
         )}
       </div>
@@ -379,7 +379,7 @@ export default function OrderMapInner({
       </MapContainer>
       {linkToOrders && (
         <div className="mt-2 text-right">
-          <Link href="/orders" className="text-sm text-blue-600 hover:underline">View all orders →</Link>
+          <Link href="/orders" className="text-sm text-brand hover:underline">View all orders →</Link>
         </div>
       )}
     </div>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Check, X, Truck, Ban, ArrowRight, Camera } from "lucide-react";
+import { Check, X, Truck, Ban, ArrowRight, Camera, ClipboardList } from "lucide-react";
 import { customerLabel, type OrderCustomer } from "@/lib/customer";
 import { driverOption, type DriverAvailability } from "@/lib/driverStatus";
 import Modal from "@/components/ui/Modal";
@@ -82,7 +82,7 @@ export default function OrderStatusModal({
   }
 
   return (
-    <Modal open onClose={onClose} title={`Order #${order.id} — status`} size="md">
+    <Modal open onClose={onClose} title={`Order #${order.id} — status`} icon={<ClipboardList className="size-5" />} description="Where this order is, and what happens next." size="md">
       <div className="space-y-5">
         {/* What happens next */}
         <div className="rounded-xl px-3.5 py-3 flex items-start gap-2.5" style={{ background: "var(--brand-soft, #EEF3FF)" }}>

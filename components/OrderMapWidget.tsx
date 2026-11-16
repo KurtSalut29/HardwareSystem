@@ -21,7 +21,7 @@ export function MapLegend({ compact = false }: { compact?: boolean }) {
   return (
     <ul className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${compact ? 'mt-2' : 'mt-3'}`} aria-label="Map legend">
       {LEGEND.map((item) => (
-        <li key={item.label} className="inline-flex items-center gap-1.5 text-[11px] text-gray-500">
+        <li key={item.label} className="inline-flex items-center gap-1.5 text-[11px] text-ink-3">
           {item.icon ? (
             <span aria-hidden className="w-4 h-4 rounded-full inline-flex items-center justify-center text-white" style={{ background: '#1E4FD8' }}>
               <item.icon size={10} strokeWidth={2.4} />
@@ -72,11 +72,11 @@ export default function OrderMapWidget({
   const dayLabel = new Date().toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' });
 
   return (
-    <div style={{ isolation: 'isolate' }} className={`bg-white rounded-xl border border-gray-200 ${compact ? 'p-4' : 'p-5'}`}>
+    <div style={{ isolation: 'isolate' }} className={`bg-surface rounded-xl border border-line ${compact ? 'p-4' : 'p-5'}`}>
       <div className={`flex items-start justify-between gap-2 ${compact ? 'mb-2.5' : 'mb-3'}`}>
         <div className="min-w-0">
-          <h3 className={`font-display font-extrabold text-gray-900 ${compact ? 'text-sm' : ''}`}>{title}</h3>
-          <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{description}</p>
+          <h3 className={`font-display font-extrabold text-ink ${compact ? 'text-sm' : ''}`}>{title}</h3>
+          <p className="text-xs text-ink-4 mt-0.5 leading-relaxed">{description}</p>
           {!loading && (
             <p className="text-[11px] font-semibold mt-1" style={{ color: 'var(--brand-ink)' }}>
               {dayLabel} · {pins.length} order{pins.length === 1 ? '' : 's'} on the map
@@ -84,8 +84,8 @@ export default function OrderMapWidget({
           )}
         </div>
         {activeCount > 0 && (
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0" style={{ background: "var(--brand-soft)", color: "var(--brand-ink)" }} title="Orders out for delivery right now">
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--brand)" }} />
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0 bg-brand-soft text-brand-ink" title="Orders out for delivery right now">
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse bg-brand" />
             LIVE · {activeCount} out
           </span>
         )}

@@ -96,6 +96,7 @@ html.dark {
   --bg-subtle: #161824;
   --bg-muted: #252838;
   --border: #2d3148;
+  --border-strong: #3d4363;
   --text-primary: #f1f5f9;
   --text-secondary: #cbd5e1;
   --text-muted: #94a3b8;
@@ -378,3 +379,54 @@ html {
   .heading-rule { transform: none; }
   .reveal[data-shown="false"] { opacity: 1; transform: none; }
 }
+
+
+/* ── Controls: one look for every dropdown, date field and focus ring ── */
+
+/* Native selects get the same chevron and padding everywhere. Unlayered on
+   purpose, so a utility like px-3 can't push the text under the chevron.
+   Selects that draw their own chevron opt out with .appearance-none. */
+select:not(.appearance-none):not([multiple]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237C8199' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  background-size: 15px;
+  padding-right: 2.1rem;
+  cursor: pointer;
+}
+select option { background-color: var(--bg-card); color: var(--text-primary); }
+select:disabled { cursor: not-allowed; opacity: 0.6; }
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: pointer; }
+html.dark input[type="date"]::-webkit-calendar-picker-indicator,
+html.dark input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(1); }
+
+input[type="checkbox"], input[type="radio"] { accent-color: var(--brand); }
+
+/* Keyboard focus: a soft brand ring on anything without its own. */
+:where(button, a, [role="button"], summary):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--brand) 60%, transparent);
+  outline-offset: 2px;
+}
+
+/* Modals rise from the bottom on phones, like a native sheet. */
+@keyframes sheet-in { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes pop-in   { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-12px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes toast-bar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.animate-sheet-in { animation: sheet-in 260ms cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-pop-in   { animation: pop-in 160ms cubic-bezier(0.16, 1, 0.3, 1); transform-origin: top right; }
+.animate-toast-in { animation: toast-in 260ms cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-toast-bar { animation: toast-bar linear forwards; transform-origin: left; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-sheet-in, .animate-pop-in, .animate-toast-in { animation: none; }
+}
+
+.modal-panel { animation: sheet-in 260ms cubic-bezier(0.16, 1, 0.3, 1); }
+@media (min-width: 640px) {
+  .modal-panel { animation: panel-in 180ms cubic-bezier(0.16, 1, 0.3, 1); }
+}
+@media (prefers-reduced-motion: reduce) { .modal-panel { animation: none; } }

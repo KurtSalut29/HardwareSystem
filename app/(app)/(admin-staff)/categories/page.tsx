@@ -12,6 +12,7 @@ import CategoryGlyph from "@/components/catalog/CategoryGlyph";
 import { useToast } from "@/components/ui/ToastProvider";
 import Pagination, { usePagination } from "@/components/ui/Pagination";
 import SubcategoryManager, { type Subcategory } from "@/components/categories/SubcategoryManager";
+import Alert from "@/components/ui/Alert";
 
 type Category = { id: number; name: string; description: string | null; _count?: { products: number }; subcategories: Subcategory[] };
 
@@ -120,7 +121,7 @@ export default function CategoriesPage() {
       <Modal
         open={showForm}
         onClose={cancelForm}
-        title={editingId ? "Edit category" : "Add category"}
+        title={editingId ? "Edit category" : "Add category"} icon={<Tag className="size-5" />} description="Group similar products so staff and customers find them fast."
         size="sm"
         footer={
           <div className="flex gap-2">
@@ -133,26 +134,26 @@ export default function CategoriesPage() {
       >
         <form id="category-form" onSubmit={handleSave} className="space-y-4">
           <div>
-            <label htmlFor="category-name" className="block text-xs font-medium text-ink-2 mb-1">Name</label>
+            <label htmlFor="category-name" className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Name</label>
             <input
               id="category-name"
               required autoFocus
               value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-              className="w-full border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition"
+              className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
               placeholder="e.g. Nails, Tools, Pipes"
             />
           </div>
           <div>
-            <label htmlFor="category-description" className="block text-xs font-medium text-ink-2 mb-1">Description <span className="text-ink-4">(optional)</span></label>
+            <label htmlFor="category-description" className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Description <span className="text-ink-4">(optional)</span></label>
             <textarea
               id="category-description"
               rows={3}
               value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-              className="w-full border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition resize-none"
+              className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 resize-none"
               placeholder="Brief description of this category..."
             />
           </div>
-          {error && <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
+          {error && <Alert tone="bad" compact>{error}</Alert>}
         </form>
       </Modal>
       <PageHeader

@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Trash2, PackagePlus, Sparkles } from "lucide-react";
+import { Plus, Trash2, PackagePlus, Sparkles, Truck } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import type { ReorderRow } from "@/lib/inventory";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
+import Alert from "@/components/ui/Alert";
 
 export type RestockProduct = { id: number; name: string; unit: string; stock: number; category: { id: number; name: string } | null };
 type Category = { id: number; name: string };
@@ -114,7 +115,7 @@ export default function RestockModal({ open, initialLines, products, categories,
     <Modal
       open={open}
       onClose={onClose}
-      title="Record a supplier delivery"
+      title="Record a supplier delivery" icon={<Truck className="size-5" />} description="Every product on it is added to stock when you save."
       size="xl"
       footer={
         <div className="flex flex-wrap items-center gap-2">
@@ -129,11 +130,11 @@ export default function RestockModal({ open, initialLines, products, categories,
       <form id="restock-form" onSubmit={save} className="space-y-4">
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
-            <label htmlFor="rs-supplier" className="block text-xs font-medium text-ink-2 mb-1">Supplier <span className="text-ink-4">(optional)</span></label>
+            <label htmlFor="rs-supplier" className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Supplier <span className="text-ink-4">(optional)</span></label>
             <input id="rs-supplier" value={supplierName} onChange={(e) => setSupplierName(e.target.value)} className={inputCls} placeholder="e.g. ABC Steel Supply" />
           </div>
           <div>
-            <label htmlFor="rs-ref" className="block text-xs font-medium text-ink-2 mb-1">DR / receipt no. <span className="text-ink-4">(optional)</span></label>
+            <label htmlFor="rs-ref" className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">DR / receipt no. <span className="text-ink-4">(optional)</span></label>
             <input id="rs-ref" value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} className={inputCls} placeholder="e.g. DR-10482" />
           </div>
         </div>
@@ -234,11 +235,11 @@ export default function RestockModal({ open, initialLines, products, categories,
         </div>
 
         <div>
-          <label htmlFor="rs-note" className="block text-xs font-medium text-ink-2 mb-1">Note <span className="text-ink-4">(optional)</span></label>
+          <label htmlFor="rs-note" className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Note <span className="text-ink-4">(optional)</span></label>
           <input id="rs-note" value={note} onChange={(e) => setNote(e.target.value)} className={inputCls} placeholder="Remarks about this delivery" />
         </div>
 
-        {error && <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
+        {error && <Alert tone="bad" compact>{error}</Alert>}
       </form>
     </Modal>
   );

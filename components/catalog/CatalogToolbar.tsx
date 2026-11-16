@@ -63,7 +63,7 @@ export default function CatalogToolbar({
         <span className="sr-only">Sort</span>
         <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink-4" />
         <select value={sort} onChange={(e) => onSort(e.target.value as SortKey)}
-          className="h-11 cursor-pointer appearance-none rounded-xl border border-line bg-surface pl-8 pr-4 text-[13px] font-medium text-ink-2 outline-none transition hover:border-line-strong focus:border-brand focus:ring-4 focus:ring-brand-soft">
+          className="h-11 cursor-pointer rounded-xl border border-line bg-surface pl-8 pr-4 text-[13px] font-medium text-ink-2 outline-none transition hover:border-line-strong focus:border-brand focus:ring-4 focus:ring-brand-soft">
           {sorts.map((s) => <option key={s} value={s}>{SORT_LABEL[s]}</option>)}
         </select>
       </label>

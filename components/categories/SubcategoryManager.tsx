@@ -6,10 +6,11 @@ import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
+import Alert from "@/components/ui/Alert";
 
 export type Subcategory = { id: number; name: string; _count?: { products: number } };
 
-const inputCls = "w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition";
+const inputCls = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10";
 
 /**
  * Add, rename and remove a category's subcategories. Removing one that still
@@ -64,12 +65,11 @@ export default function SubcategoryManager({ category, onClose, onChanged }: {
   }
 
   return (
-    <Modal open onClose={onClose} title={`Subcategories — ${category.name}`} size="md">
+    <Modal open onClose={onClose} title={`Subcategories — ${category.name}`} icon={<Layers className="size-5" />} description="Add, rename, merge or remove the groups inside this category." size="md">
       <div className="space-y-4">
-        <p className="text-xs text-ink-3 -mt-1">
-          Subcategories group similar products inside a category, e.g. <i>Nails</i> and <i>Screws</i> under Fasteners.
-          Products pick one from this list, and customers can switch between products of the same subcategory when adding to cart.
-        </p>
+        <Alert tone="info" compact>
+          For example <b>Nails</b> and <b>Screws</b> under Fasteners. Customers can switch between products of the same subcategory when adding to cart.
+        </Alert>
 
         <form onSubmit={add} className="flex gap-2">
           <input id="new-subcategory" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New subcategory name"
@@ -77,7 +77,7 @@ export default function SubcategoryManager({ category, onClose, onChanged }: {
           <Button type="submit" disabled={!newName.trim() || busy} icon={<Plus size={ICON_SIZE.sm} />}>Add</Button>
         </form>
 
-        {error && <p className="text-xs text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
+        {error && <Alert tone="bad" compact>{error}</Alert>}
 
         {subs.length === 0 ? (
           <div className="text-center py-8 text-ink-4">

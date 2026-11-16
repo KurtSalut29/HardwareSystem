@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCheck, ChevronLeft, ChevronRight, Package, CalendarDays, TrendingUp } from "lucide-react";
+import { CheckCheck, ChevronLeft, ChevronRight, Package, CalendarDays, TrendingUp, MapPin, X } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import Pagination, { usePagination } from "@/components/ui/Pagination";
-import { ICON_SIZE } from "@/lib/constants/icon-size";
+import Modal from "@/components/ui/Modal";
+import StatTile from "@/components/ui/StatTile";
 
 import { customerLabel } from "@/lib/customer";
 type OItem = { id: number; quantity: number; product: { name: string } };
@@ -41,6 +42,7 @@ export default function DeliveryHistoryPage() {
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [showCalendar, setShowCalendar] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/orders");
@@ -87,130 +89,109 @@ export default function DeliveryHistoryPage() {
   }
 
   function selectedLabel() {
-    if (!selectedKey) return "All completed deliveries";
+    if (!selectedKey) return "All dates";
     const [y, m, d] = selectedKey.split("-").map(Number);
     const date = new Date(y, m, d);
     if (toDateKey(date) === toDateKey(today)) return "Today";
-    return date.toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+    return date.toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric" });
   }
 
   const cells = buildCalendar();
+  const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
-    <div className="space-y-5">
-      <PageHeader title="Delivery History" subtitle="Every delivery you've completed." />
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="Deliveries"
+        title="Delivery history"
+        subtitle={loading ? "Loading…" : <><span className="font-semibold text-ink-2">{delivered.length}</span> deliveries completed · <span className="font-semibold text-ink-2">{thisWeek.length}</span> this week</>}
+      />
 
-      <div className="grid grid-cols-3 gap-3">
-        <StatTile label="This week" value={thisWeek.length} icon={<CalendarDays size={ICON_SIZE.md} style={{ color: "var(--brand)" }} />} bg="var(--brand-soft)" />
-        <StatTile label="This month" value={thisMonth.length} icon={<TrendingUp size={ICON_SIZE.md} className="text-indigo-600" />} bg="#EEF2FF" />
-        <StatTile label="All time" value={delivered.length} icon={<CheckCheck size={ICON_SIZE.md} className="text-emerald-600" />} bg="#ECFDF5" />
+      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
+        <StatTile icon={<CalendarDays className="size-5" />} label="This week" value={loading ? "–" : thisWeek.length} caption="since Sunday" />
+        <StatTile icon={<TrendingUp className="size-5" />} tone="neutral" label="This month" value={loading ? "–" : thisMonth.length} caption={MONTHS[today.getMonth()]} />
+        <StatTile className="col-span-2 md:col-span-1" icon={<CheckCheck className="size-5" />} tone="good" label="All time" value={loading ? "–" : delivered.length} caption="completed" />
       </div>
 
-      <div className="flex flex-col md:flex-row gap-5 items-start">
-        {/* Calendar */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 w-full md:w-72 md:shrink-0">
-          <div className="flex items-center justify-between mb-4">
-            <button onClick={prevMonth} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition">
-              <ChevronLeft size={ICON_SIZE.sm} />
-            </button>
-            <span className="text-sm font-semibold text-gray-900">{MONTHS[calMonth]} {calYear}</span>
-            <button onClick={nextMonth} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition">
-              <ChevronRight size={ICON_SIZE.sm} />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-7 mb-1">
-            {DAYS.map((d) => <div key={d} className="text-center text-[10px] font-semibold text-gray-400 py-1">{d}</div>)}
-          </div>
-
-          <div className="grid grid-cols-7 gap-y-1">
-            {cells.map((day, i) => {
-              if (!day) return <div key={i} />;
-              const key = `${calYear}-${calMonth}-${day}`;
-              const isToday = toDateKey(today) === key;
-              const isSelected = selectedKey === key;
-              const has = deliveredDateKeys.has(key);
-              return (
-                <button key={i} onClick={() => setSelectedKey(isSelected ? null : key)}
-                  className={`relative w-8 h-8 mx-auto flex items-center justify-center rounded-lg text-xs font-medium transition
-                    ${isSelected ? "bg-blue-600 text-white" : isToday ? "bg-blue-50 text-blue-600 font-bold" : "text-gray-700 hover:bg-gray-100"}`}>
-                  {day}
-                  {has && (
-                    <span className={`absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${isSelected ? "bg-white/60" : "bg-emerald-400"}`} />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-4 pt-4 border-t border-gray-100 space-y-1.5">
-            <div className="flex justify-between text-xs">
-              <span className="text-gray-500">Deliveries</span>
-              <span className="font-semibold text-gray-900">{shown.length}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-gray-500">Total value</span>
-              <span className="font-semibold" style={{ color: "var(--brand)" }}>₱{shownValue.toFixed(2)}</span>
-            </div>
-            {selectedKey && (
-              <button onClick={() => setSelectedKey(null)}
-                className="w-full mt-2 text-xs text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg py-1.5 transition border border-gray-200">
-                Clear filter — show all
+      {/* Calendar: pick one day */}
+      <Modal open={showCalendar} onClose={() => setShowCalendar(false)} title="Show deliveries from" icon={<CalendarDays className="size-5" />} description="Pick a day to see only its deliveries." size="sm">
+        <div className="mb-4 flex items-center justify-between">
+          <button type="button" onClick={prevMonth} aria-label="Previous month" className="grid size-8 place-items-center rounded-lg text-ink-3 transition hover:bg-recess"><ChevronLeft className="size-4" /></button>
+          <span className="font-display text-sm font-extrabold text-ink">{MONTHS[calMonth]} {calYear}</span>
+          <button type="button" onClick={nextMonth} aria-label="Next month" className="grid size-8 place-items-center rounded-lg text-ink-3 transition hover:bg-recess"><ChevronRight className="size-4" /></button>
+        </div>
+        <div className="mb-1 grid grid-cols-7">
+          {DAYS.map((d) => <div key={d} className="py-1 text-center text-[10px] font-bold uppercase tracking-wide text-ink-4">{d}</div>)}
+        </div>
+        <div className="grid grid-cols-7 gap-y-1">
+          {cells.map((day, i) => {
+            if (!day) return <div key={i} />;
+            const key = `${calYear}-${calMonth}-${day}`;
+            const isToday = toDateKey(today) === key;
+            const isSelected = selectedKey === key;
+            const has = deliveredDateKeys.has(key);
+            return (
+              <button key={i} type="button" onClick={() => { setSelectedKey(isSelected ? null : key); setShowCalendar(false); }}
+                className={`num relative mx-auto grid size-9 place-items-center rounded-lg text-xs font-semibold transition ${
+                  isSelected ? "bg-brand text-white" : isToday ? "bg-brand-soft font-bold text-brand-ink" : "text-ink-2 hover:bg-recess"}`}>
+                {day}
+                {has && <span className={`absolute bottom-1 left-1/2 size-1 -translate-x-1/2 rounded-full ${isSelected ? "bg-white/70" : "bg-good"}`} />}
               </button>
+            );
+          })}
+        </div>
+        <p className="mt-4 border-t border-line pt-3 text-[11.5px] text-ink-4">A green dot marks days you delivered.</p>
+      </Modal>
+
+      <section aria-label="Completed deliveries" className="overflow-hidden rounded-2xl border border-line bg-surface">
+        <div className="flex flex-wrap items-center gap-2 border-b border-line p-3">
+          <div className={`flex h-10 items-center rounded-xl border transition ${selectedKey ? "border-brand/40 bg-brand-soft text-brand-ink" : "border-line bg-surface text-ink-2 hover:border-line-strong"}`}>
+            <button type="button" onClick={() => setShowCalendar(true)} aria-haspopup="dialog" className="flex items-center gap-1.5 px-3 text-[13px] font-semibold">
+              <CalendarDays className="size-4" /> {selectedKey ? selectedLabel() : "Any date"}
+            </button>
+            {selectedKey && (
+              <button type="button" onClick={() => setSelectedKey(null)} aria-label="Show all dates" className="-ml-1.5 pr-2.5 hover:text-brand"><X className="size-3.5" /></button>
             )}
           </div>
+          <p className="ml-auto text-[13px] text-ink-3">
+            <span className="num font-semibold text-ink">{shown.length}</span> delivered
+            {shown.length > 0 && <span className="num"> · {peso(shownValue)}</span>}
+          </p>
         </div>
 
-        {/* List */}
-        <div className="flex-1 min-w-0 w-full bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="flex flex-wrap items-center gap-2 p-3 border-b border-gray-100 bg-gray-50">
-            <span className="font-semibold text-gray-900 text-sm">{selectedLabel()}</span>
-            <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">{shown.length} delivered</span>
-          </div>
-
-          {loading ? (
-            <p className="text-sm text-gray-400 py-12 text-center">Loading...</p>
-          ) : shown.length === 0 ? (
-            <EmptyState icon={Package} title={selectedKey ? "No deliveries on this date" : "No completed deliveries yet"} />
-          ) : (
-            <>
-            <div className="divide-y divide-gray-50">
+        {loading ? (
+          <ul className="divide-y divide-line">
+            {Array.from({ length: 4 }, (_, i) => (
+              <li key={i} className="flex items-center gap-3 px-4 py-4"><div className="size-9 animate-pulse rounded-xl bg-recess" /><div className="h-4 flex-1 animate-pulse rounded bg-recess" /></li>
+            ))}
+          </ul>
+        ) : shown.length === 0 ? (
+          <EmptyState icon={Package} title={selectedKey ? "No deliveries on this date" : "No completed deliveries yet"}
+            description={selectedKey ? "Pick another day, or show all dates." : "Orders you deliver show up here."} />
+        ) : (
+          <>
+            <ul className="divide-y divide-line">
               {paging.pageItems.map((o) => (
-                <div key={o.id} className="flex items-start gap-3 px-4 py-3">
-                  <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#ECFDF5" }}>
-                    <CheckCheck size={ICON_SIZE.sm} className="text-emerald-600" />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900">Order #{o.id} — {customerLabel(o)}</p>
-                    {o.deliveryAddress && <p className="text-xs text-gray-500 truncate">{o.deliveryAddress}</p>}
-                    <p className="text-[11px] text-gray-400 truncate">{o.items.map((i) => `${i.product.name} ×${i.quantity}`).join(", ")}</p>
+                <li key={o.id} className="flex items-start gap-3 px-4 py-3.5">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-good-soft text-good"><CheckCheck className="size-4" /></span>
+                  <div className="min-w-0 flex-1">
+                    <p className="flex flex-wrap items-baseline gap-x-2 text-[14px] font-semibold text-ink">
+                      {customerLabel(o)} <span className="font-code text-[12px] font-bold text-ink-4">#{o.id}</span>
+                    </p>
+                    {o.deliveryAddress && <p className="flex items-start gap-1 truncate text-[12.5px] text-ink-3"><MapPin className="mt-0.5 size-3.5 shrink-0 text-ink-4" /><span className="truncate">{o.deliveryAddress}</span></p>}
+                    <p className="truncate text-[12px] text-ink-4">{o.items.length > 1 ? `${o.items[0].product.name} +${o.items.length - 1} more` : o.items[0]?.product.name}</p>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-sm font-bold text-gray-900 num">₱{o.totalAmount.toFixed(2)}</p>
-                    <p className="text-[11px] text-gray-400">{new Date(o.dateTime).toLocaleDateString("en-PH", { month: "short", day: "numeric" })}</p>
+                  <div className="shrink-0 text-right">
+                    <p className="num font-display text-[15px] font-extrabold text-ink">{peso(o.totalAmount)}</p>
+                    <p className="text-[11.5px] text-ink-4">{new Date(o.dateTime).toLocaleDateString("en-PH", { month: "short", day: "numeric" })}</p>
                   </div>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
             <Pagination {...paging} onChange={paging.setPage} noun="deliveries" />
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatTile({ label, value, icon, bg }: { label: string; value: string | number; icon: React.ReactNode; bg: string }) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 px-3 py-3 flex items-center gap-2.5">
-      <div className="w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0" style={{ background: bg }}>
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide truncate">{label}</p>
-        <p className="font-display text-base font-extrabold text-gray-900 num truncate leading-tight">{value}</p>
-      </div>
+          </>
+        )}
+      </section>
     </div>
   );
 }

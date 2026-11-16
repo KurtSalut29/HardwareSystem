@@ -198,7 +198,7 @@ export default function TransactionsPage() {
       />
 
       {/* Calendar: pick one day */}
-      <Modal open={showCalendar} onClose={() => setShowCalendar(false)} title="Show sales from" size="sm">
+      <Modal open={showCalendar} onClose={() => setShowCalendar(false)} title="Show sales from" icon={<CalendarDays className="size-5" />} description="Pick a day to see only its sales." size="sm">
         <div className="mb-4 flex items-center justify-between">
           <button type="button" onClick={prevMonth} aria-label="Previous month" className="grid size-8 place-items-center rounded-lg text-ink-3 transition hover:bg-recess">
             <ChevronLeft className="size-4" />

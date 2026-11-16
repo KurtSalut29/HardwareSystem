@@ -9,7 +9,7 @@ export type PickedLocation = {
 const LocationPicker = dynamic(() => import('./LocationPickerInner'), {
   ssr: false,
   loading: () => (
-    <div className="h-[260px] rounded-lg bg-gray-100 flex items-center justify-center text-sm text-gray-400 animate-pulse">
+    <div className="h-[260px] rounded-lg bg-recess flex items-center justify-center text-sm text-ink-4 animate-pulse">
       Loading map…
     </div>
   ),

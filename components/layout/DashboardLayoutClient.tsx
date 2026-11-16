@@ -23,11 +23,11 @@ export default function DashboardLayoutClient({
     <DriverAlertsProvider role={role}>
       <NotificationsProvider role={role} username={username}>
         <ReorderReminder role={role} username={username} />
-        <div className="flex h-screen bg-[#f4f6f8] dashboard-bg overflow-hidden">
-          <Sidebar role={role} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
-          <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        <div className="flex h-screen overflow-hidden bg-canvas">
+          <Sidebar role={role} username={username} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <Navbar username={username} role={role} onMenuClick={() => setMobileOpen(true)} />
-            <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto px-3 pb-6 pt-4 md:px-6 md:pt-5">
               <div className="max-w-[1440px] mx-auto w-full">
                 <PageTransition>{children}</PageTransition>
               </div>

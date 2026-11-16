@@ -239,7 +239,7 @@ export default function LocationPickerInner({ value, onChange }: Props) {
     <div className="space-y-2">
       {/* Search input */}
       <div className="relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-4 pointer-events-none" />
         <input
           value={query}
           onChange={(e) => { setQuery(e.target.value); if (value) onChange(null); }}
@@ -247,24 +247,24 @@ export default function LocationPickerInner({ value, onChange }: Props) {
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (suggestions[0]) pickSuggestion(suggestions[0]); } }}
           aria-label="Search for your location"
           placeholder="Search barangay, street, landmark…"
-          className="w-full pl-8 pr-8 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
+          className="w-full pl-8 pr-8 py-2 text-sm border border-line rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition"
         />
         {(query || value) && (
-          <button type="button" onClick={clear} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
+          <button type="button" onClick={clear} className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-4 hover:text-ink-3">
             <X size={14} />
           </button>
         )}
         {suggestions.length > 0 && (
-          <ul className="absolute z-[9999] left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden text-sm">
-            {searching && <li className="px-3 py-2 text-gray-400 text-xs">Searching…</li>}
+          <ul className="absolute z-[9999] left-0 right-0 top-full mt-1 bg-surface border border-line rounded-lg shadow-lg overflow-hidden text-sm">
+            {searching && <li className="px-3 py-2 text-ink-4 text-xs">Searching…</li>}
             {suggestions.map((s) => (
               <li key={s.place_id}>
                 <button type="button"
                   onClick={() => pickSuggestion(s)}
-                  className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-start gap-2 transition"
+                  className="w-full text-left px-3 py-2 hover:bg-brand-soft flex items-start gap-2 transition"
                 >
-                  <MapPin size={13} className="text-blue-500 mt-0.5 shrink-0" />
-                  <span className="text-xs text-gray-700 line-clamp-2">{s.display_name}</span>
+                  <MapPin size={13} className="text-brand mt-0.5 shrink-0" />
+                  <span className="text-xs text-ink-2 line-clamp-2">{s.display_name}</span>
                 </button>
               </li>
             ))}
@@ -278,7 +278,7 @@ export default function LocationPickerInner({ value, onChange }: Props) {
         <button type="button"
           onClick={handleDetectLocation}
           disabled={geoLoading}
-          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition disabled:opacity-60 border border-blue-200"
+          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-brand-soft text-brand hover:bg-brand-soft transition disabled:opacity-60 border border-brand/30"
         >
           <LocateFixed size={13} />
           {geoLoading ? (liveAccuracy != null ? `Finding you… ±${fmtAccuracy(liveAccuracy)}` : 'Finding you…') : 'Use my location'}
@@ -289,8 +289,8 @@ export default function LocationPickerInner({ value, onChange }: Props) {
           onClick={() => setPinMode((p) => !p)}
           className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition border ${
             pinMode
-              ? 'bg-blue-600 text-white border-blue-600'
-              : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'
+              ? 'bg-brand text-white border-brand'
+              : 'bg-subtle text-ink-2 hover:bg-recess border-line'
           }`}
         >
           <Crosshair size={13} />
@@ -298,7 +298,7 @@ export default function LocationPickerInner({ value, onChange }: Props) {
         </button>
       </div>
 
-      {geoError && <p className="text-[11px] text-red-500">{geoError}</p>}
+      {geoError && <p className="text-[11px] text-bad">{geoError}</p>}
       {value && accuracy != null && accuracy > ROUGH_M && (
         <p className="text-[11px] rounded-lg px-2.5 py-2 flex items-start gap-1.5" style={{ background: 'var(--warn-soft)', color: 'var(--warn)' }}>
           <AlertTriangle size={13} className="shrink-0 mt-px" />
@@ -311,7 +311,7 @@ export default function LocationPickerInner({ value, onChange }: Props) {
 
       {/* Map */}
       <div
-        className={`rounded-lg overflow-hidden border-2 transition ${pinMode ? 'border-blue-400 cursor-crosshair' : 'border-gray-200'}`}
+        className={`rounded-lg overflow-hidden border-2 transition ${pinMode ? 'border-brand cursor-crosshair' : 'border-line'}`}
         style={{ height: '220px' }}
       >
         <MapContainer
@@ -346,14 +346,14 @@ export default function LocationPickerInner({ value, onChange }: Props) {
 
       {value ? (
         <div className="text-[11px] space-y-0.5">
-          <p className="text-emerald-600 flex items-center gap-1"><MapPin size={11} className="shrink-0" /> {value.address}</p>
-          <p className="text-gray-400">
+          <p className="text-good flex items-center gap-1"><MapPin size={11} className="shrink-0" /> {value.address}</p>
+          <p className="text-ink-4">
             {accuracy != null && accuracy <= ROUGH_M ? `Located within about ${fmtAccuracy(accuracy)}. ` : ''}
             Not quite right? Drag the pin onto your house.
           </p>
         </div>
       ) : (
-        <p className="text-[11px] text-gray-400">Search, use your location, or enable pin mode to tap the map.</p>
+        <p className="text-[11px] text-ink-4">Search, use your location, or enable pin mode to tap the map.</p>
       )}
     </div>
   );

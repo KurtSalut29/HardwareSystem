@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-import IconButton from "./IconButton";
-import { ICON_SIZE } from "@/lib/constants/icon-size";
 
 type DrawerProps = {
   open: boolean;
@@ -67,28 +65,31 @@ export default function Drawer({
   if (!mounted || !visible) return null;
 
   return createPortal(
-    <div className={`fixed inset-0 z-50 flex ${centered ? "items-center justify-center p-4 sm:p-6" : "justify-end"}`}>
+    <div className={`fixed inset-0 z-50 flex ${centered ? "items-end justify-center sm:items-center sm:p-6" : "justify-end p-0 sm:p-3"}`}>
       <div
-        className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${open ? "opacity-100 animate-overlay-in" : "opacity-0"}`}
+        className={`absolute inset-0 bg-[rgba(10,14,36,0.5)] backdrop-blur-[3px] transition-opacity duration-200 ${open ? "opacity-100 animate-overlay-in" : "opacity-0"}`}
         onClick={onClose}
       />
       <div
         className={
           centered
-            ? `relative w-full ${WIDTH_CLASS[width]} max-h-full bg-surface shadow-2xl rounded-2xl flex flex-col overflow-hidden transition-all duration-200 ${open ? "opacity-100 scale-100 animate-panel-in" : "opacity-0 scale-95"}`
-            : `relative w-full ${WIDTH_CLASS[width]} h-full bg-surface shadow-2xl flex flex-col transition-transform duration-200 ${open ? "translate-x-0 animate-drawer-in" : "translate-x-full"}`
+            ? `modal-panel relative flex max-h-[92vh] w-full ${WIDTH_CLASS[width]} flex-col overflow-hidden rounded-t-[24px] border border-line bg-surface shadow-[0_30px_80px_-24px_rgba(10,14,36,0.55)] transition-opacity duration-200 sm:max-h-full sm:rounded-[20px] ${open ? "opacity-100" : "opacity-0"}`
+            : `relative flex h-full w-full ${WIDTH_CLASS[width]} flex-col overflow-hidden border-line bg-surface shadow-[0_30px_80px_-24px_rgba(10,14,36,0.55)] transition-transform duration-200 sm:rounded-[20px] sm:border ${open ? "translate-x-0 animate-drawer-in" : "translate-x-[110%]"}`
         }
       >
         {title && (
-          <div className="flex items-center justify-between p-5 border-b border-line shrink-0">
-            <div className="flex items-center gap-2 font-display text-base font-extrabold tracking-tight text-ink">{title}</div>
-            <IconButton icon={<X size={ICON_SIZE.md} />} onClick={onClose} title="Close" />
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line px-5 py-4">
+            <div className="flex min-w-0 items-center gap-2 font-display text-[17px] font-extrabold tracking-tight text-ink">{title}</div>
+            <button type="button" onClick={onClose} aria-label="Close"
+              className="-mr-1 grid size-9 shrink-0 place-items-center rounded-xl text-ink-3 transition hover:bg-recess hover:text-ink">
+              <X className="size-[18px]" />
+            </button>
           </div>
         )}
         <div className="flex-1 overflow-y-auto min-h-0">{children}</div>
         {/* max-h + scroll so an unusually tall footer can never push its own
             controls past the bottom of the panel with no way to reach them. */}
-        {footer && <div className="border-t border-line shrink-0 max-h-[60vh] overflow-y-auto">{footer}</div>}
+        {footer && <div className="max-h-[60vh] shrink-0 overflow-y-auto border-t border-line bg-subtle">{footer}</div>}
       </div>
     </div>,
     document.body

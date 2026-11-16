@@ -1,23 +1,26 @@
 "use client";
 
+import { Eye, Route, Truck } from "lucide-react";
+import SettingRow, { FormSection, UnitInput } from "@/components/ui/SettingRow";
 import { useEffect, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { DELIVERY_LIMITS, estimateRoadKm, islandAt, quoteForDistance, type DeliverySettings, type DistanceSource } from "@/lib/deliveryFee";
+import Alert from "@/components/ui/Alert";
 
-type Field = { key: keyof DeliverySettings; label: string; suffix: string; step: string; hint: string };
+type Field = { key: keyof DeliverySettings; label: string; prefix?: string; suffix: string; step: string; hint: string };
 
 const FEE_FIELDS: Field[] = [
-  { key: "baseFee", label: "Base delivery fee", suffix: "₱ per delivery", step: "5", hint: "The default fee every delivery pays, however close. Set 0 for free nearby delivery." },
-  { key: "freeKm", label: "Distance the base fee covers", suffix: "km by road", step: "0.5", hint: "Deliveries within this distance pay only the base fee." },
-  { key: "ratePerKm", label: "Rate beyond that", suffix: "₱ per km", step: "1", hint: "Charged for every kilometre past the covered distance, so farther places pay more." },
-  { key: "roadFactor", label: "Road factor (backup only)", suffix: "× straight-line km", step: "0.05", hint: "Distances come from real roads (OpenStreetMap routing). Only if that service is down, or for islands, the straight line × this is used instead." },
-  { key: "islandFee", label: "Boat fee for islands (Maripipi, Higatangan)", suffix: "₱ added", step: "10", hint: "Added on top of the distance fee for island drop-offs. Set 0 to charge islands by distance only." },
-  { key: "maxKm", label: "Farthest delivery", suffix: "km (0 = no limit)", step: "1", hint: "Mainland orders farther than this can't choose delivery." },
+  { key: "baseFee", label: "Base delivery fee", prefix: "₱", suffix: "/ delivery", step: "5", hint: "What every delivery pays, however close. 0 makes nearby delivery free." },
+  { key: "freeKm", label: "Covered by the base fee", suffix: "km", step: "0.5", hint: "Deliveries within this road distance pay only the base fee." },
+  { key: "ratePerKm", label: "Rate beyond that", prefix: "₱", suffix: "/ km", step: "1", hint: "Added for every kilometre past the covered distance." },
+  { key: "islandFee", label: "Boat fee for islands", prefix: "₱", suffix: "added", step: "10", hint: "For Maripipi and Higatangan drop-offs, on top of the distance fee." },
+  { key: "maxKm", label: "Farthest delivery", suffix: "km", step: "1", hint: "Mainland orders farther than this can't choose delivery. 0 = no limit." },
+  { key: "roadFactor", label: "Road factor (backup)", prefix: "×", suffix: "straight km", step: "0.05", hint: "Only used when road routing is down: straight-line distance × this." },
 ];
 
 const DRIVER_FIELDS: Field[] = [
-  { key: "driverMaxActive", label: "Deliveries per driver at a time", suffix: "orders", step: "1", hint: "A driver carrying this many isn't given another order until one is delivered. 1 = one delivery at a time." },
+  { key: "driverMaxActive", label: "Deliveries per driver at a time", suffix: "orders", step: "1", hint: "A driver carrying this many gets no new order until one is delivered." },
 ];
 
 const FIELDS = [...FEE_FIELDS, ...DRIVER_FIELDS];
@@ -81,8 +84,16 @@ export default function DeliveryFeeSettingsModal({ onClose, onSaved }: { onClose
     onSaved();
   }
 
+  const field = (f: Field) => (
+    <SettingRow key={f.key} id={`df-${f.key}`} label={f.label} hint={f.hint}>
+      <UnitInput id={`df-${f.key}`} required type="number" step={f.step} min={DELIVERY_LIMITS[f.key].min} max={DELIVERY_LIMITS[f.key].max}
+        prefix={f.prefix} suffix={f.suffix}
+        value={form?.[f.key] ?? ""} onChange={(e) => setForm((p) => (p ? { ...p, [f.key]: e.target.value } : p))} />
+    </SettingRow>
+  );
+
   return (
-    <Modal open onClose={onClose} title="Delivery settings" size="lg"
+    <Modal open onClose={onClose} title="Delivery settings" icon={<Route className="size-5" />} description="The base fee, the rate per kilometre, and the free distance." size="lg"
       footer={
         <div className="flex gap-2">
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
@@ -92,48 +103,28 @@ export default function DeliveryFeeSettingsModal({ onClose, onSaved }: { onClose
       {!form ? (
         <p className="text-sm text-ink-4 py-8 text-center">{error || "Loading..."}</p>
       ) : (
-        <form id="delivery-fee-form" onSubmit={save} className="space-y-4">
-          <p className="text-xs text-ink-3">
-            Every delivery pays the base fee, plus a rate per km past the distance it covers. The distance is the real driving
-            distance by road from the store&apos;s pin to the customer&apos;s pin (OpenStreetMap routing), so farther places pay more.
-            Customers see the fee at checkout before they order, and you can still change it on a single order.
-          </p>
-          <p className="text-[11px] font-semibold text-ink-3 uppercase tracking-wide pt-1">Delivery fee</p>
-          {FEE_FIELDS.map((f) => (
-            <div key={f.key}>
-              <label htmlFor={`df-${f.key}`} className="block text-xs font-medium text-ink-2 mb-1">{f.label}</label>
-              <div className="flex items-center gap-2">
-                <input id={`df-${f.key}`} required type="number" step={f.step} min={DELIVERY_LIMITS[f.key].min} max={DELIVERY_LIMITS[f.key].max}
-                  value={form[f.key]} onChange={(e) => setForm((p) => (p ? { ...p, [f.key]: e.target.value } : p))}
-                  className="w-28 border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
-                <span className="text-xs text-ink-3">{f.suffix}</span>
-              </div>
-              <p className="text-[11px] text-ink-4 mt-1">{f.hint}</p>
-            </div>
-          ))}
+        <form id="delivery-fee-form" onSubmit={save} className="space-y-5">
+          <Alert tone="info" compact>
+            Fee = base fee + the rate for every km past the covered distance, measured by road from the store&apos;s pin to the
+            customer&apos;s. Customers see it at checkout, and you can still change it on a single order.
+          </Alert>
 
-          <p className="text-[11px] font-semibold text-ink-3 uppercase tracking-wide pt-2 border-t border-line">Drivers</p>
-          {DRIVER_FIELDS.map((f) => (
-            <div key={f.key}>
-              <label htmlFor={`df-${f.key}`} className="block text-xs font-medium text-ink-2 mb-1">{f.label}</label>
-              <div className="flex items-center gap-2">
-                <input id={`df-${f.key}`} required type="number" step={f.step} min={DELIVERY_LIMITS[f.key].min} max={DELIVERY_LIMITS[f.key].max}
-                  value={form[f.key]} onChange={(e) => setForm((p) => (p ? { ...p, [f.key]: e.target.value } : p))}
-                  className="w-28 border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
-                <span className="text-xs text-ink-3">{f.suffix}</span>
-              </div>
-              <p className="text-[11px] text-ink-4 mt-1">{f.hint}</p>
-            </div>
-          ))}
+          <FormSection title="Delivery fee" icon={<Route className="size-3.5" />}>
+            {FEE_FIELDS.map((f) => field(f))}
+          </FormSection>
+
+          <FormSection title="Drivers" icon={<Truck className="size-3.5" />}>
+            {DRIVER_FIELDS.map((f) => field(f))}
+          </FormSection>
 
           {current && store && (
-            <div className="rounded-xl border border-line overflow-hidden">
-              <div className="px-3 py-2 bg-recess">
-                <p className="text-[11px] font-semibold text-ink-3 uppercase tracking-wide">Preview — try your rates before saving</p>
-                <p className="text-[10.5px] text-ink-4 mt-0.5">
-                  Not a price list. This changes as you type, so you can check the rates above before you save.
-                  Real orders are priced automatically from the customer&apos;s pin.
-                </p>
+            <div className="overflow-hidden rounded-2xl border border-line">
+              <div className="flex items-start gap-2.5 bg-subtle px-4 py-3">
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand"><Eye className="size-4" /></span>
+                <div>
+                  <p className="text-[13.5px] font-semibold text-ink">Preview — try your rates before saving</p>
+                  <p className="text-[12px] text-ink-4">Updates as you type. Real orders are priced from the customer&apos;s own pin.</p>
+                </div>
               </div>
               <ul className="divide-y divide-line">
                 {EXAMPLES
@@ -145,16 +136,21 @@ export default function DeliveryFeeSettingsModal({ onClose, onSaved }: { onClose
                   .sort((a, b) => a.q.fee - b.q.fee || a.q.roadKm - b.q.roadKm)
                   .map(({ ex, q }) => {
                   return (
-                    <li key={ex.name} className="flex justify-between gap-3 px-3 py-2 text-xs">
-                      <span className="text-ink-2">{ex.name} <span className="text-ink-4">· {q.source === "road" ? "" : "~"}{q.roadKm.toFixed(1)} km{q.source === "road" ? " by road" : ""}{q.island ? ` + boat ₱${q.boatFee}` : ""}</span></span>
-                      <span className="font-semibold text-ink num">{q.tooFar ? "Too far" : q.fee === 0 ? "Free" : `₱${q.fee}`}</span>
+                    <li key={ex.name} className="flex items-center justify-between gap-3 px-4 py-2.5 text-[13px]">
+                      <span className="min-w-0">
+                        <span className="font-semibold text-ink">{ex.name}</span>
+                        <span className="block text-[11.5px] text-ink-4">{q.source === "road" ? "" : "~"}{q.roadKm.toFixed(1)} km{q.source === "road" ? " by road" : ""}{q.island ? ` + boat ₱${q.boatFee}` : ""}</span>
+                      </span>
+                      <span className={`num shrink-0 rounded-full px-2.5 py-0.5 text-[12.5px] font-bold ${q.tooFar ? "bg-bad-soft text-bad" : q.fee === 0 ? "bg-good-soft text-good" : "bg-brand-soft text-brand-ink"}`}>
+                        {q.tooFar ? "Too far" : q.fee === 0 ? "Free" : `₱${q.fee}`}
+                      </span>
                     </li>
                   );
                 })}
               </ul>
             </div>
           )}
-          {error && <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
+          {error && <Alert tone="bad" compact>{error}</Alert>}
         </form>
       )}
     </Modal>

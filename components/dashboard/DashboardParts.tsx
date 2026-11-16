@@ -12,8 +12,8 @@ import { ICON_SIZE } from "@/lib/constants/icon-size";
 export function SectionLabel({ title, description }: { title: string; description?: string }) {
   return (
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 pt-1">
-      <h2 className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--brand)" }}>{title}</h2>
-      {description && <p className="text-xs" style={{ color: "var(--text-muted)" }}>{description}</p>}
+      <h2 className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">{title}</h2>
+      {description && <p className="text-xs text-ink-3">{description}</p>}
     </div>
   );
 }
@@ -41,15 +41,15 @@ export function CardHeader({
       <div className="flex items-start gap-2.5 min-w-0">
         {icon && <span className="mt-0.5 shrink-0">{icon}</span>}
         <div className="min-w-0">
-          <h3 className="font-display font-extrabold text-gray-900 flex items-center gap-2">
+          <h3 className="font-display font-extrabold text-ink flex items-center gap-2">
             {title}
             {badge}
           </h3>
-          {description && <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{description}</p>}
+          {description && <p className="text-xs text-ink-4 mt-0.5 leading-relaxed">{description}</p>}
         </div>
       </div>
       {href && (
-        <Link href={href} className="flex items-center gap-1 text-xs font-semibold hover:underline shrink-0 mt-0.5" style={{ color: "var(--brand)" }}>
+        <Link href={href} className="flex items-center gap-1 text-xs font-semibold hover:underline shrink-0 mt-0.5 text-brand">
           {linkLabel} <ArrowRight size={ICON_SIZE.xs} />
         </Link>
       )}
@@ -60,12 +60,12 @@ export function CardHeader({
 /** A column of key numbers, with a header saying whose numbers they are and over what period. */
 export function StatRail({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
-    <div className="h-full flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div className="px-5 pt-4 pb-3 border-b border-gray-100">
-        <h3 className="font-display font-extrabold text-gray-900 text-sm">{title}</h3>
-        <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">{description}</p>
+    <div className="h-full flex flex-col bg-surface rounded-xl border border-line overflow-hidden">
+      <div className="px-5 pt-4 pb-3 border-b border-line">
+        <h3 className="font-display font-extrabold text-ink text-sm">{title}</h3>
+        <p className="text-[11px] text-ink-4 mt-0.5 leading-relaxed">{description}</p>
       </div>
-      <div className="flex-1 flex flex-col divide-y divide-gray-100">{children}</div>
+      <div className="flex-1 flex flex-col divide-y divide-line">{children}</div>
     </div>
   );
 }
@@ -104,9 +104,9 @@ export function StatRailRow({
         {icon}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{title}</p>
-        <p className="font-display text-lg font-extrabold text-gray-900 num truncate leading-tight">{value}</p>
-        <p className="text-[11px] text-gray-400 leading-snug">{caption}</p>
+        <p className="text-[10px] font-semibold text-ink-4 uppercase tracking-wide">{title}</p>
+        <p className="font-display text-lg font-extrabold text-ink num truncate leading-tight">{value}</p>
+        <p className="text-[11px] text-ink-4 leading-snug">{caption}</p>
       </div>
       {(sparkline && sparkline.length > 1 && sparklineId) || trend ? (
         <div className="flex flex-col items-end gap-0.5 shrink-0">
@@ -115,7 +115,7 @@ export function StatRailRow({
           )}
           {trend && (
             <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: trend.up ? "var(--good)" : "var(--bad)" }} title={`Change ${trendLabel}`}>
-              {trend.up ? "↑" : "↓"} {trend.value} <span className="font-normal text-gray-400">{trendLabel}</span>
+              {trend.up ? "↑" : "↓"} {trend.value} <span className="font-normal text-ink-4">{trendLabel}</span>
             </span>
           )}
         </div>

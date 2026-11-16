@@ -1,6 +1,6 @@
 "use client";
 
-import { Printer } from "lucide-react";
+import { Printer, Receipt } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { STORE_ADDRESS, STORE_NAME } from "@/lib/brand";
@@ -131,7 +131,7 @@ export function printReceipt(data: ReceiptData) {
 
 export default function ReceiptModal({ data, onClose, title = "Receipt" }: { data: ReceiptData; onClose: () => void; title?: string }) {
   return (
-    <Modal open onClose={onClose} title={title} size="sm">
+    <Modal open onClose={onClose} title={title} icon={<Receipt className="size-5" />} description="Print it or save it as a PDF." size="sm">
       <ReceiptBody data={data} />
       <Button onClick={() => printReceipt(data)} icon={<Printer size={ICON_SIZE.sm} />} className="w-full mt-4">
         Print Receipt

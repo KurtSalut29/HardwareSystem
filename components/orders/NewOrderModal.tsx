@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Store, Truck, Banknote, Smartphone, UserRound, UserPlus } from "lucide-react";
+import { Plus, Trash2, Store, Truck, Banknote, Smartphone, UserRound, UserPlus, ClipboardPlus } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import LocationPicker, { type PickedLocation } from "@/components/LocationPicker";
@@ -9,21 +9,21 @@ import { describeQuote } from "@/lib/deliveryFee";
 import { useDeliveryQuote } from "@/lib/useDeliveryQuote";
 import { PAY_NOW_OPTIONS, payNowAmount, type PayNow } from "@/lib/payment";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
+import Alert from "@/components/ui/Alert";
 
 type Product = { id: number; name: string; price: number; unit: string; stock: number; category: { name: string } | null };
 type Customer = { id: number; username: string; contact: string | null };
 type Line = { productId: number; quantity: string };
 
-const inputCls = "w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition bg-surface";
+const inputCls = "w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10";
 const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function Segmented<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: string; icon: React.ReactNode }[]; onChange: (v: T) => void }) {
   return (
-    <div className="grid gap-1 rounded-xl border border-line p-1" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
+    <div className="grid gap-1 rounded-xl bg-recess p-1" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
       {options.map((o) => (
         <button key={o.value} type="button" onClick={() => onChange(o.value)} aria-pressed={value === o.value}
-          className="flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition"
-          style={value === o.value ? { background: "var(--brand)", color: "#fff" } : { color: "var(--text-muted)" }}>
+          className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-[12.5px] font-semibold transition ${value === o.value ? "bg-surface text-brand-ink shadow-[0_1px_3px_rgba(16,24,64,0.14)] ring-1 ring-brand/25" : "text-ink-3 hover:text-ink"}`}>
           {o.icon} {o.label}
         </button>
       ))}
@@ -35,7 +35,7 @@ function Section({ n, title, children }: { n: number; title: string; children: R
   return (
     <section className="space-y-2.5">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
-        <span className="w-5 h-5 rounded-full text-[11px] font-bold text-white flex items-center justify-center bg-brand">{n}</span>
+        <span className="grid size-6 place-items-center rounded-lg bg-brand-soft text-[12px] font-bold text-brand-ink">{n}</span>
         {title}
       </h3>
       {children}
@@ -146,7 +146,7 @@ export default function NewOrderModal({ onClose, onCreated }: {
   }
 
   return (
-    <Modal open onClose={onClose} title="New order (phone or walk-in)" size="xl"
+    <Modal open onClose={onClose} title="New order (phone or walk-in)" icon={<ClipboardPlus className="size-5" />} description="For orders taken by phone or at the counter. They start confirmed." size="xl"
       footer={
         <div className="flex flex-wrap items-center gap-2">
           <div className="mr-auto text-xs text-ink-3">
@@ -258,11 +258,11 @@ export default function NewOrderModal({ onClose, onCreated }: {
           )}
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-ink-2">Paid now</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl border border-line p-1" role="group" aria-label="Amount paid now">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl bg-recess p-1" role="group" aria-label="Amount paid now">
               {PAY_NOW_OPTIONS.map((o) => (
                 <button key={o.value} type="button" onClick={() => setPayNow(o.value)} aria-pressed={payNow === o.value}
-                  className="rounded-lg py-2 px-1 text-xs font-semibold transition leading-tight"
-                  style={payNow === o.value ? { background: "var(--brand)", color: "#fff" } : { color: "var(--text-muted)" }}>
+                  className={`rounded-lg py-2 px-1 text-xs font-semibold transition leading-tight ${payNow === o.value ? "bg-surface text-brand-ink shadow-[0_1px_3px_rgba(16,24,64,0.14)] ring-1 ring-brand/25" : "text-ink-3 hover:text-ink"}`}
+                 >
                   {o.label}
                   {o.value !== "other" && total > 0 && <span className="block text-[10.5px] font-normal opacity-80 num">{peso(payNowAmount(o.value, total, "") ?? 0)}</span>}
                 </button>
@@ -285,7 +285,7 @@ export default function NewOrderModal({ onClose, onCreated }: {
           </div>
         </Section>
 
-        {error && <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
+        {error && <Alert tone="bad" compact>{error}</Alert>}
       </div>
     </Modal>
   );

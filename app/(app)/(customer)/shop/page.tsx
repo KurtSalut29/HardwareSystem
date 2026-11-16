@@ -19,6 +19,7 @@ import CatalogToolbar, { type SortKey } from "@/components/catalog/CatalogToolba
 import CategoryGlyph from "@/components/catalog/CategoryGlyph";
 import { peso } from "@/lib/catalog-ui";
 import { filterProducts, groupByCategory, railCategories } from "@/lib/useCatalog";
+import Alert from "@/components/ui/Alert";
 
 type Category = { id: number; name: string };
 type Product = { id: number; name: string; brand?: string | null; category: Category; categoryId: number; subcategory: string | null; price: number; unit: string; stock: number; image: string | null; description: string | null };
@@ -380,7 +381,7 @@ export default function ShopPage() {
                 <span className="text-lg num">₱{total.toFixed(2)}</span>
               </div>
             </div>
-            {error && <p className="text-xs text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
+            {error && <Alert tone="bad" compact>{error}</Alert>}
             <Button onClick={openReview} disabled={!gcashReady} className="w-full">
               Review Order
             </Button>
@@ -418,14 +419,14 @@ export default function ShopPage() {
           {cart.length > 0 && (
             <div className="pt-4 mt-2 border-t border-line space-y-3">
               <div>
-                <label className="block text-xs font-medium text-ink-2 mb-1">Fulfillment</label>
+                <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Fulfillment</label>
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => setFulfillmentMode("delivery")}
-                  className={`py-2 rounded-lg text-xs font-semibold border transition inline-flex items-center justify-center gap-1.5 ${fulfillmentMode === "delivery" ? "bg-brand text-white border-brand" : "bg-surface border-line text-ink-2 hover:bg-subtle"}`}>
+                  className={`py-2 rounded-lg text-xs font-semibold border transition inline-flex items-center justify-center gap-1.5 ${fulfillmentMode === "delivery" ? "border-brand/50 bg-brand-soft text-brand-ink ring-1 ring-brand/20" : "bg-surface border-line text-ink-2 hover:bg-subtle"}`}>
                   <Truck size={14} /> Delivery
                 </button>
                 <button type="button" onClick={() => setFulfillmentMode("pickup")}
-                  className={`py-2 rounded-lg text-xs font-semibold border transition inline-flex items-center justify-center gap-1.5 ${fulfillmentMode === "pickup" ? "bg-brand text-white border-brand" : "bg-surface border-line text-ink-2 hover:bg-subtle"}`}>
+                  className={`py-2 rounded-lg text-xs font-semibold border transition inline-flex items-center justify-center gap-1.5 ${fulfillmentMode === "pickup" ? "border-brand/50 bg-brand-soft text-brand-ink ring-1 ring-brand/20" : "bg-surface border-line text-ink-2 hover:bg-subtle"}`}>
                   <Store size={14} /> Pickup at Store
                 </button>
               </div>
@@ -479,7 +480,7 @@ export default function ShopPage() {
             )}
 
             <div>
-              <label className="block text-xs font-medium text-ink-2 mb-1">Payment Method</label>
+              <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Payment Method</label>
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { value: "Cash", icon: Banknote, label: fulfillmentMode === "delivery" ? "Cash on Delivery" : "Cash on Pickup" },
@@ -487,7 +488,7 @@ export default function ShopPage() {
                 ].map((m) => (
                   <button key={m.value} type="button" onClick={() => { setPaymentMethod(m.value); setError(""); }}
                     className={`flex flex-col items-center gap-1 py-2.5 px-1 rounded-lg border text-[11px] font-semibold leading-tight text-center transition ${
-                      paymentMethod === m.value ? "bg-brand text-white border-brand" : "bg-surface border-line text-ink-2 hover:bg-subtle"
+                      paymentMethod === m.value ? "border-brand/50 bg-brand-soft text-brand-ink ring-1 ring-brand/20" : "bg-surface border-line text-ink-2 hover:bg-subtle"
                     }`}>
                     <m.icon size={ICON_SIZE.sm} />
                     {m.label}
@@ -620,7 +621,7 @@ export default function ShopPage() {
       </Drawer>
 
       {/* Order Review Modal */}
-      <Modal open={showReview} onClose={() => setShowReview(false)} title="Review Your Order" size="sm">
+      <Modal open={showReview} onClose={() => setShowReview(false)} title="Review Your Order" icon={<ShoppingCart className="size-5" />} description="Check your items, delivery and payment before placing it." size="sm">
         <div className="space-y-4">
           <div className="space-y-2 max-h-56 overflow-y-auto">
             {cart.map((i) => (
@@ -672,7 +673,7 @@ export default function ShopPage() {
               The store will verify this reference number against their GCash account before confirming your order.
             </p>
           )}
-          {error && <p className="text-xs text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
+          {error && <Alert tone="bad" compact>{error}</Alert>}
           <div className="flex gap-2">
             <Button variant="secondary" className="flex-1" onClick={() => setShowReview(false)} disabled={loading}>Back to Cart</Button>
             <Button className="flex-1" onClick={handleOrder} loading={loading}>Confirm & Place Order</Button>

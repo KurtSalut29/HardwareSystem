@@ -2,22 +2,26 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Truck, Navigation, CheckCircle2, Package, ArrowRight } from "lucide-react";
+import { Truck, Navigation, CheckCheck, CalendarDays, Trophy, Flag, MapPin, ListChecks, History, CircleStop } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
-import StatCard from "@/components/ui/StatCard";
+import StatTile from "@/components/ui/StatTile";
+import Button from "@/components/ui/Button";
+import { customerLabel } from "@/lib/customer";
 import { useToast } from "@/components/ui/ToastProvider";
 import OrderMap, { OrderPin } from "@/components/OrderMap";
-import { ICON_SIZE } from "@/lib/constants/icon-size";
 import { MapLegend } from "@/components/OrderMapWidget";
 
 import DutyStatusCard from "@/components/deliveries/DutyStatusCard";
+import Alert from "@/components/ui/Alert";
 type OItem = { id: number; quantity: number; price: number; product: { name: string } };
 type Order = {
   id: number;
   totalAmount: number;
   status: string;
   dateTime: string;
-  customer: { username: string };
+  customer: { username: string; contact?: string | null } | null;
+  customerName?: string | null;
+  customerContact?: string | null;
   items: OItem[];
   deliveryAddress?: string | null;
 };
@@ -30,6 +34,7 @@ export default function DriverDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
   const [geoError, setGeoError] = useState("");
+  const [username, setUsername] = useState("");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevActiveCountRef = useRef(0);
   const showToast = useToast();
@@ -59,6 +64,10 @@ export default function DriverDashboardPage() {
   }, [loadOrders]);
 
   useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
+
+  useEffect(() => {
+    fetch("/api/auth/me").then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.username) setUsername(d.username); }).catch(() => {});
+  }, []);
 
   function pingLocation() {
     if (!navigator.geolocation) {
@@ -114,7 +123,13 @@ export default function DriverDashboardPage() {
   }
 
   const activeOrders = orders.filter((o) => o.status === "out_for_delivery");
-  const deliveredCount = orders.filter((o) => o.status === "delivered").length;
+  const delivered = orders.filter((o) => o.status === "delivered");
+  const deliveredCount = delivered.length;
+  const todayKey = new Date().toDateString();
+  const deliveredToday = delivered.filter((o) => new Date(o.dateTime).toDateString() === todayKey).length;
+  const nextStop = activeOrders.slice().sort((a, b) => a.id - b.id)[0];
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   // Auto-start location sharing on a 0 -> N active-deliveries transition, so the
   // driver doesn't have to tap "Start" manually. A manual "Stop" during an
@@ -128,96 +143,114 @@ export default function DriverDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Driver Dashboard" subtitle="Your deliveries for today, your route, and live location sharing so the store and customers can follow you." />
+      <PageHeader
+        eyebrow={new Date().toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })}
+        title={`${greeting}, ${username || "driver"}`}
+        subtitle={loading ? "Loading your day…" : activeOrders.length > 0
+          ? <><span className="font-semibold text-ink-2">{activeOrders.length}</span> {activeOrders.length === 1 ? "delivery" : "deliveries"} on hand · <span className="font-semibold text-ink-2">{deliveredToday}</span> done today</>
+          : <>No deliveries on hand · <span className="font-semibold text-ink-2">{deliveredToday}</span> done today</>}
+      />
 
       <DutyStatusCard refreshKey={activeOrders.length} />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <StatCard title="Active Deliveries" subtitle="Assigned to you and not yet delivered" value={activeOrders.length} icon={<Truck size={ICON_SIZE.lg} className="text-indigo-600" />} iconBg="bg-indigo-50" />
-        <StatCard title="Delivered (all time)" subtitle="Orders you have completed" value={deliveredCount} icon={<CheckCircle2 size={ICON_SIZE.lg} className="text-emerald-600" />} iconBg="bg-emerald-50" />
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+        <StatTile icon={<Truck className="size-5" />} label="On hand" value={loading ? "–" : activeOrders.length} caption="out for delivery" />
+        <StatTile icon={<CheckCheck className="size-5" />} tone="good" label="Delivered today" value={loading ? "–" : deliveredToday} caption="so far" />
+        <StatTile icon={<CalendarDays className="size-5" />} tone="neutral" label="This week" value={loading ? "–" : delivered.filter((o) => Date.now() - new Date(o.dateTime).getTime() < 7 * 86400000).length} caption="last 7 days" />
+        <StatTile icon={<Trophy className="size-5" />} tone="neutral" label="All time" value={loading ? "–" : deliveredCount} caption="completed" />
       </div>
 
-      {/* Location sharing control */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2">
-            <Navigation size={ICON_SIZE.md} className={sharing ? "text-indigo-600" : "text-gray-400"} />
-            <div>
-              <p className="text-sm font-semibold text-gray-800">
-                {sharing ? "Sharing your location live" : "Location sharing is off"}
+      {/* The next stop, front and centre */}
+      {nextStop ? (
+        <section className="overflow-hidden rounded-2xl border border-brand/30 bg-surface shadow-[0_18px_40px_-28px_rgba(30,79,216,0.6)]">
+          <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-brand to-brand-ink px-4 py-3 text-white">
+            <p className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em]"><Flag className="size-4" /> Next stop</p>
+            <span className="font-code text-[13px] font-bold opacity-90">Order #{nextStop.id}</span>
+          </div>
+          <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-[19px] font-extrabold leading-tight text-ink">{customerLabel(nextStop)}</p>
+              <p className="mt-1 flex items-start gap-1.5 text-[13.5px] text-ink-2">
+                <MapPin className="mt-0.5 size-4 shrink-0 text-ink-4" /> {nextStop.deliveryAddress || "No address recorded"}
               </p>
-              <p className="text-xs text-gray-400">
-                {sharing
-                  ? "Customers and the store can see your position."
-                  : activeOrders.length > 0
-                  ? "Starts automatically for active deliveries — grant location access if your browser prompts you."
-                  : "Turns on automatically once you have an active delivery."}
-              </p>
+              <p className="mt-1 text-[12.5px] text-ink-4">{nextStop.items.length} {nextStop.items.length === 1 ? "item" : "items"} · ₱{nextStop.totalAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p>
+            </div>
+            <div className="grid shrink-0 grid-cols-2 gap-2 sm:w-[300px]">
+              <Link href="/deliveries" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-line text-[14px] font-semibold text-ink-2 transition hover:border-brand/40 hover:bg-brand-soft hover:text-brand-ink">
+                <ListChecks className="size-4" /> All stops
+              </Link>
+              <Link href={`/deliveries/${nextStop.id}`} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand text-[14px] font-semibold text-white shadow-[0_8px_18px_-10px_rgba(30,79,216,0.9)] transition hover:brightness-110">
+                <Navigation className="size-4" /> Navigate
+              </Link>
             </div>
           </div>
-          <button
-            onClick={() => (sharing ? stopSharing() : startSharing())}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold transition active:scale-[0.98] ${
-              sharing ? "bg-red-50 text-red-600 hover:bg-red-100" : "bg-indigo-600 text-white hover:bg-indigo-700"
-            }`}
-          >
-            {sharing ? "Stop Sharing Location" : "Start Sharing Location"}
-          </button>
-        </div>
-        {geoError && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2 mt-3">{geoError}</p>}
-        <p className="text-[11px] text-gray-400 mt-3">
-          Note: your browser may pause location updates if this tab is closed, backgrounded, or your screen locks — keep this page open while delivering for the most reliable tracking.
-        </p>
-      </div>
+        </section>
+      ) : !loading && (
+        <section className="flex items-center gap-4 rounded-2xl border border-dashed border-line-strong bg-surface p-5">
+          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-recess text-ink-4"><Truck className="size-6" /></span>
+          <div className="min-w-0 flex-1">
+            <p className="font-display text-[16px] font-extrabold text-ink">No stops right now</p>
+            <p className="text-[13px] text-ink-3">You&apos;ll hear a chime when the store assigns you a delivery.</p>
+          </div>
+          <Link href="/deliveries/history" className="hidden h-10 shrink-0 items-center gap-1.5 rounded-xl border border-line px-3.5 text-[13px] font-semibold text-ink-2 transition hover:border-brand/40 hover:text-brand-ink sm:inline-flex">
+            <History className="size-4" /> History
+          </Link>
+        </section>
+      )}
 
-      {/* Map — the route line starts at the driver's own live position */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5" style={{ isolation: "isolate" }}>
-        <div className="mb-3">
-          <h2 className="font-display font-extrabold text-gray-900">Delivery Map</h2>
-          <p className="text-xs text-gray-400 mt-0.5">
-            Your active drop-offs. {sharing
-              ? "The line shows your route from where you are now."
-              : "Start sharing your location to see your route to each drop-off."}
-          </p>
-        </div>
-        <OrderMap
-          pins={pins.filter((p) => activeOrders.some((o) => o.id === p.id))}
-          loading={loading}
-          routeFrom="driver"
-        />
-        <MapLegend />
-      </div>
-
-      {/* Lists live on /deliveries and /deliveries/history now — the dashboard
-          stays a summary so the same deliveries never appear in two places. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Link href="/deliveries" className="group bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4 transition hover:border-blue-300 hover:-translate-y-0.5">
-          <span className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#EEF2FF" }}>
-            <Truck size={ICON_SIZE.lg} className="text-indigo-600" />
+      {/* Location sharing control */}
+      <section className="rounded-2xl border border-line bg-surface p-4">
+        <div className="flex flex-wrap items-center gap-3.5">
+          <span className={`relative grid size-11 shrink-0 place-items-center rounded-2xl ${sharing ? "bg-brand-soft text-brand" : "bg-recess text-ink-4"}`}>
+            <Navigation className="size-5" />
+            {sharing && (
+              <span className="absolute -right-0.5 -top-0.5 flex size-3">
+                <span className="animate-live-ping absolute inline-flex size-full rounded-full bg-brand" />
+                <span className="relative inline-flex size-3 rounded-full bg-brand ring-2 ring-surface" />
+              </span>
+            )}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="font-display font-extrabold text-gray-900">My Deliveries</p>
-            <p className="text-xs text-gray-400">
-              {activeOrders.length === 0
-                ? "Nothing to deliver right now"
-                : `${activeOrders.length} waiting — addresses, contacts & navigation`}
+            <p className="text-[14.5px] font-semibold text-ink">{sharing ? "Sharing your location live" : "Location sharing is off"}</p>
+            <p className="text-[12.5px] text-ink-3">
+              {sharing
+                ? "The store and your customers can follow you on the map."
+                : activeOrders.length > 0
+                ? "Starts by itself for active deliveries — allow location if your browser asks."
+                : "Turns on by itself once you have an active delivery."}
             </p>
           </div>
-          <ArrowRight size={ICON_SIZE.sm} className="text-gray-300 shrink-0 transition group-hover:translate-x-0.5" style={{ color: "var(--brand)" }} />
-        </Link>
+          <Button variant={sharing ? "danger-soft" : "primary"} onClick={() => (sharing ? stopSharing() : startSharing())}
+            icon={sharing ? <CircleStop className="size-4" /> : <Navigation className="size-4" />} className="w-full sm:w-auto">
+            {sharing ? "Stop sharing" : "Start sharing"}
+          </Button>
+        </div>
+        {geoError && <Alert tone="bad" compact className="mt-3">{geoError}</Alert>}
+        <p className="mt-3 border-t border-line pt-3 text-[12px] text-ink-4">
+          Keep this page open while delivering. Phones can pause location updates when the tab is closed or the screen locks.
+        </p>
+      </section>
 
-        <Link href="/deliveries/history" className="group bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4 transition hover:border-blue-300 hover:-translate-y-0.5">
-          <span className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#ECFDF5" }}>
-            <Package size={ICON_SIZE.lg} className="text-emerald-600" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="font-display font-extrabold text-gray-900">Delivery History</p>
-            <p className="text-xs text-gray-400">{deliveredCount} completed all time</p>
+      {/* Map — the route line starts at the driver's own live position */}
+      <section className="overflow-hidden rounded-2xl border border-line bg-surface [isolation:isolate]">
+        <div className="flex items-center gap-3 border-b border-line px-4 py-3">
+          <span className="grid size-9 place-items-center rounded-xl bg-brand-soft text-brand"><MapPin className="size-4" /></span>
+          <div className="min-w-0">
+            <h2 className="font-display text-[15px] font-extrabold text-ink">Delivery map</h2>
+            <p className="text-[12px] text-ink-4">
+              {sharing ? "The line shows your route from where you are now." : "Your active drop-offs. Share your location to see the route."}
+            </p>
           </div>
-          <ArrowRight size={ICON_SIZE.sm} className="text-gray-300 shrink-0 transition group-hover:translate-x-0.5" style={{ color: "var(--brand)" }} />
-        </Link>
-      </div>
-
+        </div>
+        <div className="p-3">
+          <OrderMap
+            pins={pins.filter((p) => activeOrders.some((o) => o.id === p.id))}
+            loading={loading}
+            routeFrom="driver"
+          />
+          <MapLegend />
+        </div>
+      </section>
     </div>
   );
 }

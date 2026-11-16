@@ -5,6 +5,8 @@ import Toast, { ToastVariant } from "./Toast";
 
 type ShowToast = (message: string, variant?: ToastVariant) => void;
 
+const TOAST_MS = 3500;
+
 const ToastContext = createContext<ShowToast | null>(null);
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -16,13 +18,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     idRef.current += 1;
     setToast({ id: idRef.current, message, variant });
-    timeoutRef.current = setTimeout(() => setToast(null), 3000);
+    timeoutRef.current = setTimeout(() => setToast(null), TOAST_MS);
   }, []);
 
   return (
     <ToastContext.Provider value={showToast}>
       {children}
-      {toast && <Toast key={toast.id} message={toast.message} variant={toast.variant} />}
+      {toast && <Toast key={toast.id} message={toast.message} variant={toast.variant} duration={TOAST_MS} onClose={() => setToast(null)} />}
     </ToastContext.Provider>
   );
 }

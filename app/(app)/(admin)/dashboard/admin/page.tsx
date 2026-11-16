@@ -72,18 +72,18 @@ export default function AdminDashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-1">{today}</p>
-        <h1 className="font-display text-2xl font-extrabold text-gray-900">{greeting()}{username ? `, ${username}` : ""}</h1>
-        <p className="text-sm text-gray-400 mt-0.5">Here&apos;s how the branch is running right now.</p>
+        <p className="text-xs font-bold uppercase tracking-wide text-ink-4 mb-1">{today}</p>
+        <h1 className="font-display text-2xl font-extrabold text-ink">{greeting()}{username ? `, ${username}` : ""}</h1>
+        <p className="text-sm text-ink-4 mt-0.5">Here&apos;s how the branch is running right now.</p>
       </div>
 
       {/* Growth first: this is what the branch is here to see before anything else */}
       <SectionLabel title="Sales & stock" description="How much the store is selling, and what needs restocking." />
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         {/* Sales Chart */}
-        <div className="xl:col-span-2 bg-white rounded-xl border border-gray-200 p-5 flex flex-col">
+        <div className="xl:col-span-2 bg-surface rounded-xl border border-line p-5 flex flex-col">
           <CardHeader
-            icon={<TrendingUp size={ICON_SIZE.sm} className="text-blue-600" />}
+            icon={<TrendingUp size={ICON_SIZE.sm} className="text-brand" />}
             title="Sales Overview"
             description={`Money collected each month from counter (POS) sales and delivered online orders, over the last 6 months. Total: ₱${sixMonthTotal.toLocaleString("en-PH")}.`}
             href="/reports"
@@ -99,10 +99,10 @@ export default function AdminDashboardPage() {
                   <stop offset="95%" stopColor="#1E4FD8" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={52} tickFormatter={(v) => (v >= 1000000 ? `₱${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `₱${Math.round(v / 1000)}k` : `₱${v}`)} />
-              <Tooltip formatter={(v) => [`₱${Number(v).toLocaleString()}`, "Sales"]} contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "var(--text-faint)" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 12, fill: "var(--text-faint)" }} axisLine={false} tickLine={false} width={52} tickFormatter={(v) => (v >= 1000000 ? `₱${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `₱${Math.round(v / 1000)}k` : `₱${v}`)} />
+              <Tooltip formatter={(v) => [`₱${Number(v).toLocaleString()}`, "Sales"]} cursor={{ stroke: "var(--border-strong)", strokeDasharray: "4 4" }} contentStyle={{ borderRadius: "12px", border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text-primary)", fontSize: "12px" }} />
               <Area type="monotone" dataKey="sales" stroke="#1E4FD8" strokeWidth={2.5} fill="url(#salesGrad)" dot={{ r: 3, fill: "#1E4FD8", strokeWidth: 0 }} activeDot={{ r: 5, fill: "#12327F", strokeWidth: 2, stroke: "#fff" }} />
             </AreaChart>
           </ResponsiveContainer>
@@ -110,24 +110,24 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Low Stock */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-surface rounded-xl border border-line p-5">
           <CardHeader
-            icon={<AlertTriangle size={ICON_SIZE.sm} className="text-amber-500" />}
+            icon={<AlertTriangle size={ICON_SIZE.sm} className="text-warn" />}
             title="Low Stock Alert"
             description="Products at or below their reorder point. The bar shows how much stock is left before that point; order the suggested quantity on Restocks."
             href="/restocks"
             linkLabel="Restocks"
           />
           {lowStock.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">Every product is above its reorder point.</p>
+            <p className="text-sm text-ink-4 text-center py-8">Every product is above its reorder point.</p>
           ) : (
-            <div className="-mx-5 divide-y divide-gray-50">
+            <div className="-mx-5 divide-y divide-line">
               {lowStock.map((p) => (
-                <div key={p.id} className="px-5 py-2.5 hover:bg-gray-50 transition-colors">
+                <div key={p.id} className="px-5 py-2.5 hover:bg-subtle transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-sm font-medium text-ink truncate">{p.name}</p>
+                      <p className="text-xs text-ink-4">
                         {p.category} · reorder at {p.reorderPoint}{p.eoq != null ? ` · order ${p.eoq}` : ""}
                       </p>
                     </div>
@@ -155,8 +155,8 @@ export default function AdminDashboardPage() {
             title="Revenue"
             caption="Total sales, all time"
             value={`₱${(stats?.totalRevenue ?? 0).toLocaleString("en", { minimumFractionDigits: 2 })}`}
-            icon={<DollarSign size={ICON_SIZE.md} className="text-blue-600" />}
-            iconBg="bg-blue-50"
+            icon={<DollarSign size={ICON_SIZE.md} className="text-brand" />}
+            iconBg="bg-brand-soft"
             trend={revenueTrend}
             sparkline={monthlySales.map((m) => ({ label: m.month, value: m.sales }))}
             sparklineId="admin-revenue"
@@ -177,8 +177,8 @@ export default function AdminDashboardPage() {
             title="Orders"
             caption="Online orders placed by customers"
             value={stats?.totalOrders ?? 0}
-            icon={<ShoppingCart size={ICON_SIZE.md} className="text-blue-500" />}
-            iconBg="bg-blue-50"
+            icon={<ShoppingCart size={ICON_SIZE.md} className="text-brand" />}
+            iconBg="bg-brand-soft"
             trend={ordersTrend}
             sparkline={monthlyOrders.map((m) => ({ label: m.month, value: m.count }))}
             sparklineId="admin-orders"
@@ -188,8 +188,8 @@ export default function AdminDashboardPage() {
             title="Users"
             caption="Accounts: admin, staff, customers, drivers"
             value={stats?.totalUsers ?? 0}
-            icon={<Users size={ICON_SIZE.md} className="text-gray-500" />}
-            iconBg="bg-gray-100"
+            icon={<Users size={ICON_SIZE.md} className="text-ink-3" />}
+            iconBg="bg-recess"
             trend={usersTrend}
             sparkline={monthlyUsers.map((m) => ({ label: m.month, value: m.count }))}
             sparklineId="admin-users"
@@ -200,9 +200,9 @@ export default function AdminDashboardPage() {
 
       {/* Recent Orders */}
       <SectionLabel title="Online orders" description="The latest orders customers placed through the shop." />
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="bg-surface rounded-xl border border-line p-5">
         <CardHeader
-          icon={<ClipboardList size={ICON_SIZE.sm} className="text-blue-600" />}
+          icon={<ClipboardList size={ICON_SIZE.sm} className="text-brand" />}
           title="Recent Orders"
           description="The 5 newest online orders and where each one is. Open Orders to confirm, assign a driver, or mark them done."
           href="/orders"
@@ -210,35 +210,35 @@ export default function AdminDashboardPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Order</th>
-                <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Customer</th>
-                <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden md:table-cell">Items</th>
-                <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Amount</th>
-                <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</th>
-                <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden md:table-cell">Date</th>
+              <tr className="border-b border-line bg-subtle">
+                <th className="text-left py-2.5 px-4 text-xs font-semibold text-ink-4 uppercase tracking-wide">Order</th>
+                <th className="text-left py-2.5 px-4 text-xs font-semibold text-ink-4 uppercase tracking-wide">Customer</th>
+                <th className="text-left py-2.5 px-4 text-xs font-semibold text-ink-4 uppercase tracking-wide hidden md:table-cell">Items</th>
+                <th className="text-left py-2.5 px-4 text-xs font-semibold text-ink-4 uppercase tracking-wide">Amount</th>
+                <th className="text-left py-2.5 px-4 text-xs font-semibold text-ink-4 uppercase tracking-wide">Status</th>
+                <th className="text-left py-2.5 px-4 text-xs font-semibold text-ink-4 uppercase tracking-wide hidden md:table-cell">Date</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-line">
               {recentOrders.map((o) => (
-                <tr key={o.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="py-3 px-4 font-medium text-gray-900">#{o.id}</td>
-                  <td className="py-3 px-4 text-gray-600">
+                <tr key={o.id} className="hover:bg-subtle transition-colors">
+                  <td className="py-3 px-4 font-medium text-ink">#{o.id}</td>
+                  <td className="py-3 px-4 text-ink-2">
                     <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center font-display font-bold text-[10px] text-gray-500 shrink-0">
+                      <span className="w-6 h-6 rounded-md bg-recess flex items-center justify-center font-display font-bold text-[10px] text-ink-3 shrink-0">
                         {customerLabel(o).charAt(0).toUpperCase()}
                       </span>
                       {customerLabel(o)}
                     </div>
                   </td>
-                  <td className="py-3 px-4 text-gray-400 text-xs hidden md:table-cell">{o.items.map((i) => `${i.product.name} ×${i.quantity}`).join(", ")}</td>
-                  <td className="py-3 px-4 font-semibold text-gray-900 num">₱{o.totalAmount.toFixed(2)}</td>
+                  <td className="py-3 px-4 text-ink-4 text-xs hidden md:table-cell">{o.items.map((i) => `${i.product.name} ×${i.quantity}`).join(", ")}</td>
+                  <td className="py-3 px-4 font-semibold text-ink num">₱{o.totalAmount.toFixed(2)}</td>
                   <td className="py-3 px-4"><Badge label={o.status} /></td>
-                  <td className="py-3 px-4 text-gray-400 text-xs hidden md:table-cell">{new Date(o.dateTime).toLocaleDateString()}</td>
+                  <td className="py-3 px-4 text-ink-4 text-xs hidden md:table-cell">{new Date(o.dateTime).toLocaleDateString()}</td>
                 </tr>
               ))}
               {recentOrders.length === 0 && (
-                <tr><td colSpan={6} className="py-8 text-center text-gray-400 text-sm">No orders yet.</td></tr>
+                <tr><td colSpan={6} className="py-8 text-center text-ink-4 text-sm">No orders yet.</td></tr>
               )}
             </tbody>
           </table>

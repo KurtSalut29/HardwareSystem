@@ -14,9 +14,10 @@ import { useToast } from "@/components/ui/ToastProvider";
 import NavigationMap from "@/components/NavigationMap";
 import { fetchDrivingRoute, RouteStep } from "@/lib/route";
 import { haversineKm, formatDistance, formatDuration, estimateMinutes } from "@/lib/distance";
-import { ICON_SIZE } from "@/lib/constants/icon-size";
+import EmptyState from "@/components/ui/EmptyState";
 
 import { customerLabel, customerPhone } from "@/lib/customer";
+import Alert from "@/components/ui/Alert";
 type OItem = { id: number; quantity: number; price: number; product: { name: string } };
 type Order = {
   id: number;
@@ -40,10 +41,10 @@ const REROUTE_METERS = 60;
 
 function stepIcon(instruction: string) {
   const t = instruction.toLowerCase();
-  if (t.startsWith("arrive")) return <Flag size={ICON_SIZE.xs} className="text-emerald-600" />;
-  if (t.includes("left")) return <CornerUpLeft size={ICON_SIZE.xs} style={{ color: "var(--brand)" }} />;
-  if (t.includes("right")) return <CornerUpRight size={ICON_SIZE.xs} style={{ color: "var(--brand)" }} />;
-  return <ArrowUp size={ICON_SIZE.xs} style={{ color: "var(--brand)" }} />;
+  if (t.startsWith("arrive")) return <Flag className="size-4 text-good" />;
+  if (t.includes("left")) return <CornerUpLeft className="size-4 text-brand" />;
+  if (t.includes("right")) return <CornerUpRight className="size-4 text-brand" />;
+  return <ArrowUp className="size-4 text-brand" />;
 }
 
 export default function DeliveryNavigationPage() {
@@ -144,19 +145,26 @@ export default function DeliveryNavigationPage() {
     router.push("/deliveries");
   }
 
-  if (loading) return <p className="text-sm text-gray-400 py-16 text-center">Loading delivery…</p>;
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="h-8 w-40 animate-pulse rounded-lg bg-recess" />
+        <div className="h-48 animate-pulse rounded-2xl border border-line bg-surface" />
+        <div className="h-80 animate-pulse rounded-2xl border border-line bg-surface" />
+      </div>
+    );
+  }
 
   if (!order || order.status !== "out_for_delivery") {
     return (
       <div className="space-y-4">
-        <Link href="/deliveries" className="inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: "var(--brand)" }}>
-          <ArrowLeft size={ICON_SIZE.sm} /> Back to My Deliveries
+        <Link href="/deliveries" className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 text-[13.5px] font-semibold text-ink-2 transition hover:border-brand/40 hover:text-brand-ink">
+          <ArrowLeft className="size-4" /> My deliveries
         </Link>
-        <div className="bg-white rounded-xl border border-gray-200 py-16 text-center">
-          <Package size={ICON_SIZE.xl} className="mx-auto mb-3 text-gray-200" />
-          <p className="text-sm text-gray-500">
-            {order ? "This order is no longer out for delivery." : "That delivery is not assigned to you."}
-          </p>
+        <div className="rounded-2xl border border-dashed border-line-strong bg-surface">
+          <EmptyState icon={Package}
+            title={order ? "This order is no longer out for delivery" : "That delivery isn't assigned to you"}
+            description="Head back to your list for the stops you still have." />
         </div>
       </div>
     );
@@ -167,6 +175,7 @@ export default function DeliveryNavigationPage() {
   const unverifiedGcash = order.paymentMethod === "GCash" && !order.paymentVerified;
   // Still owed at the door: the total less any downpayment or GCash transfer.
   const due = Math.max(0, Math.round((order.totalAmount - (order.amountPaid ?? 0)) * 100) / 100);
+  const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <div className="space-y-4">
@@ -180,124 +189,117 @@ export default function DeliveryNavigationPage() {
         />
       )}
 
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <Link href="/deliveries" className="inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: "var(--brand)" }}>
-          <ArrowLeft size={ICON_SIZE.sm} /> My Deliveries
+      {/* Back, and the one action that ends the trip */}
+      <div className="flex items-center justify-between gap-3">
+        <Link href="/deliveries" className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 text-[13.5px] font-semibold text-ink-2 transition hover:border-brand/40 hover:text-brand-ink">
+          <ArrowLeft className="size-4" /> My deliveries
         </Link>
-        <div className="flex items-center gap-2">
-          <Button onClick={() => setConfirmDeliver(true)} size="sm" className="!bg-emerald-600 hover:!bg-emerald-700" icon={<CheckCircle2 size={ICON_SIZE.xs} />}>
-            Mark Delivered
-          </Button>
-        </div>
+        <Button variant="success" onClick={() => setConfirmDeliver(true)} icon={<CheckCircle2 className="size-4" />}>
+          Mark delivered
+        </Button>
       </div>
 
       {/* Trip summary */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div className="min-w-0">
-            <p className="font-display text-lg font-extrabold text-gray-900">Order #{order.id}</p>
-            <p className="text-sm text-gray-600">{customerLabel(order)}</p>
-            <p className="text-xs text-gray-500 flex items-start gap-1.5 mt-1">
-              <MapPin size={ICON_SIZE.xs} className="shrink-0 mt-0.5 text-gray-400" />
-              {order.deliveryAddress || "No address recorded"}
-            </p>
+      <section className="overflow-hidden rounded-2xl border border-line bg-surface">
+        <div className="bg-gradient-to-r from-brand to-brand-ink px-4 py-4 text-white">
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] opacity-80">Delivering order #{order.id}</p>
+          <p className="mt-0.5 font-display text-[21px] font-extrabold leading-tight">{customerLabel(order)}</p>
+          <p className="mt-1 flex items-start gap-1.5 text-[13.5px] opacity-90">
+            <MapPin className="mt-0.5 size-4 shrink-0" /> {order.deliveryAddress || "No address recorded"}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-3 divide-x divide-line border-b border-line">
+          <div className="px-4 py-3">
+            <p className="text-[11px] font-semibold text-ink-4">Distance left</p>
+            <p className="num font-display text-[18px] font-extrabold text-ink">{distanceKm != null ? formatDistance(distanceKm) : "—"}</p>
           </div>
-          <div className="text-right shrink-0">
-            <p className="font-display text-xl font-extrabold text-gray-900 num">₱{order.totalAmount.toFixed(2)}</p>
-            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${
-              collectCash ? "bg-emerald-50 text-emerald-600"
-                : unverifiedGcash ? "bg-yellow-50 text-yellow-600"
-                : "bg-gray-100 text-gray-500"}`}>
-              {collectCash ? <><Banknote size={10} /> Collect cash</>
-                : unverifiedGcash ? <><ShieldAlert size={10} /> GCash unverified</>
-                : <><Smartphone size={10} /> Paid</>}
-            </span>
-            {due > 0 && (order.amountPaid ?? 0) > 0 && (
-              <p className="mt-1 text-[11px] font-bold" style={{ color: "var(--warn)" }}>
-                ₱{(order.amountPaid ?? 0).toFixed(2)} paid · collect ₱{due.toFixed(2)}
-              </p>
-            )}
+          <div className="px-4 py-3">
+            <p className="text-[11px] font-semibold text-ink-4">Travel time</p>
+            <p className="num font-display text-[18px] font-extrabold text-ink">{durationMin != null ? formatDuration(durationMin) : "—"}</p>
+          </div>
+          <div className="px-4 py-3">
+            <p className="text-[11px] font-semibold text-ink-4">{due > 0 ? "Collect" : "Total"}</p>
+            <p className={`num font-display text-[18px] font-extrabold ${due > 0 ? "text-good" : "text-ink"}`}>{peso(due > 0 ? due : order.totalAmount)}</p>
           </div>
         </div>
 
-        <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="space-y-3.5 p-4">
+          <div className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-[13px] font-semibold ${
+            collectCash || due > 0 ? "bg-good-soft text-good" : unverifiedGcash ? "bg-warn-soft text-warn" : "bg-subtle text-ink-3"}`}>
+            {collectCash ? <Banknote className="size-4" /> : unverifiedGcash ? <ShieldAlert className="size-4" /> : <Smartphone className="size-4" />}
+            {due > 0
+              ? (order.amountPaid ?? 0) > 0 ? `Collect the balance — ${peso(order.amountPaid ?? 0)} already paid` : `Collect ${peso(due)} in cash`
+              : unverifiedGcash ? "Paid by GCash — the store is still checking it" : `Already paid by ${order.paymentMethod}`}
+          </div>
+
           <div>
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Distance left</p>
-            <p className="font-display text-base font-extrabold text-gray-900">
-              {distanceKm != null ? formatDistance(distanceKm) : "—"}
-            </p>
+            <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-4">{order.items.length} {order.items.length === 1 ? "item" : "items"} to hand over</p>
+            <ul className="flex flex-wrap gap-1.5">
+              {order.items.map((i) => (
+                <li key={i.id} className="rounded-lg bg-recess px-2.5 py-1 text-[12.5px] text-ink-2">
+                  {i.product.name} <span className="num font-semibold text-ink">×{Number(i.quantity.toFixed(2))}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-          <div>
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Travel time</p>
-            <p className="font-display text-base font-extrabold text-gray-900">
-              {durationMin != null ? formatDuration(durationMin) : "—"}
-            </p>
-          </div>
-          <div className="col-span-2 sm:col-span-1">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Items</p>
-            <p className="text-xs text-gray-600 line-clamp-2">{order.items.map((i) => i.product.name + " ×" + i.quantity).join(", ")}</p>
-          </div>
+
+          <ContactCustomer phone={customerPhone(order)} name={customerLabel(order)} orderId={order.id} />
         </div>
+      </section>
 
-        <ContactCustomer phone={customerPhone(order)} name={customerLabel(order)} orderId={order.id} className="mt-3" />
-      </div>
-
-      {geoError && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{geoError}</p>}
+      {geoError && <Alert tone="bad" compact>{geoError}</Alert>}
 
       {/* Map */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4" style={{ isolation: "isolate" }}>
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-            <Navigation size={ICON_SIZE.sm} style={{ color: "var(--brand)" }} /> Navigation
+      <section className="overflow-hidden rounded-2xl border border-line bg-surface [isolation:isolate]">
+        <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
+          <h2 className="flex items-center gap-2 font-display text-[15px] font-extrabold text-ink">
+            <span className="grid size-8 place-items-center rounded-lg bg-brand-soft text-brand"><Navigation className="size-4" /></span> Navigation
           </h2>
-          <button onClick={() => setFollow((v) => !v)}
-            className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition ${
-              follow ? "bg-blue-50 border-blue-200" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"}`}
-            style={follow ? { color: "var(--brand)" } : undefined}>
-            <Crosshair size={ICON_SIZE.xs} /> {follow ? "Following you" : "Follow me"}
+          <button type="button" onClick={() => setFollow((v) => !v)} aria-pressed={follow}
+            className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-[12.5px] font-semibold transition ${
+              follow ? "border-brand/40 bg-brand-soft text-brand-ink" : "border-line bg-surface text-ink-3 hover:border-line-strong"}`}>
+            <Crosshair className="size-4" /> {follow ? "Following you" : "Follow me"}
           </button>
         </div>
-        {hasDest ? (
-          <NavigationMap
-            driverLat={pos?.lat ?? null}
-            driverLng={pos?.lng ?? null}
-            destLat={order.latitude as number}
-            destLng={order.longitude as number}
-            destLabel={order.deliveryAddress ?? "Order #" + order.id}
-            route={route}
-            follow={follow}
-          />
-        ) : (
-          <p className="text-sm text-gray-400 py-12 text-center">
-            This order has no map location yet — ask the store to set it.
-          </p>
-        )}
-      </div>
+        <div className="p-3">
+          {hasDest ? (
+            <NavigationMap
+              driverLat={pos?.lat ?? null}
+              driverLng={pos?.lng ?? null}
+              destLat={order.latitude as number}
+              destLng={order.longitude as number}
+              destLabel={order.deliveryAddress ?? "Order #" + order.id}
+              route={route}
+              follow={follow}
+            />
+          ) : (
+            <EmptyState icon={MapPin} title="No map location yet" description="Ask the store to pin this order's drop-off." />
+          )}
+        </div>
+      </section>
 
       {/* Turn-by-turn */}
       {steps.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5 mb-3">
-            <RouteIcon size={ICON_SIZE.sm} style={{ color: "var(--brand)" }} /> Directions
+        <section className="overflow-hidden rounded-2xl border border-line bg-surface">
+          <h2 className="flex items-center gap-2 border-b border-line px-4 py-3 font-display text-[15px] font-extrabold text-ink">
+            <span className="grid size-8 place-items-center rounded-lg bg-brand-soft text-brand"><RouteIcon className="size-4" /></span> Directions
+            <span className="num font-sans text-[13px] font-normal text-ink-4">{steps.length} steps</span>
           </h2>
-          <ol className="divide-y divide-gray-50">
+          <ol className="divide-y divide-line">
             {steps.map((s, i) => (
-              <li key={i} className="flex items-start gap-3 py-2.5">
-                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--brand-soft)" }}>
-                  {stepIcon(s.instruction)}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-800">{s.instruction}</p>
-                </div>
+              <li key={i} className={`flex items-center gap-3 px-4 py-3 ${i === 0 ? "bg-brand-soft/40" : ""}`}>
+                <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-soft">{stepIcon(s.instruction)}</span>
+                <p className={`min-w-0 flex-1 text-[14px] ${i === 0 ? "font-semibold text-ink" : "text-ink-2"}`}>{s.instruction}</p>
                 {s.distanceMeters > 0 && (
-                  <span className="text-xs text-gray-400 shrink-0 num">
+                  <span className="num shrink-0 rounded-full bg-recess px-2 py-0.5 text-[12px] font-semibold text-ink-3">
                     {s.distanceMeters >= 1000 ? (s.distanceMeters / 1000).toFixed(1) + " km" : s.distanceMeters + " m"}
                   </span>
                 )}
               </li>
             ))}
           </ol>
-        </div>
+        </section>
       )}
     </div>
   );

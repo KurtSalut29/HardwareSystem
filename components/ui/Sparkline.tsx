@@ -8,9 +8,9 @@ function SparklineTooltip({ active, payload, valuePrefix }: { active?: boolean; 
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-md px-2.5 py-1.5">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">{p.label}</p>
-      <p className="text-xs font-semibold text-gray-900 num">{valuePrefix}{p.value.toLocaleString()}</p>
+    <div className="bg-surface border border-line rounded-lg shadow-md px-2.5 py-1.5">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-ink-4">{p.label}</p>
+      <p className="text-xs font-semibold text-ink num">{valuePrefix}{p.value.toLocaleString()}</p>
     </div>
   );
 }

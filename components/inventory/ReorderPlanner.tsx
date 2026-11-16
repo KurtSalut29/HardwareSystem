@@ -7,6 +7,8 @@ import Button from "@/components/ui/Button";
 import Pagination, { usePagination } from "@/components/ui/Pagination";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 import type { EoqSettings, ReorderPlan, ReorderRow } from "@/lib/inventory";
+import Alert from "@/components/ui/Alert";
+import SettingRow, { UnitInput } from "@/components/ui/SettingRow";
 
 const qty = (n: number) => String(Math.round(n * 100) / 100);
 const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -230,11 +232,11 @@ export default function ReorderPlanner({
   );
 }
 
-const FIELDS: { key: keyof EoqSettings; label: string; suffix: string; step: string; hint: string }[] = [
-  { key: "orderCost", label: "Ordering cost (S)", suffix: "₱ per order", step: "1", hint: "Delivery fee, transport and time spent on one supplier order." },
-  { key: "holdingRate", label: "Holding cost", suffix: "% of unit cost per year", step: "1", hint: "Storage, damage and money tied up in stock. 20 to 25% is typical." },
-  { key: "leadTimeDays", label: "Supplier lead time", suffix: "days", step: "1", hint: "Days from placing an order until the stock arrives." },
-  { key: "safetyDays", label: "Safety stock", suffix: "days of sales", step: "1", hint: "Extra cover for late deliveries or unusually busy days." },
+const FIELDS: { key: keyof EoqSettings; label: string; prefix?: string; suffix: string; step: string; hint: string }[] = [
+  { key: "orderCost", label: "Ordering cost (S)", prefix: "₱", suffix: "/ order", step: "1", hint: "Delivery fee, transport and time spent on one supplier order." },
+  { key: "holdingRate", label: "Holding cost (H)", suffix: "% / year", step: "1", hint: "Of the unit cost: storage, damage and money tied up. 20–25% is typical." },
+  { key: "leadTimeDays", label: "Supplier lead time", suffix: "days", step: "1", hint: "From placing an order until the stock arrives." },
+  { key: "safetyDays", label: "Safety stock", suffix: "days", step: "1", hint: "Extra days of sales kept for late deliveries or busy weeks." },
 ];
 
 function EoqSettingsModal({ open, initial, onClose, onSaved }: { open: boolean; initial: EoqSettings; onClose: () => void; onSaved: () => void }) {
@@ -267,7 +269,7 @@ function EoqSettingsModal({ open, initial, onClose, onSaved }: { open: boolean; 
     <Modal
       open={open}
       onClose={onClose}
-      title="EOQ settings"
+      title="EOQ settings" icon={<Calculator className="size-5" />} description="The costs behind how much to order and when."
       footer={
         <div className="flex gap-2">
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
@@ -276,27 +278,17 @@ function EoqSettingsModal({ open, initial, onClose, onSaved }: { open: boolean; 
       }
     >
       <form id="eoq-settings-form" onSubmit={save} className="space-y-4">
-        <p className="text-xs text-ink-3">These apply to every product. Order quantities and reorder points update as soon as you save.</p>
-        {FIELDS.map((f) => (
-          <div key={f.key}>
-            <label htmlFor={`eoq-${f.key}`} className="block text-xs font-medium text-ink-2 mb-1">{f.label}</label>
-            <div className="flex items-center gap-2">
-              <input
-                id={`eoq-${f.key}`}
-                required
-                type="number"
-                min={f.key === "holdingRate" ? 1 : 0}
-                step={f.step}
-                value={form[f.key]}
-                onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}
-                className="w-32 border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition"
-              />
-              <span className="text-xs text-ink-3">{f.suffix}</span>
-            </div>
-            <p className="text-[11px] text-ink-4 mt-1">{f.hint}</p>
-          </div>
-        ))}
-        {error && <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2">{error}</p>}
+        <Alert tone="info" compact>These apply to every product. Order quantities and reorder points update as soon as you save.</Alert>
+        <div className="divide-y divide-line">
+          {FIELDS.map((f) => (
+            <SettingRow key={f.key} id={`eoq-${f.key}`} label={f.label} hint={f.hint}>
+              <UnitInput id={`eoq-${f.key}`} required type="number" min={f.key === "holdingRate" ? 1 : 0} step={f.step}
+                prefix={f.prefix} suffix={f.suffix}
+                value={form[f.key]} onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))} />
+            </SettingRow>
+          ))}
+        </div>
+        {error && <Alert tone="bad" compact>{error}</Alert>}
       </form>
     </Modal>
   );

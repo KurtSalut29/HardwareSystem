@@ -70,25 +70,24 @@ export default function CashierDashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-1">{today}</p>
-        <h1 className="font-display text-2xl font-extrabold text-gray-900">{greeting()}{username ? `, ${username}` : ""}</h1>
-        <p className="text-sm text-gray-400 mt-0.5">Process transactions, manage POS, and dispatch deliveries.</p>
+        <p className="text-xs font-bold uppercase tracking-wide text-ink-4 mb-1">{today}</p>
+        <h1 className="font-display text-2xl font-extrabold text-ink">{greeting()}{username ? `, ${username}` : ""}</h1>
+        <p className="text-sm text-ink-4 mt-0.5">Process transactions, manage POS, and dispatch deliveries.</p>
       </div>
 
       {awaitingDriver.length > 0 && (
         <Link href="/orders"
-          className="flex items-start gap-3 rounded-xl border px-4 py-3 transition hover:brightness-[0.98]"
-          style={{ background: "var(--warn-soft)", borderColor: "var(--warn)" }}>
-          <Truck size={ICON_SIZE.md} className="shrink-0 mt-0.5" style={{ color: "var(--warn)" }} />
+          className="flex items-start gap-3 rounded-xl border px-4 py-3 transition hover:brightness-[0.98] bg-warn-soft border-warn">
+          <Truck size={ICON_SIZE.md} className="shrink-0 mt-0.5 text-warn" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold" style={{ color: "var(--warn)" }}>
+            <p className="text-sm font-bold text-warn">
               {awaitingDriver.length} {awaitingDriver.length === 1 ? "delivery needs" : "deliveries need"} a driver
             </p>
-            <p className="text-xs text-gray-600 mt-0.5">
+            <p className="text-xs text-ink-2 mt-0.5">
               Order{awaitingDriver.length === 1 ? " " : "s "}{awaitingDriver.map((o) => `#${o.id}`).join(", ")} — open Orders to assign and notify a driver.
             </p>
           </div>
-          <ArrowRight size={ICON_SIZE.sm} className="shrink-0 mt-0.5" style={{ color: "var(--warn)" }} />
+          <ArrowRight size={ICON_SIZE.sm} className="shrink-0 mt-0.5 text-warn" />
         </Link>
       )}
 
@@ -101,15 +100,15 @@ export default function CashierDashboardPage() {
           title="Your sales"
           description="Only sales credited to you: what you rang up at the POS, plus online orders you handled once they were delivered."
         >
-          <StatRailRow title="Today's Sales" caption="Your sales since midnight" value={`₱${todayTotal.toFixed(2)}`} icon={<TrendingUp size={ICON_SIZE.md} className="text-blue-600" />} iconBg="bg-blue-50" />
+          <StatRailRow title="Today's Sales" caption="Your sales since midnight" value={`₱${todayTotal.toFixed(2)}`} icon={<TrendingUp size={ICON_SIZE.md} className="text-brand" />} iconBg="bg-brand-soft" />
           <StatRailRow title="Today's Transactions" caption="Sales you recorded today" value={todayCount} icon={<Receipt size={ICON_SIZE.md} />} iconBg="bg-[var(--accent-soft)]" iconColor="var(--accent-ink)" />
-          <StatRailRow title="Your Transactions" caption="All sales you have recorded" value={transactions.length} icon={<ShoppingCart size={ICON_SIZE.md} className="text-gray-500" />} iconBg="bg-gray-100" />
+          <StatRailRow title="Your Transactions" caption="All sales you have recorded" value={transactions.length} icon={<ShoppingCart size={ICON_SIZE.md} className="text-ink-3" />} iconBg="bg-recess" />
           <StatRailRow
             title="Your Total Sales"
             caption="All time. The chart shows your last 8 sales."
             value={`₱${transactions.reduce((s, t) => s + t.totalAmount, 0).toFixed(2)}`}
-            icon={<Clock size={ICON_SIZE.md} className="text-blue-500" />}
-            iconBg="bg-blue-50"
+            icon={<Clock size={ICON_SIZE.md} className="text-brand" />}
+            iconBg="bg-brand-soft"
             sparkline={transactions.length > 1 ? recentSalesTrend(transactions) : undefined}
             sparklineId="cashier-sales"
           />
@@ -131,62 +130,62 @@ export default function CashierDashboardPage() {
           </Link>
 
           {/* Pending Orders */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="bg-surface rounded-xl border border-line p-5">
             <CardHeader
-              icon={<ClipboardList size={ICON_SIZE.sm} className="text-amber-600" />}
+              icon={<ClipboardList size={ICON_SIZE.sm} className="text-warn" />}
               title="Pending Orders"
               description="New online orders waiting for you to confirm."
               href="/orders"
               badge={pendingOrders.length > 0 ? (
-                <span className="text-xs bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">{pendingOrders.length}</span>
+                <span className="text-xs bg-warn-soft text-warn font-semibold px-2 py-0.5 rounded-full">{pendingOrders.length}</span>
               ) : undefined}
             />
             <div className="space-y-2">
               {pendingOrders.slice(0, 4).map((o) => (
-                <div key={o.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
-                  <span className="w-7 h-7 rounded-md bg-gray-100 flex items-center justify-center font-display font-bold text-[11px] text-gray-500 shrink-0">
+                <div key={o.id} className="flex items-center gap-3 py-2 border-b border-line last:border-0">
+                  <span className="w-7 h-7 rounded-md bg-recess flex items-center justify-center font-display font-bold text-[11px] text-ink-3 shrink-0">
                     {customerLabel(o).charAt(0).toUpperCase()}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">Order #{o.id} — {customerLabel(o)}</p>
-                    <p className="text-xs text-gray-400 truncate">{o.items.map((i) => `${i.product.name} ×${i.quantity}`).join(", ")}</p>
+                    <p className="text-sm font-medium text-ink truncate">Order #{o.id} — {customerLabel(o)}</p>
+                    <p className="text-xs text-ink-4 truncate">{o.items.map((i) => `${i.product.name} ×${i.quantity}`).join(", ")}</p>
                   </div>
-                  <p className="text-sm font-bold text-gray-900 num shrink-0">₱{o.totalAmount.toFixed(2)}</p>
+                  <p className="text-sm font-bold text-ink num shrink-0">₱{o.totalAmount.toFixed(2)}</p>
                 </div>
               ))}
               {pendingOrders.length === 0 && (
-                <p className="text-sm text-gray-400 text-center py-4">No pending orders.</p>
+                <p className="text-sm text-ink-4 text-center py-4">No pending orders.</p>
               )}
             </div>
           </div>
 
           {/* Low Stock Alerts */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="bg-surface rounded-xl border border-line p-5">
             <CardHeader
-              icon={<AlertTriangle size={ICON_SIZE.sm} className="text-amber-500" />}
+              icon={<AlertTriangle size={ICON_SIZE.sm} className="text-warn" />}
               title="Low Stock Alerts"
               description="Products at or below their reorder point. Record the supplier delivery on Restocks."
               href="/restocks"
               linkLabel="Restocks"
               badge={lowStockProducts.length > 0 ? (
-                <span className="text-xs bg-red-100 text-red-600 font-semibold px-2 py-0.5 rounded-full">{lowStockProducts.length}</span>
+                <span className="text-xs bg-bad-soft text-bad font-semibold px-2 py-0.5 rounded-full">{lowStockProducts.length}</span>
               ) : undefined}
             />
-            <div className="-mx-5 divide-y divide-gray-50">
+            <div className="-mx-5 divide-y divide-line">
               {lowStockProducts.slice(0, 4).map((p) => (
-                <div key={p.productId} className="px-5 py-2.5 hover:bg-gray-50 transition-colors">
+                <div key={p.productId} className="px-5 py-2.5 hover:bg-subtle transition-colors">
                   <div className="flex items-center gap-3">
                     {p.stock === 0
-                      ? <AlertTriangle size={ICON_SIZE.sm} className="text-red-500 shrink-0" />
-                      : <Package size={ICON_SIZE.sm} className="text-amber-500 shrink-0" />}
+                      ? <AlertTriangle size={ICON_SIZE.sm} className="text-bad shrink-0" />
+                      : <Package size={ICON_SIZE.sm} className="text-warn shrink-0" />}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-sm font-medium text-ink truncate">{p.name}</p>
+                      <p className="text-xs text-ink-4">
                         {p.category} · reorder at {p.reorderPoint}{p.eoq != null ? ` · order ${p.eoq}` : ""}
                       </p>
                     </div>
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${
-                      p.stock === 0 ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-700"
+                      p.stock === 0 ? "bg-bad-soft text-bad" : "bg-warn-soft text-warn"
                     }`}>
                       {p.stock === 0 ? "Out of stock" : `${p.stock} left`}
                     </span>
@@ -195,37 +194,37 @@ export default function CashierDashboardPage() {
                 </div>
               ))}
               {lowStockProducts.length === 0 && (
-                <p className="text-sm text-gray-400 text-center py-4">Every product is above its reorder point.</p>
+                <p className="text-sm text-ink-4 text-center py-4">Every product is above its reorder point.</p>
               )}
             </div>
           </div>
         </div>
 
         {/* Right column: Recent Transactions */}
-        <div className="xl:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
+        <div className="xl:col-span-2 bg-surface rounded-xl border border-line p-5">
           <CardHeader
-            icon={<Receipt size={ICON_SIZE.sm} className="text-blue-600" />}
+            icon={<Receipt size={ICON_SIZE.sm} className="text-brand" />}
             title="Recent Transactions"
             description="Your 5 latest sales, with what was bought and how it was paid."
             href="/transactions"
           />
           <div className="space-y-2">
             {transactions.slice(0, 5).map((t) => (
-              <div key={t.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
-                <span className="w-7 h-7 rounded-md bg-gray-100 flex items-center justify-center shrink-0">
-                  <Receipt size={ICON_SIZE.xs} className="text-gray-400" />
+              <div key={t.id} className="flex items-center gap-3 py-2 border-b border-line last:border-0">
+                <span className="w-7 h-7 rounded-md bg-recess flex items-center justify-center shrink-0">
+                  <Receipt size={ICON_SIZE.xs} className="text-ink-4" />
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900">Transaction #{t.id}</p>
-                  <p className="text-xs text-gray-400 truncate">{t.items.map((i) => `${i.product.name} ×${i.quantity}`).join(", ")}</p>
+                  <p className="text-sm font-medium text-ink">Transaction #{t.id}</p>
+                  <p className="text-xs text-ink-4 truncate">{t.items.map((i) => `${i.product.name} ×${i.quantity}`).join(", ")}</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-sm font-bold text-gray-900 num">₱{t.totalAmount.toFixed(2)}</p>
+                  <p className="text-sm font-bold text-ink num">₱{t.totalAmount.toFixed(2)}</p>
                   <Badge label={t.paymentMethod} variant="POS" />
                 </div>
               </div>
             ))}
-            {transactions.length === 0 && <p className="text-sm text-gray-400 text-center py-4">No transactions yet.</p>}
+            {transactions.length === 0 && <p className="text-sm text-ink-4 text-center py-4">No transactions yet.</p>}
           </div>
         </div>
       </div>

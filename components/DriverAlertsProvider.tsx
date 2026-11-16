@@ -1,10 +1,9 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { Truck, MapPin, Package, BellRing } from "lucide-react";
+import { Truck, MapPin, Package, Navigation } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
-import { ICON_SIZE } from "@/lib/constants/icon-size";
 import { playAlert } from "@/lib/sounds";
 
 export type DeliveryAlert = {
@@ -149,48 +148,28 @@ export default function DriverAlertsProvider({ role, children }: { role: string;
         <Modal
           open={popupOpen && alerts.length > 0}
           onClose={() => setPopupOpen(false)}
-          title={alerts.length === 1 ? "New Delivery Assigned" : `${alerts.length} Deliveries Assigned`}
+          title={alerts.length === 1 ? "New delivery assigned" : `${alerts.length} deliveries assigned`} icon={<Truck className="size-5" />} description={alerts.length === 1 ? "The store just gave you a new stop." : "The store just gave you new stops."}
           size="sm"
+          footer={<Button onClick={acknowledge} size="lg" className="w-full" icon={<Navigation className="size-4" />}>Got it — start delivering</Button>}
         >
-          <div className="space-y-4">
-            <div className="flex items-start gap-3">
-              <span className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
-                <BellRing size={ICON_SIZE.md} className="text-indigo-600" />
-              </span>
-              <p className="text-sm text-gray-600 pt-2">
-                {alerts.length === 1
-                  ? "The store assigned this delivery to you."
-                  : "The store assigned these deliveries to you."}
-              </p>
-            </div>
-
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {alerts.map((a) => (
-                <div key={a.key} className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
-                      <Truck size={ICON_SIZE.xs} className="text-indigo-600 shrink-0" />
-                      Order #{a.id} — {a.customer}
-                    </p>
-                    <span className="text-sm font-bold text-gray-900 num shrink-0">₱{a.total.toFixed(2)}</span>
-                  </div>
+          <div className="space-y-2 max-h-72 overflow-y-auto">
+            {alerts.map((a) => (
+              <div key={a.key} className="overflow-hidden rounded-2xl border border-brand/25">
+                <div className="flex items-center justify-between gap-3 bg-brand-soft px-3.5 py-2.5">
+                  <span className="font-code text-[13px] font-bold text-brand-ink">Order #{a.id}</span>
+                  <span className="num font-display text-[15px] font-extrabold text-ink">₱{a.total.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="space-y-1.5 px-3.5 py-3">
+                  <p className="text-[15px] font-semibold text-ink">{a.customer}</p>
                   {a.address && (
-                    <p className="text-xs text-gray-600 flex items-start gap-1.5 mt-1.5">
-                      <MapPin size={ICON_SIZE.xs} className="shrink-0 mt-px" /> {a.address}
-                    </p>
+                    <p className="flex items-start gap-1.5 text-[13px] text-ink-2"><MapPin className="mt-0.5 size-3.5 shrink-0 text-ink-4" /> {a.address}</p>
                   )}
                   {a.items && (
-                    <p className="text-xs text-gray-500 flex items-start gap-1.5 mt-1">
-                      <Package size={ICON_SIZE.xs} className="shrink-0 mt-px" /> {a.items}
-                    </p>
+                    <p className="flex items-start gap-1.5 text-[12.5px] text-ink-3"><Package className="mt-0.5 size-3.5 shrink-0 text-ink-4" /> {a.items}</p>
                   )}
                 </div>
-              ))}
-            </div>
-
-            <Button onClick={acknowledge} className="w-full">
-              Got it — start delivering
-            </Button>
+              </div>
+            ))}
           </div>
         </Modal>
       )}

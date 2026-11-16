@@ -5,12 +5,11 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Receipt,
-  ClipboardList, Store, ChevronLeft, ChevronRight, LogOut, Tag, X, Truck, History, FileBarChart, PackagePlus
+  ClipboardList, Store, LogOut, Tag, X, Truck, History, FileBarChart, PackagePlus, PanelLeftClose, PanelLeftOpen
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import { useLogout } from "@/hooks/useLogout";
-import { ICON_SIZE } from "@/lib/constants/icon-size";
 import { STORE_NAME } from "@/lib/brand";
 import { roleLabel } from "@/lib/roles";
 
@@ -18,10 +17,10 @@ type NavItem = { label: string; href: string; icon: React.ReactNode };
 /** A labelled group of links, so each part of the system is easy to find. */
 type NavGroup = { label: string; items: NavItem[] };
 
-const dashboard = (href: string): NavItem => ({ label: "Dashboard", href, icon: <LayoutDashboard size={ICON_SIZE.md} /> });
-const products: NavItem = { label: "Products", href: "/products", icon: <Package size={ICON_SIZE.md} /> };
-const restocks: NavItem = { label: "Restocks", href: "/restocks", icon: <PackagePlus size={ICON_SIZE.md} /> };
-const categories: NavItem = { label: "Categories", href: "/categories", icon: <Tag size={ICON_SIZE.md} /> };
+const dashboard = (href: string): NavItem => ({ label: "Dashboard", href, icon: <LayoutDashboard size={18} /> });
+const products: NavItem = { label: "Products", href: "/products", icon: <Package size={18} /> };
+const restocks: NavItem = { label: "Restocks", href: "/restocks", icon: <PackagePlus size={18} /> };
+const categories: NavItem = { label: "Categories", href: "/categories", icon: <Tag size={18} /> };
 
 const adminNav: NavGroup[] = [
   { label: "Overview", items: [dashboard("/dashboard/admin")] },
@@ -29,12 +28,12 @@ const adminNav: NavGroup[] = [
   {
     label: "Sales",
     items: [
-      { label: "Orders", href: "/orders", icon: <ClipboardList size={ICON_SIZE.md} /> },
-      { label: "Transactions", href: "/transactions", icon: <Receipt size={ICON_SIZE.md} /> },
-      { label: "Reports", href: "/reports", icon: <FileBarChart size={ICON_SIZE.md} /> },
+      { label: "Orders", href: "/orders", icon: <ClipboardList size={18} /> },
+      { label: "Transactions", href: "/transactions", icon: <Receipt size={18} /> },
+      { label: "Reports", href: "/reports", icon: <FileBarChart size={18} /> },
     ],
   },
-  { label: "Administration", items: [{ label: "Users", href: "/users", icon: <Users size={ICON_SIZE.md} /> }] },
+  { label: "Administration", items: [{ label: "Users", href: "/users", icon: <Users size={18} /> }] },
 ];
 
 const cashierNav: NavGroup[] = [
@@ -42,13 +41,13 @@ const cashierNav: NavGroup[] = [
   {
     label: "Selling",
     items: [
-      { label: "POS", href: "/pos", icon: <ShoppingCart size={ICON_SIZE.md} /> },
-      { label: "Orders", href: "/orders", icon: <ClipboardList size={ICON_SIZE.md} /> },
-      { label: "Transactions", href: "/transactions", icon: <Receipt size={ICON_SIZE.md} /> },
+      { label: "POS", href: "/pos", icon: <ShoppingCart size={18} /> },
+      { label: "Orders", href: "/orders", icon: <ClipboardList size={18} /> },
+      { label: "Transactions", href: "/transactions", icon: <Receipt size={18} /> },
     ],
   },
   { label: "Inventory", items: [products, restocks, categories] },
-  { label: "Reporting", items: [{ label: "Reports", href: "/reports", icon: <FileBarChart size={ICON_SIZE.md} /> }] },
+  { label: "Reporting", items: [{ label: "Reports", href: "/reports", icon: <FileBarChart size={18} /> }] },
 ];
 
 const customerNav: NavGroup[] = [
@@ -56,8 +55,8 @@ const customerNav: NavGroup[] = [
   {
     label: "Shopping",
     items: [
-      { label: "Shop", href: "/shop", icon: <Store size={ICON_SIZE.md} /> },
-      { label: "My Orders", href: "/orders", icon: <ClipboardList size={ICON_SIZE.md} /> },
+      { label: "Shop", href: "/shop", icon: <Store size={18} /> },
+      { label: "My Orders", href: "/orders", icon: <ClipboardList size={18} /> },
     ],
   },
 ];
@@ -67,8 +66,8 @@ const driverNav: NavGroup[] = [
   {
     label: "Deliveries",
     items: [
-      { label: "My Deliveries", href: "/deliveries", icon: <Truck size={ICON_SIZE.md} /> },
-      { label: "History", href: "/deliveries/history", icon: <History size={ICON_SIZE.md} /> },
+      { label: "My Deliveries", href: "/deliveries", icon: <Truck size={18} /> },
+      { label: "History", href: "/deliveries/history", icon: <History size={18} /> },
     ],
   },
 ];
@@ -121,23 +120,22 @@ function SidebarNav({ groups, pathname, collapsed, onNavigate, counts }: { group
   }, [activeHref, collapsed, groups]);
 
   return (
-    <nav className="relative flex-1 px-2 py-2 overflow-y-auto" aria-label="Main">
+    <nav className="relative flex-1 overflow-y-auto px-3 py-2" aria-label="Main">
+      {/* The active pill glides between links instead of jumping */}
       {indicator && (
         <div
-          className="sidebar-indicator absolute inset-x-2 top-0 rounded-lg pointer-events-none"
-          style={{ transform: `translateY(${indicator.top}px)`, height: indicator.height, background: "var(--nav-active)" }}
+          className="sidebar-indicator pointer-events-none absolute inset-x-3 top-0 rounded-xl bg-brand shadow-[0_10px_22px_-12px_rgba(30,79,216,0.9)]"
+          style={{ transform: `translateY(${indicator.top}px)`, height: indicator.height }}
         />
       )}
       {groups.map((group, gi) => (
-        <div key={group.label} className={gi > 0 ? "mt-3" : ""}>
+        <div key={group.label} className={gi > 0 ? "mt-4" : ""}>
           {collapsed ? (
-            gi > 0 && <div aria-hidden className="mx-3 mb-3 border-t" style={{ borderColor: "var(--nav-line)" }} />
+            gi > 0 && <div aria-hidden className="mx-2 mb-3 border-t border-line" />
           ) : (
-            <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--nav-ink-dim)" }}>
-              {group.label}
-            </p>
+            <p className="px-3 pb-1.5 text-[10.5px] font-bold uppercase tracking-[0.14em] text-ink-4">{group.label}</p>
           )}
-          <div className="space-y-0.5">
+          <div className="space-y-1">
             {group.items.map((item) => {
               const active = item.href === activeHref;
               const badge = counts[item.href];
@@ -152,24 +150,21 @@ function SidebarNav({ groups, pathname, collapsed, onNavigate, counts }: { group
                   title={collapsed || n > 0 ? label : undefined}
                   aria-label={n > 0 ? label : undefined}
                   aria-current={active ? "page" : undefined}
-                  style={{ color: active ? "var(--nav-active-ink)" : "var(--nav-ink-dim)" }}
-                  className={`relative z-10 flex items-center gap-3 px-3 rounded-lg text-sm font-medium transition-colors border border-transparent hover:text-[color:var(--text-primary)]
-                    py-2.5 ${collapsed ? "justify-center" : ""} ${!active ? "hover:bg-[color:var(--bg-muted)]" : ""}
-                  `}
+                  className={`relative z-10 flex h-10 items-center gap-3 rounded-xl px-3 text-[14px] font-semibold transition-colors ${collapsed ? "justify-center" : ""} ${
+                    active ? "text-white" : "text-ink-3 hover:bg-recess hover:text-ink"}`}
                 >
-                  <span className="relative shrink-0" style={active ? { color: "var(--accent)" } : undefined}>
+                  <span className="relative shrink-0">
                     {item.icon}
                     {collapsed && n > 0 && (
-                      <span aria-hidden className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full text-[9.5px] font-bold leading-4 text-center text-white"
-                        style={{ background: "var(--brand)", boxShadow: "0 0 0 2px var(--nav-bg)" }}>
+                      <span aria-hidden className="absolute -right-2 -top-1.5 h-4 min-w-[16px] rounded-full bg-bad px-1 text-center text-[9.5px] font-bold leading-4 text-white ring-2 ring-surface">
                         {n > 99 ? "99+" : n}
                       </span>
                     )}
                   </span>
-                  {!collapsed && <span className="flex-1 min-w-0 truncate">{item.label}</span>}
+                  {!collapsed && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
                   {!collapsed && n > 0 && (
-                    <span aria-hidden className="ml-auto min-w-[22px] h-[20px] px-1.5 rounded-full text-[11px] font-bold leading-[20px] text-center num"
-                      style={active ? { background: "var(--brand)", color: "#fff" } : { background: "var(--brand-soft)", color: "var(--brand-ink)" }}>
+                    <span aria-hidden className={`num ml-auto h-5 min-w-[22px] rounded-full px-1.5 text-center text-[11px] font-bold leading-5 ${
+                      active ? "bg-white/25 text-white" : "bg-bad text-white"}`}>
                       {n > 99 ? "99+" : n}
                     </span>
                   )}
@@ -183,7 +178,7 @@ function SidebarNav({ groups, pathname, collapsed, onNavigate, counts }: { group
   );
 }
 
-export default function Sidebar({ role, mobileOpen, onClose }: { role: string; mobileOpen: boolean; onClose: () => void }) {
+export default function Sidebar({ role, username, mobileOpen, onClose }: { role: string; username: string; mobileOpen: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileVisible, setMobileVisible] = useState(mobileOpen);
@@ -197,76 +192,82 @@ export default function Sidebar({ role, mobileOpen, onClose }: { role: string; m
     return () => clearTimeout(t);
   }, [mobileOpen]);
 
-  const sidebarContent = (
-    <aside
-      style={{ background: "var(--nav-bg)", borderColor: "var(--nav-line)" }}
-      className={`relative flex flex-col border-r transition-all duration-300 h-full ${collapsed ? "w-16" : "w-56"} shrink-0`}
-    >
-      {/* Logo */}
-      <div style={{ borderColor: "var(--nav-line)" }} className={`h-[60px] shrink-0 flex items-center gap-2.5 px-4 border-b ${collapsed ? "justify-center" : ""}`}>
-        <Image src="/logo.png" alt={STORE_NAME} width={42} height={42} className="shrink-0 object-contain" priority />
-        {!collapsed && <span className="font-display font-extrabold text-sm tracking-tight" style={{ color: "var(--nav-ink)" }}>{STORE_NAME}</span>}
-        {/* Close button — mobile only */}
-        {!collapsed && (
-          <button onClick={onClose} className="ml-auto p-1 rounded-lg transition lg:hidden" style={{ color: "var(--nav-ink-dim)" }}>
-            <X size={ICON_SIZE.md} />
+  const sidebarContent = (mobile: boolean) => {
+    const slim = collapsed && !mobile;
+    return (
+      <aside
+        className={`relative flex h-full shrink-0 flex-col overflow-hidden rounded-[22px] border border-line bg-surface shadow-[0_18px_40px_-24px_rgba(16,24,64,0.35)] transition-[width] duration-300 ${slim ? "w-[76px]" : "w-[248px]"}`}
+      >
+        {/* Brand */}
+        <div className={`flex h-[68px] shrink-0 items-center gap-2.5 px-4 ${slim ? "justify-center px-2" : ""}`}>
+          <Image src="/logo.png" alt={STORE_NAME} width={40} height={40} className="shrink-0 object-contain" priority />
+          {!slim && (
+            <div className="min-w-0 flex-1 leading-tight">
+              <p className="truncate font-display text-[15px] font-extrabold tracking-tight text-ink">{STORE_NAME}</p>
+              <p className="truncate text-[11px] font-semibold text-brand">{roleLabel(role)} panel</p>
+            </div>
+          )}
+          {mobile ? (
+            <button type="button" onClick={onClose} aria-label="Close menu"
+              className="grid size-9 shrink-0 place-items-center rounded-xl text-ink-3 transition hover:bg-recess hover:text-ink">
+              <X className="size-[18px]" />
+            </button>
+          ) : !slim && (
+            <button type="button" onClick={() => setCollapsed(true)} aria-label="Collapse sidebar" title="Collapse"
+              className="grid size-8 shrink-0 place-items-center rounded-lg text-ink-4 transition hover:bg-recess hover:text-ink">
+              <PanelLeftClose className="size-[18px]" />
+            </button>
+          )}
+        </div>
+        {slim && (
+          <button type="button" onClick={() => setCollapsed(false)} aria-label="Expand sidebar" title="Expand"
+            className="mx-auto mb-1 grid size-9 place-items-center rounded-xl text-ink-4 transition hover:bg-recess hover:text-ink">
+            <PanelLeftOpen className="size-[18px]" />
           </button>
         )}
-      </div>
 
-      {/* Collapse toggle — desktop only */}
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        style={{ background: "var(--bg-card)", borderColor: "var(--nav-line)", color: "var(--nav-ink-dim)" }}
-        className="absolute -right-3 top-[18px] w-6 h-6 border rounded-full hidden lg:flex items-center justify-center hover:text-[color:var(--brand)] transition z-10 shadow-sm"
-      >
-        {collapsed ? <ChevronRight size={ICON_SIZE.xs} /> : <ChevronLeft size={ICON_SIZE.xs} />}
-      </button>
+        <div aria-hidden className="mx-4 border-t border-line" />
 
-      {/* Whose workspace this is */}
-      {!collapsed && (
-        <div className="px-4 pt-4 pb-2">
-          <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold px-2 py-1 rounded-md" style={{ color: "var(--brand-ink)", background: "var(--brand-soft)" }}>
-            {roleLabel(role)} panel
-          </span>
+        <SidebarNav groups={groups} pathname={pathname} collapsed={slim} onNavigate={onClose} counts={counts} />
+
+        {/* Who is signed in, and the way out */}
+        <div className="shrink-0 p-3">
+          <div className={`flex items-center gap-2.5 rounded-2xl bg-subtle p-2 ${slim ? "flex-col" : ""}`}>
+            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand to-brand-ink font-display text-sm font-extrabold text-white">
+              {username.charAt(0).toUpperCase()}
+            </span>
+            {!slim && (
+              <div className="min-w-0 flex-1 leading-tight">
+                <p className="truncate text-[13.5px] font-semibold text-ink">{username}</p>
+                <p className="truncate text-[11.5px] text-ink-4">{roleLabel(role)}</p>
+              </div>
+            )}
+            <button type="button" onClick={requestLogout} title="Log out"
+              className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[12.5px] font-semibold text-ink-3 transition hover:bg-bad-soft hover:text-bad ${slim ? "w-full justify-center px-0" : ""}`}>
+              <LogOut className="size-4" />{!slim && "Log out"}
+            </button>
+          </div>
         </div>
-      )}
-
-      <SidebarNav groups={groups} pathname={pathname} collapsed={collapsed} onNavigate={onClose} counts={counts} />
-
-      {/* Logout */}
-      <div className="px-2 py-4 border-t" style={{ borderColor: "var(--nav-line)" }}>
-        <button
-          onClick={requestLogout}
-          title={collapsed ? "Log out" : undefined}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-[color:var(--bad-soft)] hover:!text-[color:var(--bad)] transition-all ${collapsed ? "justify-center" : ""}`}
-          style={{ color: "var(--nav-ink-dim)" }}
-        >
-          <LogOut size={ICON_SIZE.md} className="shrink-0" />
-          {!collapsed && <span>Log out</span>}
-        </button>
-      </div>
-    </aside>
-  );
+      </aside>
+    );
+  };
 
   return (
     <>
-      {/* Desktop sidebar */}
-      <div className="hidden lg:flex h-screen sticky top-0">
-        {sidebarContent}
+      {/* Desktop: a floating panel with breathing room on every side */}
+      <div className="sticky top-0 hidden h-screen shrink-0 py-3 pl-3 lg:flex">
+        {sidebarContent(false)}
       </div>
 
       {/* Mobile drawer */}
       {mobileVisible && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          {/* Overlay */}
           <div
-            className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${mobileOpen ? "opacity-100 animate-overlay-in" : "opacity-0"}`}
+            className={`absolute inset-0 bg-[rgba(10,14,36,0.5)] backdrop-blur-[3px] transition-opacity duration-200 ${mobileOpen ? "opacity-100 animate-overlay-in" : "opacity-0"}`}
             onClick={onClose}
           />
-          {/* Drawer */}
-          <div className={`absolute left-0 top-0 h-full transition-transform duration-200 ${mobileOpen ? "translate-x-0 animate-sidebar-in" : "-translate-x-full"}`}>
-            {sidebarContent}
+          <div className={`absolute inset-y-0 left-0 p-3 transition-transform duration-200 ${mobileOpen ? "translate-x-0 animate-sidebar-in" : "-translate-x-[110%]"}`}>
+            {sidebarContent(true)}
           </div>
         </div>
       )}
@@ -278,7 +279,7 @@ export default function Sidebar({ role, mobileOpen, onClose }: { role: string; m
         title="Log out?"
         body="You'll need to sign in again to access your account."
         variant="warning"
-        confirmLabel="Log Out"
+        confirmLabel="Log out"
       />
     </>
   );
