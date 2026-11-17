@@ -16,19 +16,39 @@ export function FormSection({ title, icon, children }: { title: string; icon?: R
   );
 }
 
-export default function SettingRow({ id, label, hint, children }: {
+export default function SettingRow({ id, label, hint, children, wide = false, status, tone = "neutral" }: {
   id: string;
   label: string;
   hint?: React.ReactNode;
   children: React.ReactNode;
+  /** On a full page (Settings): the explanation and the control split the width, so the control fills its half. */
+  wide?: boolean;
+  /**
+   * For switches, buttons and read-only values: the control sits at the right
+   * of a full-width tile, and this says what the current state means.
+   */
+  status?: React.ReactNode;
+  /** Tints the tile: "good" when the thing is on/working. */
+  tone?: "neutral" | "good" | "warn";
 }) {
+  const tile = status !== undefined;
+  const toneCls = tone === "good" ? "border-good/25 bg-good-soft/50" : tone === "warn" ? "border-warn/30 bg-warn-soft/60" : "border-line bg-subtle";
   return (
-    <div className="grid items-center gap-x-5 gap-y-2 py-3.5 sm:grid-cols-[minmax(0,1fr)_190px]">
+    <div className={wide
+      ? "grid items-center gap-x-10 gap-y-2 py-4 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
+      : "grid items-center gap-x-5 gap-y-2 py-3.5 sm:grid-cols-[minmax(0,1fr)_190px]"}>
       <div className="min-w-0">
         <label htmlFor={id} className="block text-[13.5px] font-semibold text-ink">{label}</label>
         {hint && <p className="mt-0.5 text-[12px] leading-snug text-ink-4">{hint}</p>}
       </div>
-      <div>{children}</div>
+      {tile ? (
+        <div className={`flex min-h-12 w-full flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border px-4 py-2.5 ${toneCls}`}>
+          <div className="min-w-0 flex-1 text-[13px] text-ink-2">{status}</div>
+          <div className="flex shrink-0 items-center gap-2">{children}</div>
+        </div>
+      ) : (
+        <div>{children}</div>
+      )}
     </div>
   );
 }

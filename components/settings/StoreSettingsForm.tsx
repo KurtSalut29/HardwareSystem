@@ -92,12 +92,13 @@ export default function StoreSettingsForm({ group, title, description, icon, not
         // The fee's unit follows the fee type chosen just above it.
         const feeIsFixed = id === "cancelFeeValue" && String(valueOf("cancelFeeType")) === "fixed";
         return (
-          <SettingRow key={id} id={fid} label={def.label} hint={def.hint}>
+          <SettingRow wide key={id} id={fid} label={def.label} hint={def.hint}
+            {...(def.type === "boolean" ? {
+              tone: v === true ? "good" as const : "neutral" as const,
+              status: <b className={v === true ? "text-good" : "text-ink-3"}>{v === true ? "On" : "Off"}</b>,
+            } : {})}>
             {def.type === "boolean" ? (
-              <div className="flex items-center gap-2">
-                <Switch id={fid} checked={v === true} onChange={(on) => set(id, on)} label={def.label} />
-                <span className={`text-[12.5px] font-semibold ${v === true ? "text-good" : "text-ink-4"}`}>{v === true ? "On" : "Off"}</span>
-              </div>
+              <Switch id={fid} checked={v === true} onChange={(on) => set(id, on)} label={def.label} />
             ) : def.type === "number" ? (
               <UnitInput id={fid} type="number" inputMode="decimal" min={def.min} max={def.max} step={def.whole ? 1 : "any"}
                 value={String(v)} onChange={(e) => set(id, e.target.value)}

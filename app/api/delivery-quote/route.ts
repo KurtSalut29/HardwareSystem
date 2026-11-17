@@ -19,6 +19,11 @@ export async function POST(req: NextRequest) {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return NextResponse.json({ error: "lat and lng are required" }, { status: 400 });
   if (!isWithinBiliran(lat, lng)) return NextResponse.json({ error: "That pin is outside Biliran" }, { status: 400 });
 
-  const { quote, settings } = await liveQuote({ lat, lng });
-  return NextResponse.json({ quote, settings: { baseFee: settings.baseFee, freeKm: settings.freeKm, ratePerKm: settings.ratePerKm, maxKm: settings.maxKm } });
+  const { quote, settings, store, path } = await liveQuote({ lat, lng }, { withPath: true });
+  return NextResponse.json({
+    quote,
+    settings: { baseFee: settings.baseFee, freeKm: settings.freeKm, ratePerKm: settings.ratePerKm, maxKm: settings.maxKm },
+    // The road the distance was measured along, to draw on the map (null for an estimate).
+    route: path ? { store, path } : null,
+  });
 }

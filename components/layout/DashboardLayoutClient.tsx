@@ -28,7 +28,7 @@ export default function DashboardLayoutClient({
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <Navbar username={username} role={role} onMenuClick={() => setMobileOpen(true)} />
             <main className="flex-1 overflow-y-auto px-3 pb-6 pt-4 md:px-6 md:pt-5">
-              <div className="max-w-[1440px] mx-auto w-full">
+              <div className="w-full">
                 <PageTransition>{children}</PageTransition>
               </div>
             </main>

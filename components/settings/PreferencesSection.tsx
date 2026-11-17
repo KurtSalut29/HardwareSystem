@@ -55,7 +55,7 @@ export default function PreferencesSection({ role }: { role: string }) {
     <div className="space-y-5">
       <SettingsCard title="Appearance" icon={<Palette className="size-5" />} description="Saved on this device only.">
         <div className="py-4">
-          <div className="grid max-w-md grid-cols-3 gap-1 rounded-xl bg-recess p-1" role="radiogroup" aria-label="Appearance">
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-recess p-1" role="radiogroup" aria-label="Appearance">
             {options.map((o) => (
               <button key={o.key} type="button" role="radio" aria-checked={o.on} onClick={() => pick(o.key)}
                 className={`flex flex-col items-center gap-1 rounded-lg py-2.5 text-[12.5px] font-semibold transition ${o.on ? "bg-surface text-brand-ink shadow-[0_1px_3px_rgba(16,24,64,0.12)] ring-1 ring-brand/25" : "text-ink-3 hover:text-ink"}`}>
@@ -68,24 +68,29 @@ export default function PreferencesSection({ role }: { role: string }) {
 
       <SettingsCard title="Alerts" icon={<BellRing className="size-5" />}
         description={role === "driver" ? "How you hear about new deliveries." : "How you hear about new orders, payments and updates."}>
-        <SettingRow id="pref-sound" label="Alert sound" hint={soundOn ? "Plays when something new needs you." : "Muted. You'll still see the red count on the bell."}>
-          <div className="flex items-center gap-2">
-            <span className={`grid size-8 place-items-center rounded-lg ${soundOn ? "bg-brand-soft text-brand" : "bg-recess text-ink-4"}`}>
-              {soundOn ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+        <SettingRow wide id="pref-sound" label="Alert sound" hint="Plays when something new needs you. The red count on the bell shows either way."
+          tone={soundOn ? "good" : "neutral"}
+          status={
+            <span className="flex items-center gap-2.5">
+              <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${soundOn ? "bg-surface text-good" : "bg-recess text-ink-4"}`}>
+                {soundOn ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+              </span>
+              <span><b className={soundOn ? "text-good" : "text-ink-3"}>{soundOn ? "On" : "Muted"}</b> <span className="text-ink-4">· {soundOn ? "you'll hear new alerts" : "alerts arrive silently"}</span></span>
             </span>
-            <Switch id="pref-sound" checked={soundOn} label="Alert sound" onChange={(on) => { unlockAudio(); setSoundOn(on); showToast(on ? "Alert sound on." : "Alert sound muted.", "info"); }} />
-            <Button size="sm" variant="secondary" onClick={() => { unlockAudio(); playAlert(TEST_SOUND[role] ?? "new_order", { force: true }); }}>Test</Button>
-          </div>
+          }>
+          <Button size="sm" variant="secondary" onClick={() => { unlockAudio(); playAlert(TEST_SOUND[role] ?? "new_order", { force: true }); }}>Test sound</Button>
+          <Switch id="pref-sound" checked={soundOn} label="Alert sound" onChange={(on) => { unlockAudio(); setSoundOn(on); showToast(on ? "Alert sound on." : "Alert sound muted.", "info"); }} />
         </SettingRow>
         {role !== "driver" && (
-          <SettingRow id="pref-desktop" label="Pop-ups outside the app" hint="Show alerts on your computer or phone even while you're on another tab or app.">
-            {perm === "granted" ? (
-              <span className="inline-flex items-center gap-1.5 rounded-lg bg-good-soft px-2.5 py-1 text-[12px] font-semibold text-good"><CheckCheck className="size-3.5" /> On for this browser</span>
-            ) : perm === "denied" ? (
-              <span className="text-[12px] text-warn">Blocked. Allow notifications for this site from the lock icon in the address bar.</span>
-            ) : perm === "unsupported" ? (
-              <span className="text-[12px] text-ink-4">This browser doesn&apos;t support them.</span>
-            ) : (
+          <SettingRow wide id="pref-desktop" label="Pop-ups outside the app" hint="Show alerts on your computer or phone even while you're on another tab or app."
+            tone={perm === "granted" ? "good" : perm === "denied" ? "warn" : "neutral"}
+            status={
+              perm === "granted" ? <span className="flex items-center gap-2"><CheckCheck className="size-4 shrink-0 text-good" /><span><b className="text-good">On for this browser</b> <span className="text-ink-4">· alerts pop up even in other tabs</span></span></span>
+              : perm === "denied" ? <span className="text-warn"><b>Blocked.</b> Allow notifications for this site from the lock icon in the address bar.</span>
+              : perm === "unsupported" ? <span className="text-ink-4">This browser doesn&apos;t support them.</span>
+              : <span><b className="text-ink-3">Off</b> <span className="text-ink-4">· your browser will ask to allow them</span></span>
+            }>
+            {perm === "granted" || perm === "denied" || perm === "unsupported" ? null : (
               <Button size="sm" onClick={async () => {
                 unlockAudio();
                 const p = await requestDesktop();

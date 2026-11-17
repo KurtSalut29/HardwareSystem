@@ -8,9 +8,9 @@ import Button from "@/components/ui/Button";
 import { DELIVERY_LIMITS, estimateRoadKm, islandAt, quoteForDistance, type DeliverySettings, type DistanceSource } from "@/lib/deliveryFee";
 import Alert from "@/components/ui/Alert";
 
-type Field = { key: keyof DeliverySettings; label: string; prefix?: string; suffix: string; step: string; hint: string };
+export type Field = { key: keyof DeliverySettings; label: string; prefix?: string; suffix: string; step: string; hint: string };
 
-const FEE_FIELDS: Field[] = [
+export const FEE_FIELDS: Field[] = [
   { key: "baseFee", label: "Base delivery fee", prefix: "₱", suffix: "/ delivery", step: "5", hint: "What every delivery pays, however close. 0 makes nearby delivery free." },
   { key: "freeKm", label: "Covered by the base fee", suffix: "km", step: "0.5", hint: "Deliveries within this road distance pay only the base fee." },
   { key: "ratePerKm", label: "Rate beyond that", prefix: "₱", suffix: "/ km", step: "1", hint: "Added for every kilometre past the covered distance." },
@@ -19,18 +19,18 @@ const FEE_FIELDS: Field[] = [
   { key: "roadFactor", label: "Road factor (backup)", prefix: "×", suffix: "straight km", step: "0.05", hint: "Only used when road routing is down: straight-line distance × this." },
 ];
 
-const DRIVER_FIELDS: Field[] = [
+export const DRIVER_FIELDS: Field[] = [
   { key: "driverMaxActive", label: "Deliveries per driver at a time", suffix: "orders", step: "1", hint: "A driver carrying this many gets no new order until one is delivered." },
 ];
 
-const FIELDS = [...FEE_FIELDS, ...DRIVER_FIELDS];
+export const FIELDS = [...FEE_FIELDS, ...DRIVER_FIELDS];
 
 /**
  * The town centre (poblacion) of every municipality in Biliran, plus Higatangan
  * island, so the admin sees what customers across the province will pay. Real
  * orders are priced from the customer's own pin, so any barangay works.
  */
-const EXAMPLES = [
+export const EXAMPLES = [
   { name: "Almeria", lat: 11.620278, lng: 124.381667 },
   { name: "Biliran", lat: 11.466574, lng: 124.474097 },
   { name: "Cabucgayan", lat: 11.472953, lng: 124.574997 },
@@ -42,7 +42,7 @@ const EXAMPLES = [
   { name: "Higatangan Is. (Naval)", lat: 11.564109, lng: 124.274366 },
 ];
 
-type ExampleDistance = { roadKm: number; source: DistanceSource; island: string | null };
+export type ExampleDistance = { roadKm: number; source: DistanceSource; island: string | null };
 
 const toForm = (s: DeliverySettings) => Object.fromEntries(FIELDS.map((f) => [f.key, String(s[f.key])])) as Record<keyof DeliverySettings, string>;
 

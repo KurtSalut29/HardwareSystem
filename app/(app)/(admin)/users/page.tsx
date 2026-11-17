@@ -245,7 +245,7 @@ function UsersPageInner() {
 
       <section aria-label="Users" className="overflow-hidden rounded-2xl border border-line bg-surface">
         <div className="flex flex-wrap items-center gap-3 border-b border-line p-3">
-          <SearchField value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Name, email or number" label="Search users" className="min-w-0 flex-1 sm:max-w-md" />
+          <SearchField value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Name, email or number" label="Search users" className="min-w-0 flex-1" />
           <p className="ml-auto text-[13px] text-ink-3">
             <span className="num font-semibold text-ink">{filtered.length}</span> {filtered.length === 1 ? "account" : "accounts"}
           </p>

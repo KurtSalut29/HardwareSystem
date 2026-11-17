@@ -5,7 +5,10 @@ import type { DeliveryQuote, DeliverySettings } from "@/lib/deliveryFee";
 
 export type QuoteSettings = Pick<DeliverySettings, "baseFee" | "freeKm" | "ratePerKm" | "maxKm">;
 
-type Result = { key: string; quote: DeliveryQuote | null; settings: QuoteSettings | null; error: string | null };
+/** The road the distance was measured along: [lat, lng] points, plus the store pin it starts from. */
+export type QuoteRoute = { store: { lat: number; lng: number }; path: [number, number][] };
+
+type Result = { key: string; quote: DeliveryQuote | null; settings: QuoteSettings | null; route: QuoteRoute | null; error: string | null };
 
 /**
  * The delivery fee for a pin, asked from the server (real road distance).
@@ -24,9 +27,9 @@ export function useDeliveryQuote(to: { lat: number; lng: number } | null) {
         .then(async (r) => {
           const d = await r.json().catch(() => ({}));
           if (!live) return;
-          setResult(r.ok ? { key, quote: d.quote, settings: d.settings, error: null } : { key, quote: null, settings: null, error: d.error ?? "Couldn't work out the delivery fee." });
+          setResult(r.ok ? { key, quote: d.quote, settings: d.settings, route: d.route ?? null, error: null } : { key, quote: null, settings: null, route: null, error: d.error ?? "Couldn't work out the delivery fee." });
         })
-        .catch(() => { if (live) setResult({ key, quote: null, settings: null, error: "Couldn't reach the server for the delivery fee." }); });
+        .catch(() => { if (live) setResult({ key, quote: null, settings: null, route: null, error: "Couldn't reach the server for the delivery fee." }); });
     }, 350);
     return () => { live = false; clearTimeout(t); };
   }, [key]);
@@ -35,6 +38,7 @@ export function useDeliveryQuote(to: { lat: number; lng: number } | null) {
   return {
     quote: ready ? result.quote : null,
     settings: ready ? result.settings : null,
+    route: ready ? result.route : null,
     error: ready ? result.error : null,
     loading: Boolean(key) && !ready,
   };

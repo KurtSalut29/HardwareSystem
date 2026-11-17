@@ -25,15 +25,24 @@ const MAX_SNAP_M = 1500;
 /** ~10 m precision, so pins a few steps apart share one lookup. */
 const key = (p: { lat: number; lng: number }) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`;
 
-export async function roadDistance(from: { lat: number; lng: number }, to: { lat: number; lng: number }): Promise<{ km: number; minutes: number | null } | null> {
-  const fromKey = key(from);
-  const toKey = key(to);
+/** A road path as [lat, lng] points, from the store's road to the drop-off's road. */
+export type RoadPath = [number, number][];
 
-  const cached = await prisma.routeDistance.findUnique({ where: { fromKey_toKey: { fromKey, toKey } } }).catch(() => null);
-  if (cached) return { km: cached.km, minutes: cached.minutes };
+/**
+ * Road paths drawn on the checkout map. Kept in memory only (they're big and
+ * only for display); the distance itself is saved in RouteDistance.
+ */
+const paths = new Map<string, RoadPath>();
+const MAX_PATHS = 300;
+function rememberPath(k: string, path: RoadPath) {
+  if (paths.size >= MAX_PATHS) paths.delete(paths.keys().next().value as string);
+  paths.set(k, path);
+}
 
+/** Asks OSRM for the driving route. null when there is no sensible road route. */
+async function fetchRoute(from: { lat: number; lng: number }, to: { lat: number; lng: number }) {
   try {
-    const res = await fetch(`${OSRM}/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`, {
+    const res = await fetch(`${OSRM}/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`, {
       signal: AbortSignal.timeout(TIMEOUT_MS),
       headers: { "User-Agent": "RM-Hardware/1.0" },
     });
@@ -50,23 +59,53 @@ export async function roadDistance(from: { lat: number; lng: number }, to: { lat
     const straight = haversineKm(from.lat, from.lng, to.lat, to.lng);
     if (km < straight * 0.95 || (straight > 0.5 && km > straight * 3)) return null;
 
-    const minutes = Math.round(route.duration / 60);
-    await prisma.routeDistance
-      .upsert({ where: { fromKey_toKey: { fromKey, toKey } }, update: { km, minutes }, create: { fromKey, toKey, km, minutes } })
-      .catch(() => {});
-    return { km, minutes };
+    const coords: [number, number][] = route.geometry?.coordinates ?? [];
+    const r5 = (n: number) => Math.round(n * 1e5) / 1e5;
+    const path: RoadPath = coords.map(([lng, lat]) => [r5(lat), r5(lng)]);
+    return { km, minutes: Math.round(route.duration / 60), path };
   } catch {
-    return null; // offline, timed out, or bad JSON: use the estimate
+    return null; // offline, timed out, or bad JSON
   }
 }
 
-/** The delivery fee to a pin, with the saved settings and store location. */
-export async function liveQuote(to: { lat: number; lng: number }): Promise<{ quote: DeliveryQuote; settings: DeliverySettings; store: { lat: number; lng: number } }> {
+/**
+ * The driving distance from one pin to another, and (when asked) the road path
+ * to draw it. The saved distance always wins, so the fee shown at checkout is
+ * the one the order is saved with.
+ */
+export async function roadDistance(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+  opts: { withPath?: boolean } = {},
+): Promise<{ km: number; minutes: number | null; path: RoadPath | null } | null> {
+  const fromKey = key(from);
+  const toKey = key(to);
+  const k = `${fromKey}|${toKey}`;
+
+  const cached = await prisma.routeDistance.findUnique({ where: { fromKey_toKey: { fromKey, toKey } } }).catch(() => null);
+  if (cached && (!opts.withPath || paths.has(k))) return { km: cached.km, minutes: cached.minutes, path: paths.get(k) ?? null };
+
+  const fresh = await fetchRoute(from, to);
+  if (fresh) rememberPath(k, fresh.path);
+  if (cached) return { km: cached.km, minutes: cached.minutes, path: fresh?.path ?? null };
+  if (!fresh) return null; // use the estimate
+
+  await prisma.routeDistance
+    .upsert({ where: { fromKey_toKey: { fromKey, toKey } }, update: { km: fresh.km, minutes: fresh.minutes }, create: { fromKey, toKey, km: fresh.km, minutes: fresh.minutes } })
+    .catch(() => {});
+  return { km: fresh.km, minutes: fresh.minutes, path: fresh.path };
+}
+
+/** The delivery fee to a pin, with the saved settings and store location. `withPath` also returns the road to draw. */
+export async function liveQuote(
+  to: { lat: number; lng: number },
+  opts: { withPath?: boolean } = {},
+): Promise<{ quote: DeliveryQuote; settings: DeliverySettings; store: { lat: number; lng: number }; path: RoadPath | null }> {
   const [settings, store] = await Promise.all([getDeliverySettings(), getStorePin()]);
   const island = islandAt(to.lat, to.lng);
-  const road = island ? null : await roadDistance(store, to);
+  const road = island ? null : await roadDistance(store, to, opts);
   const quote = road
     ? quoteForDistance(settings, road.km, null, "road", road.minutes)
     : quoteForDistance(settings, estimateRoadKm(settings, store, to), island, "estimate");
-  return { quote, settings, store };
+  return { quote, settings, store, path: road?.path ?? null };
 }

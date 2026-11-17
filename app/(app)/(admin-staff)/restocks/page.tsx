@@ -197,7 +197,7 @@ export default function RestocksPage() {
       {tab === "deliveries" && (
         <section aria-label="Supplier deliveries" className="overflow-hidden rounded-2xl border border-line bg-surface">
           <div className="flex flex-wrap items-center gap-3 border-b border-line p-3">
-            <SearchField value={search} onChange={setSearch} placeholder="Product, supplier, DR no. or staff" label="Search deliveries" className="min-w-0 flex-1 sm:max-w-md" />
+            <SearchField value={search} onChange={setSearch} placeholder="Product, supplier, DR no. or staff" label="Search deliveries" className="min-w-0 flex-1" />
             <p className="ml-auto text-[13px] text-ink-3">
               <span className="num font-semibold text-ink">{filtered.length}</span> {filtered.length === 1 ? "delivery" : "deliveries"}
               {filtered.length > 0 && <span className="num"> · {peso(filtered.reduce((s, d) => s + d.total, 0))}</span>}

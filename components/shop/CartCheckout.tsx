@@ -293,14 +293,14 @@ export default function CartCheckout({ open, onClose, cart, setCart, onPlaced }:
                     {/* The map always shows the store and the drop-off, with the distance between them */}
                     {dest !== "other" && location && (
                       <div className="space-y-1">
-                        <LocationPicker value={location} store={store} distance={quote && !quote.tooFar ? { km: quote.roadKm, minutes: quote.minutes } : null}
+                        <LocationPicker value={location} store={store} distance={quote && !quote.tooFar ? { km: quote.roadKm, minutes: quote.minutes, source: quote.source } : null} route={delivery.route?.path ?? null}
                           onChange={(v) => { setOtherLoc(v); setDest("other"); }} />
                         <p className="text-[11px] text-ink-4">Moving the pin delivers to that spot instead (&ldquo;Somewhere else&rdquo;).</p>
                       </div>
                     )}
                     {dest === "other" && (
                       <div className="space-y-2">
-                        <LocationPicker value={otherLoc} onChange={setOtherLoc} store={store} distance={quote && !quote.tooFar ? { km: quote.roadKm, minutes: quote.minutes } : null} />
+                        <LocationPicker value={otherLoc} onChange={setOtherLoc} store={store} distance={quote && !quote.tooFar ? { km: quote.roadKm, minutes: quote.minutes, source: quote.source } : null} route={delivery.route?.path ?? null} />
                         <label className="flex items-center gap-2 text-[12.5px] text-ink-2">
                           <input type="checkbox" checked={saveOther} onChange={(e) => setSaveOther(e.target.checked)} />
                           Save this place for next time

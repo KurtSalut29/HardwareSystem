@@ -1035,7 +1035,7 @@ export default function OrdersPage() {
               )}
             </div>
             <SearchField value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder={isStaff ? "Order #, customer or item" : "Order # or item"}
-              label="Search orders" className="min-w-0 flex-1 lg:max-w-[560px]" />
+              label="Search orders" className="min-w-0 flex-1" />
           </div>
       </div>
 

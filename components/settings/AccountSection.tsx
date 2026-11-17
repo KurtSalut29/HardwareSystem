@@ -82,18 +82,20 @@ export default function AccountSection() {
         {!me && !loadError && <div className="my-4 h-24 animate-pulse rounded-xl bg-recess" />}
         {me && (
           <>
-            <SettingRow id="acct-name" label="Name" hint={isCustomer ? "To correct your name, ask the store — it was checked when your account was approved." : `Signs in as ${me.username}.`}>
-              <p id="acct-name" className="text-[13.5px] font-semibold text-ink">{fullName || me.username}</p>
-              <p className="text-[12px] text-ink-4">{roleLabel(me.role)} · since {new Date(me.createdAt).toLocaleDateString("en-PH", { month: "short", year: "numeric" })}</p>
+            <SettingRow wide id="acct-name" label="Name" hint={isCustomer ? "To correct your name, ask the store — it was checked when your account was approved." : `Signs in as ${me.username}.`}
+              status={<p id="acct-name" className="truncate text-[13.5px] font-semibold text-ink">{fullName || me.username}</p>}>
+              <span className="rounded-full bg-surface px-2.5 py-1 text-[11.5px] font-semibold text-ink-3 ring-1 ring-line">
+                {roleLabel(me.role)} · since {new Date(me.createdAt).toLocaleDateString("en-PH", { month: "short", year: "numeric" })}
+              </span>
             </SettingRow>
-            <SettingRow id="acct-email" label="Email" hint={isCustomer ? "You sign in with this, and receipts and updates go here." : "Optional. Lets you sign in with your email too."}>
+            <SettingRow wide id="acct-email" label="Email" hint={isCustomer ? "You sign in with this, and receipts and updates go here." : "Optional. Lets you sign in with your email too."}>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-4" />
                 <input id="acct-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={120}
                   className={`${FIELD} pl-9`} placeholder="name@gmail.com" />
               </div>
             </SettingRow>
-            <SettingRow id="acct-contact" label="Mobile number" hint={isCustomer ? "Drivers call this when they arrive. 11 digits, starts with 09." : "11 digits, starts with 09."}>
+            <SettingRow wide id="acct-contact" label="Mobile number" hint={isCustomer ? "Drivers call this when they arrive. 11 digits, starts with 09." : "11 digits, starts with 09."}>
               <div className="relative">
                 <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-4" />
                 <input id="acct-contact" inputMode="numeric" value={contact} onChange={(e) => setContact(limitPhoneInput(e.target.value))} maxLength={13}
@@ -101,7 +103,11 @@ export default function AccountSection() {
               </div>
             </SettingRow>
             {isCustomer && (
-              <SettingRow id="acct-mail" label="Payment and refund emails" hint="When the store approves or rejects a payment, sends a refund, or reminds you of a balance. They always show in the app's bell too.">
+              <SettingRow wide id="acct-mail" label="Payment and refund emails" hint="When the store approves or rejects a payment, sends a refund, or reminds you of a balance. They always show in the app's bell too."
+                tone={me.emailUpdates ? "good" : "neutral"}
+                status={me.emailUpdates
+                  ? <span><b className="text-good">On</b> <span className="text-ink-4">· sent to {me.email || "your email"}</span></span>
+                  : <span><b className="text-ink-3">Off</b> <span className="text-ink-4">· you&apos;ll only see them in the app</span></span>}>
                 <Switch id="acct-mail" checked={me.emailUpdates} onChange={setEmailUpdates} label="Payment and refund emails" />
               </SettingRow>
             )}
@@ -154,13 +160,13 @@ function PasswordCard() {
           <Button onClick={save} loading={saving} disabled={!ready}>Change password</Button>
         </div>
       }>
-      <SettingRow id="pw-current" label="Current password">{input("pw-current", current, setCurrent, "Current password", "current-password")}</SettingRow>
-      <SettingRow id="pw-next" label="New password" hint={
+      <SettingRow wide id="pw-current" label="Current password">{input("pw-current", current, setCurrent, "Current password", "current-password")}</SettingRow>
+      <SettingRow wide id="pw-next" label="New password" hint={
         <span className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
           {rules.map((r) => <span key={r.label} className={next ? (r.ok ? "text-good" : "text-bad") : ""}>{r.ok && next ? "✓" : "•"} {r.label}</span>)}
         </span>
       }>{input("pw-next", next, setNext, "New password", "new-password")}</SettingRow>
-      <SettingRow id="pw-confirm" label="Type it again" hint={mismatch ? <span className="text-bad">The two new passwords don&apos;t match.</span> : undefined}>
+      <SettingRow wide id="pw-confirm" label="Type it again" hint={mismatch ? <span className="text-bad">The two new passwords don&apos;t match.</span> : undefined}>
         {input("pw-confirm", confirm, setConfirm, "New password again", "new-password")}
       </SettingRow>
       {error && <div className="pb-3"><Alert tone="bad" compact>{error}</Alert></div>}
