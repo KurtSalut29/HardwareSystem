@@ -241,6 +241,7 @@ function AdminReports({ username }: { username: string }) {
       body: JSON.stringify({ id: r.id }),
     });
     if (res.ok) { loadReceived(); showToast("Marked as read."); }
+    else showToast("Couldn't mark it as read. Try again.", "error");
   }
 
   // A received report renders from its own snapshot, not from a fresh query.

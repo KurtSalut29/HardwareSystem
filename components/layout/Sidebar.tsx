@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Receipt,
-  ClipboardList, Store, LogOut, Tag, X, Truck, History, FileBarChart, PackagePlus, PanelLeftClose, PanelLeftOpen
+  ClipboardList, Store, LogOut, Tag, X, Truck, History, FileBarChart, PackagePlus, PanelLeftClose, PanelLeftOpen, Settings, Wallet
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import ConfirmModal from "@/components/ui/ConfirmModal";
@@ -21,6 +21,7 @@ const dashboard = (href: string): NavItem => ({ label: "Dashboard", href, icon: 
 const products: NavItem = { label: "Products", href: "/products", icon: <Package size={18} /> };
 const restocks: NavItem = { label: "Restocks", href: "/restocks", icon: <PackagePlus size={18} /> };
 const categories: NavItem = { label: "Categories", href: "/categories", icon: <Tag size={18} /> };
+const settings: NavGroup = { label: "Account", items: [{ label: "Settings", href: "/settings", icon: <Settings size={18} /> }] };
 
 const adminNav: NavGroup[] = [
   { label: "Overview", items: [dashboard("/dashboard/admin")] },
@@ -33,7 +34,13 @@ const adminNav: NavGroup[] = [
       { label: "Reports", href: "/reports", icon: <FileBarChart size={18} /> },
     ],
   },
-  { label: "Administration", items: [{ label: "Users", href: "/users", icon: <Users size={18} /> }] },
+  {
+    label: "Administration",
+    items: [
+      { label: "Users", href: "/users", icon: <Users size={18} /> },
+      { label: "Settings", href: "/settings", icon: <Settings size={18} /> },
+    ],
+  },
 ];
 
 const cashierNav: NavGroup[] = [
@@ -48,6 +55,7 @@ const cashierNav: NavGroup[] = [
   },
   { label: "Inventory", items: [products, restocks, categories] },
   { label: "Reporting", items: [{ label: "Reports", href: "/reports", icon: <FileBarChart size={18} /> }] },
+  settings,
 ];
 
 const customerNav: NavGroup[] = [
@@ -57,8 +65,10 @@ const customerNav: NavGroup[] = [
     items: [
       { label: "Shop", href: "/shop", icon: <Store size={18} /> },
       { label: "My Orders", href: "/orders", icon: <ClipboardList size={18} /> },
+      { label: "Transactions", href: "/my-transactions", icon: <Wallet size={18} /> },
     ],
   },
+  settings,
 ];
 
 const driverNav: NavGroup[] = [
@@ -70,6 +80,7 @@ const driverNav: NavGroup[] = [
       { label: "History", href: "/deliveries/history", icon: <History size={18} /> },
     ],
   },
+  settings,
 ];
 
 const navByRole: Record<string, NavGroup[]> = { admin: adminNav, cashier: cashierNav, customer: customerNav, driver: driverNav };

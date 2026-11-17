@@ -45,6 +45,11 @@ model User {
   handledOrders    Order[]           @relation("HandledOrders")
   restockBatches   RestockBatch[]    @relation("RecordedRestockBatches")
   stockAdjustments StockAdjustment[] @relation("RecordedStockAdjustments")
+  savedAddresses   SavedAddress[]
+  paymentsCreated  Payment[]         @relation("PaymentsCreated")
+  paymentsReviewed Payment[]         @relation("PaymentsReviewed")
+  // Customers: whether payment and refund updates are also sent by email.
+  emailUpdates     Boolean           @default(true)
 }
 
 model Category {
@@ -143,6 +148,17 @@ model Order {
   deliveryAddress         String?
   latitude                Float?
   longitude               Float?
+  // Someone other than the customer receiving the delivery, and the exact spot
+  // (landmark, gate, floor). All optional.
+  recipientName           String?
+  recipientContact        String?
+  deliveryNotes           String?
+  // When the remaining balance should be settled (set when a downpayment is approved).
+  paymentDueAt            DateTime?
+  // Who cancelled ("customer" or "store"), when, and why.
+  cancelledAt             DateTime?
+  cancelledBy             String?
+  cancelReason            String?
   driverId                Int?
   assignedAt              DateTime?
   driverLat               Float?
@@ -162,6 +178,7 @@ model Order {
   handledBy               User?        @relation("HandledOrders", fields: [handledById], references: [id], onDelete: SetNull)
   transaction             Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
   items                   OrderItem[]
+  payments                Payment[]
 
   @@index([driverId, status])
   @@index([transactionId])
@@ -292,5 +309,60 @@ model Upload {
   mimeType  String
   data      Bytes
   size      Int
+  // Private files (GCash receipt screenshots) are only served to staff and to
+  // the person who uploaded them. Product photos and the store QR stay public.
+  private   Boolean  @default(false)
+  ownerId   Int?
   createdAt DateTime @default(now())
+}
+
+// Every payment toward an order, and every refund. An order's amountPaid is the
+// total of its approved payments, so this is the history behind that number.
+//  - kind "payment": status pending (waiting for staff to check the receipt),
+//    approved, or rejected (note says why).
+//  - kind "refund": money owed back after a cancellation; pending until staff
+//    send it, then sent (reference = the store's GCash reference).
+model Payment {
+  id             Int       @id @default(autoincrement())
+  orderId        Int
+  kind           String    @default("payment")
+  method         String
+  // Payment: what the customer says they sent. Refund: what is owed back.
+  amount         Float
+  // Payment: what staff confirmed arrived (may differ from amount).
+  amountReceived Float?
+  reference      String?
+  // Payment: the GCash number it came from. Refund: the number it is sent to.
+  accountNumber  String?
+  proofImage     String?
+  status         String    @default("pending")
+  note           String?
+  createdById    Int?
+  reviewedById   Int?
+  reviewedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  order          Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdBy      User?     @relation("PaymentsCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  reviewedBy     User?     @relation("PaymentsReviewed", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([kind, status])
+}
+
+// A customer's saved drop-off points besides their home (e.g. work, a relative's
+// house), each with optional landmark and the person who receives there.
+model SavedAddress {
+  id               Int      @id @default(autoincrement())
+  userId           Int
+  label            String
+  address          String
+  latitude         Float
+  longitude        Float
+  notes            String?
+  recipientName    String?
+  recipientContact String?
+  createdAt        DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

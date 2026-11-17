@@ -4,7 +4,8 @@ import Image from "next/image";
 import { Printer, Receipt } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
-import { STORE_ADDRESS, STORE_NAME, STORE_TAGLINE } from "@/lib/brand";
+import { STORE_TAGLINE } from "@/lib/brand";
+import { useSettings } from "@/lib/useSettings";
 
 /**
  * One receipt layout for every sale: online and phone orders, walk-in orders,
@@ -23,6 +24,10 @@ export type ReceiptData = {
   servedBy?: string | null;
   /** The driver who took (or is taking) a delivery. */
   driver?: string | null;
+  /** Someone other than the customer receiving the delivery. */
+  recipient?: string | null;
+  /** Landmark / exact spot for the driver. */
+  deliveryNotes?: string | null;
   /** When the order was delivered or picked up. */
   completedAt?: string | Date | null;
   items: { name: string; quantity: number; unit?: string; price: number }[];
@@ -62,6 +67,8 @@ function linesOf(r: ReceiptData) {
   if (r.contact) meta.push(["Contact", r.contact]);
   if (r.fulfillment) meta.push(["Type", r.fulfillment]);
   if (r.address) meta.push(["Deliver to", r.address]);
+  if (r.deliveryNotes) meta.push(["Exact spot", r.deliveryNotes]);
+  if (r.recipient) meta.push(["Receiver", r.recipient]);
   if (r.driver) meta.push(["Driver", r.driver]);
   if (r.servedBy) meta.push(["Served by", r.servedBy]);
   if (r.status) meta.push(["Status", r.status]);
@@ -107,7 +114,16 @@ function TornEdge() {
   );
 }
 
+/** The store details printed on every receipt, from Settings → Store details and Receipts. */
+export type ReceiptStore = { name: string; address: string; contact: string; footer: string };
+
+function useReceiptStore(): ReceiptStore {
+  const s = useSettings();
+  return { name: s.storeName, address: s.storeAddress, contact: s.storeContact, footer: s.receiptFooter };
+}
+
 export function ReceiptBody({ data }: { data: ReceiptData }) {
+  const store = useReceiptStore();
   const { meta, totals, paid } = linesOf(data);
 
   return (
@@ -126,9 +142,10 @@ export function ReceiptBody({ data }: { data: ReceiptData }) {
           {/* Store */}
           <header className="flex flex-col items-center text-center">
             <Image src="/logo.png" alt="" width={64} height={64} className="size-16 object-contain" />
-            <h2 className="mt-2 font-display text-[21px] font-extrabold leading-none tracking-tight text-slate-900">{STORE_NAME}</h2>
+            <h2 className="mt-2 font-display text-[21px] font-extrabold leading-none tracking-tight text-slate-900">{store.name}</h2>
             <p className="mt-1 text-[11px] text-slate-500">{STORE_TAGLINE}</p>
-            <p className="text-[11px] text-slate-500">{STORE_ADDRESS}</p>
+            <p className="text-[11px] text-slate-500">{store.address}</p>
+            {store.contact && <p className="num text-[11px] text-slate-500">Tel. {store.contact}</p>}
 
             <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">Acknowledgement receipt</p>
             <p className="mt-1.5 rounded-md border-2 border-red-600 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.16em] text-red-600">
@@ -196,7 +213,7 @@ export function ReceiptBody({ data }: { data: ReceiptData }) {
           <Perforation />
 
           <footer className="text-center">
-            <p className="text-[12.5px] font-semibold text-slate-700">Thank you for your purchase!</p>
+            <p className="text-[12.5px] font-semibold text-slate-700">{store.footer}</p>
             <div className="mt-3 rounded-lg border border-dashed border-red-300 bg-red-50/70 px-3 py-2">
               <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-red-700">This is {NOT_OR.toLowerCase()}</p>
               <p className="mt-0.5 text-[10.5px] text-red-700/80">{NOT_OR_NOTE}</p>
@@ -212,11 +229,11 @@ export function ReceiptBody({ data }: { data: ReceiptData }) {
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 
 /** The receipt as a standalone printable page (no app styles needed), ~80mm wide. */
-export function receiptHtml(data: ReceiptData, origin: string) {
+export function receiptHtml(data: ReceiptData, origin: string, store: ReceiptStore) {
   const row = (k: string, v: string, cls = "") => `<div class="row ${cls}"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`;
   const { meta, totals, paid } = linesOf(data);
   const logo = `${origin}/logo.png`;
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(data.number)} — ${esc(STORE_NAME)}</title><style>
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(data.number)} — ${esc(store.name)}</title><style>
     *{box-sizing:border-box}
     body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#0f172a;max-width:302px;margin:12px auto;padding:0 10px}
     .head{text-align:center}.head img{width:64px;height:64px;object-fit:contain}
@@ -237,8 +254,9 @@ export function receiptHtml(data: ReceiptData, origin: string) {
   </style></head><body>
     <div class="head">
       <img src="${logo}" alt="">
-      <h1>${esc(STORE_NAME)}</h1>
-      <p class="c">${esc(STORE_TAGLINE)}</p><p class="c">${esc(STORE_ADDRESS)}</p>
+      <h1>${esc(store.name)}</h1>
+      <p class="c">${esc(STORE_TAGLINE)}</p><p class="c">${esc(store.address)}</p>
+      ${store.contact ? `<p class="c">Tel. ${esc(store.contact)}</p>` : ""}
       <p class="kind">ACKNOWLEDGEMENT RECEIPT</p>
       <span class="stamp">NOT AN OFFICIAL RECEIPT</span>
     </div><hr>
@@ -251,7 +269,7 @@ export function receiptHtml(data: ReceiptData, origin: string) {
     ${data.payment.map((p) => row(p.label, p.value)).join("")}
     ${paid ? row("Amount paid", paid.paid) + row(paid.balanceLabel, paid.balance, "bal") : ""}
     ${data.notes?.length ? data.notes.map((n) => `<p class="muted">• ${esc(n)}</p>`).join("") : ""}
-    <hr><div class="foot"><p class="thanks">Thank you for your purchase!</p>
+    <hr><div class="foot"><p class="thanks">${esc(store.footer)}</p>
     <div class="notor"><b>THIS IS NOT AN OFFICIAL RECEIPT</b><span>${esc(NOT_OR_NOTE)}</span></div></div>
   </body></html>`;
 }
@@ -260,7 +278,7 @@ export function receiptHtml(data: ReceiptData, origin: string) {
  * Prints the receipt from a hidden frame on the same page: no pop-up window for
  * the browser to block, and the logo has loaded before the print dialog opens.
  */
-export function printReceipt(data: ReceiptData) {
+export function printReceipt(data: ReceiptData, store: ReceiptStore) {
   document.getElementById("receipt-print-frame")?.remove();
   const frame = document.createElement("iframe");
   frame.id = "receipt-print-frame";
@@ -272,7 +290,7 @@ export function printReceipt(data: ReceiptData) {
   const win = frame.contentWindow;
   if (!doc || !win) { frame.remove(); return; }
   doc.open();
-  doc.write(receiptHtml(data, window.location.origin));
+  doc.write(receiptHtml(data, window.location.origin, store));
   doc.close();
 
   let printed = false;
@@ -293,12 +311,13 @@ export function printReceipt(data: ReceiptData) {
 }
 
 export default function ReceiptModal({ data, onClose, title = "Receipt" }: { data: ReceiptData; onClose: () => void; title?: string }) {
+  const store = useReceiptStore();
   return (
     <Modal open onClose={onClose} title={title} icon={<Receipt className="size-5" />} description="Print it or save it as a PDF." size="sm"
       footer={
         <div className="flex gap-2">
           <Button variant="secondary" className="flex-1" onClick={onClose}>Close</Button>
-          <Button className="flex-1" onClick={() => printReceipt(data)} icon={<Printer className="size-4" />}>Print receipt</Button>
+          <Button className="flex-1" onClick={() => printReceipt(data, store)} icon={<Printer className="size-4" />}>Print receipt</Button>
         </div>
       }>
       <ReceiptBody data={data} />

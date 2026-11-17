@@ -34,6 +34,13 @@ const TOAST_VARIANT: Record<NotificationType, ToastVariant> = {
   order_update: "success",
   low_stock: "warning",
   out_of_stock: "error",
+  payment_review: "info",
+  refund_due: "warning",
+  balance_overdue: "warning",
+  payment_update: "success",
+  payment_problem: "error",
+  balance_due: "warning",
+  refund_sent: "success",
 };
 
 function storageKey(username: string) {

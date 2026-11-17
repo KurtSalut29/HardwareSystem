@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Truck, MapPin, CheckCircle2, Navigation, Package, Banknote, Smartphone, ShieldAlert, Route } from "lucide-react";
+import { Truck, MapPin, CheckCircle2, Navigation, Package, Banknote, Smartphone, ShieldAlert, Route, StickyNote, UserRound } from "lucide-react";
 import Link from "next/link";
 import { haversineKm, formatDistance } from "@/lib/distance";
 import PageHeader from "@/components/ui/PageHeader";
@@ -30,6 +30,11 @@ type Order = {
   paymentMethod?: string;
   paymentVerified?: boolean;
   amountPaid?: number;
+  recipientName?: string | null;
+  recipientContact?: string | null;
+  deliveryNotes?: string | null;
+  /** GCash payments the store is still checking — not collected at the door. */
+  payments?: { amount: number }[];
 };
 
 const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -93,7 +98,7 @@ export default function DeliveriesPage() {
     });
   const totalValue = active.reduce((s, a) => s + a.order.totalAmount, 0);
   // What's still owed at the door: the total, less any downpayment or GCash transfer.
-  const balanceOf = (o: Order) => Math.max(0, Math.round((o.totalAmount - (o.amountPaid ?? 0)) * 100) / 100);
+  const balanceOf = (o: Order) => Math.max(0, Math.round((o.totalAmount - (o.amountPaid ?? 0) - (o.payments ?? []).reduce((t, p) => t + p.amount, 0)) * 100) / 100);
   const toCollect = active.reduce((s, a) => s + balanceOf(a.order), 0);
 
   return (
@@ -174,6 +179,14 @@ export default function DeliveriesPage() {
                     </div>
                   </div>
 
+                  {/* Exact spot and who receives it */}
+                  {(o.deliveryNotes || o.recipientName) && (
+                    <div className="space-y-1 rounded-xl border border-brand/20 bg-brand-soft/50 px-3.5 py-2.5 text-[13px] text-ink-2">
+                      {o.deliveryNotes && <p className="flex items-start gap-1.5"><StickyNote className="mt-0.5 size-4 shrink-0 text-brand" /> <span><b className="text-ink">Exact spot:</b> {o.deliveryNotes}</span></p>}
+                      {o.recipientName && <p className="flex items-start gap-1.5"><UserRound className="mt-0.5 size-4 shrink-0 text-brand" /> <span><b className="text-ink">Give it to:</b> {o.recipientName}{o.recipientContact ? ` · ${o.recipientContact}` : ""}</span></p>}
+                    </div>
+                  )}
+
                   {/* Money at the door */}
                   <div className={`flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 ${
                     collectCash || partiallyPaid ? "bg-good-soft" : unverifiedGcash ? "bg-warn-soft" : "bg-subtle"}`}>
@@ -201,7 +214,7 @@ export default function DeliveriesPage() {
                     </ul>
                   </div>
 
-                  <ContactCustomer phone={customerPhone(o)} name={customerLabel(o)} orderId={o.id} />
+                  <ContactCustomer phone={o.recipientContact ?? customerPhone(o)} name={o.recipientName ? `${o.recipientName} (receiver)` : customerLabel(o)} orderId={o.id} />
 
                   <div className="grid grid-cols-2 gap-2 border-t border-line pt-3.5">
                     <Link href={`/deliveries/${o.id}`}

@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   Search, Package, MapPin, Truck, Store, Wallet, ArrowRight, ArrowUpRight, PackageSearch,
   Ruler, LogIn, Menu, X, BrickWall, Zap, Bolt, Wrench, Drill, Hammer, PaintRoller,
-  Paintbrush, Droplets, HardHat, Axe, Cog, Navigation, Tag, type LucideIcon, type LucideProps,
+  Paintbrush, Droplets, HardHat, Axe, Cog, Navigation, Tag, Boxes, type LucideIcon, type LucideProps,
 } from "lucide-react";
 import { STORE_NAME } from "@/lib/brand";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
@@ -16,8 +16,11 @@ type Category = { id: number; name: string; description: string | null };
 type Product = {
   id: number;
   name: string;
+  brand: string | null;
   price: number;
   unit: string;
+  /** Null when the store hides exact counts. */
+  stock: number | null;
   image: string | null;
   description: string | null;
   subcategory: string | null;
@@ -103,6 +106,8 @@ export default function LandingPage() {
   const [activeCat, setActiveCat] = useState<number | "all">("all");
   const [visible, setVisible] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(true);
+  // "Only N left" threshold, set by the admin in Settings → Inventory.
+  const [lowStock, setLowStock] = useState(10);
 
   useEffect(() => {
     fetch("/api/storefront")
@@ -112,6 +117,7 @@ export default function LandingPage() {
         setProducts(d.products ?? []);
         setCategories(d.categories ?? []);
         setStoreName(d.storeName ?? null);
+        if (typeof d.lowStockLevel === "number") setLowStock(d.lowStockLevel);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -151,6 +157,8 @@ export default function LandingPage() {
       if (!q) return true;
       return (
         p.name.toLowerCase().includes(q) ||
+        (p.brand ?? "").toLowerCase().includes(q) ||
+        (p.description ?? "").toLowerCase().includes(q) ||
         (p.subcategory ?? "").toLowerCase().includes(q) ||
         p.category.name.toLowerCase().includes(q)
       );
@@ -166,6 +174,13 @@ export default function LandingPage() {
     setActiveCat(id);
     setVisible(PAGE_SIZE);
   }
+  // The search box in the top bar: searches every category and brings the results into view.
+  function searchFromHeader(q: string) {
+    const starting = !search.trim() && q.trim();
+    changeSearch(q);
+    if (activeCat !== "all") changeCategory("all");
+    if (starting) scrollToId("products");
+  }
   function pickCategory(id: number | "all") {
     changeCategory(id);
     setSearch("");
@@ -174,7 +189,13 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-base)" }}>
-      <SiteHeader displayName={displayName} />
+      <SiteHeader
+        displayName={displayName}
+        search={search}
+        resultCount={search.trim() ? filtered.length : null}
+        onSearch={searchFromHeader}
+        onSubmit={() => scrollToId("products")}
+      />
       <Hero
         displayName={displayName}
         productCount={products.length}
@@ -198,6 +219,7 @@ export default function LandingPage() {
         activeCat={activeCat}
         search={search}
         visible={visible}
+        lowStock={lowStock}
         onSearch={changeSearch}
         onCategory={changeCategory}
         onShowMore={() => setVisible((v) => v + PAGE_SIZE)}
@@ -226,10 +248,18 @@ const FOCUS_RING_LIGHT = FOCUS_RING;
 
 // The storefront is always shown in light mode (see ThemeProvider), so the header can use
 // the ordinary light tokens.
-function SiteHeader({ displayName }: { displayName: string }) {
+function SiteHeader({ displayName, search, resultCount, onSearch, onSubmit }: {
+  displayName: string;
+  search: string;
+  /** Matches for the current search, or null when nothing is typed. */
+  resultCount: number | null;
+  onSearch: (q: string) => void;
+  onSubmit: () => void;
+}) {
   const [scrolled, setScrolled] = useState(false);
   const [active, setActive] = useState<SectionId | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const linkRefs = useRef<Partial<Record<SectionId, HTMLAnchorElement | null>>>({});
   const progressRef = useRef<HTMLSpanElement>(null);
   const indicatorRef = useRef<HTMLSpanElement>(null);
@@ -306,7 +336,7 @@ function SiteHeader({ displayName }: { displayName: string }) {
           ].join(", "),
         }}
       >
-      <div className="relative px-3 sm:px-4 h-16 flex items-center gap-4">
+      <div className="relative px-3 sm:px-4 h-16 flex items-center gap-3">
         {/* How far down the page the visitor is. */}
         <span aria-hidden className="absolute left-4 right-4 bottom-0 h-[2px] rounded-full overflow-hidden">
           <span
@@ -321,7 +351,7 @@ function SiteHeader({ displayName }: { displayName: string }) {
             <span className="font-display font-extrabold text-[15px] tracking-tight" style={{ color: "var(--text-primary)" }}>
               {displayName}
             </span>
-            <span className="mt-1 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>
+            <span className="mt-1 hidden text-[10px] font-bold uppercase tracking-[0.18em] sm:block lg:hidden" style={{ color: "var(--text-muted)" }}>
               Hardware · Building supply
             </span>
           </span>
@@ -329,7 +359,7 @@ function SiteHeader({ displayName }: { displayName: string }) {
 
         <nav
           aria-label="Main"
-          className="relative hidden lg:flex mx-auto items-center gap-1 rounded-full p-1"
+          className="relative hidden lg:flex ml-auto items-center gap-1 rounded-full p-1"
           style={{ background: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.6)" }}
         >
           <span
@@ -346,7 +376,7 @@ function SiteHeader({ displayName }: { displayName: string }) {
                 ref={(el) => { linkRefs.current[id] = el; }}
                 href={`#${id}`}
                 aria-current={isActive ? "location" : undefined}
-                className={`relative z-[1] inline-flex items-center px-4 py-1.5 rounded-full text-sm font-semibold transition-colors duration-300 ${FOCUS_RING} ${
+                className={`relative z-[1] inline-flex items-center px-3 xl:px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-colors duration-300 ${FOCUS_RING} ${
                   isActive
                     ? "text-white"
                     : "text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[rgba(255,255,255,0.6)]"
@@ -358,23 +388,36 @@ function SiteHeader({ displayName }: { displayName: string }) {
           })}
         </nav>
 
-        <div className="ml-auto lg:ml-0 flex items-center gap-1.5">
+        <HeaderSearch search={search} resultCount={resultCount} onSearch={onSearch} onSubmit={onSubmit}
+          className="hidden w-44 shrink-0 md:block md:ml-auto lg:ml-0 xl:w-56" />
+
+        <div className="ml-auto md:ml-0 flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => { setSearchOpen((o) => !o); setMenuOpen(false); }}
+            aria-expanded={searchOpen}
+            aria-label={searchOpen ? "Close search" : "Search products"}
+            className={`md:hidden inline-flex w-10 h-10 items-center justify-center rounded-lg transition-colors text-[color:var(--text-primary)] hover:bg-[color:var(--bg-muted)] ${FOCUS_RING}`}
+          >
+            {searchOpen ? <X size={20} /> : <Search size={20} />}
+          </button>
           <Link
             href="/login"
-            className={`hidden lg:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold transition-colors text-[color:var(--text-primary)] hover:bg-[color:var(--bg-muted)] ${FOCUS_RING}`}
+            aria-label="Sign in"
+            className={`hidden lg:inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-lg text-sm font-semibold transition-colors text-[color:var(--text-primary)] hover:bg-[color:var(--bg-muted)] ${FOCUS_RING}`}
           >
-            <LogIn size={ICON_SIZE.sm} /> Sign in
+            <LogIn size={ICON_SIZE.sm} /> <span className="hidden xl:inline">Sign in</span>
           </Link>
           <Link
             href={SIGNUP_HREF}
-            className={`group hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold text-white transition hover:brightness-110 active:scale-[0.98] ${FOCUS_RING}`}
+            className={`group hidden sm:inline-flex items-center gap-1.5 whitespace-nowrap px-4 py-2 rounded-lg text-sm font-bold text-white transition hover:brightness-110 active:scale-[0.98] ${FOCUS_RING}`}
             style={{ background: "var(--brand)" }}
           >
             Create account <ArrowRight size={ICON_SIZE.sm} className="transition-transform duration-200 group-hover:translate-x-1" />
           </Link>
           <button
             type="button"
-            onClick={() => setMenuOpen((open) => !open)}
+            onClick={() => { setMenuOpen((open) => !open); setSearchOpen(false); }}
             aria-expanded={menuOpen}
             aria-controls="site-menu"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
@@ -384,6 +427,13 @@ function SiteHeader({ displayName }: { displayName: string }) {
           </button>
         </div>
       </div>
+
+      {searchOpen && (
+        <div className="md:hidden animate-menu-in px-3 pb-3" style={{ borderTop: "1px solid rgba(16,24,64,0.08)" }}>
+          <HeaderSearch search={search} resultCount={resultCount} onSearch={onSearch} autoFocus className="mt-3"
+            onSubmit={() => { onSubmit(); setSearchOpen(false); }} />
+        </div>
+      )}
 
       {menuOpen && (
         <div id="site-menu" className="lg:hidden animate-menu-in" style={{ borderTop: "1px solid rgba(16,24,64,0.08)" }}>
@@ -427,6 +477,44 @@ function SiteHeader({ displayName }: { displayName: string }) {
       )}
       </div>
     </header>
+  );
+}
+
+function HeaderSearch({ search, resultCount, onSearch, onSubmit, autoFocus, className = "" }: {
+  search: string;
+  resultCount: number | null;
+  onSearch: (q: string) => void;
+  onSubmit: () => void;
+  autoFocus?: boolean;
+  className?: string;
+}) {
+  return (
+    <form role="search" className={`relative ${className}`} onSubmit={(e) => { e.preventDefault(); onSubmit(); }}>
+      <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+      <input
+        type="search"
+        aria-label="Search products"
+        value={search}
+        autoFocus={autoFocus}
+        onChange={(e) => onSearch(e.target.value)}
+        placeholder="Search products…"
+        className={`h-10 w-full rounded-xl border pl-9 ${search ? "pr-24" : "pr-3"} text-sm transition focus:outline-none focus:ring-4 [&::-webkit-search-cancel-button]:hidden`}
+        style={{ background: "rgba(255,255,255,0.85)", borderColor: "rgba(16,24,64,0.12)", color: "var(--text-primary)", ["--tw-ring-color" as string]: "var(--brand-soft)" }}
+      />
+      <span className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+        {resultCount != null && (
+          <span className="num rounded-md px-1.5 py-0.5 text-[11px] font-bold" style={{ background: resultCount ? "var(--brand-soft)" : "var(--bad-soft)", color: resultCount ? "var(--brand)" : "var(--bad)" }}>
+            {resultCount} {resultCount === 1 ? "item" : "items"}
+          </span>
+        )}
+        {search && (
+          <button type="button" onClick={() => onSearch("")} aria-label="Clear search"
+            className="grid size-6 place-items-center rounded-md text-[color:var(--text-muted)] hover:bg-[color:var(--bg-muted)] hover:text-[color:var(--text-primary)]">
+            <X size={14} />
+          </button>
+        )}
+      </span>
+    </form>
   );
 }
 
@@ -744,9 +832,10 @@ function CategoryShowcase({
 /* ───────────────────────────── Catalogue ───────────────────────────── */
 
 function CatalogueSection({
-  loading, products, filtered, categories, activeCat, search, visible,
+  loading, products, filtered, categories, activeCat, search, visible, lowStock,
   onSearch, onCategory, onShowMore, onClear,
 }: {
+  lowStock: number;
   loading: boolean;
   products: Product[];
   filtered: Product[];
@@ -827,7 +916,7 @@ function CatalogueSection({
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {shown.map((p, i) => (
                   <Reveal key={p.id} delay={(i % 4) * 70} className="h-full">
-                    <ProductCard product={p} />
+                    <ProductCard product={p} lowStock={lowStock} />
                   </Reveal>
                 ))}
               </div>
@@ -881,7 +970,7 @@ function CategoryChip({
   );
 }
 
-function ProductCard({ product: p }: { product: Product }) {
+function ProductCard({ product: p, lowStock }: { product: Product; lowStock: number }) {
   return (
     <article
       className="group h-full rounded-2xl border flex flex-col overflow-hidden transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_28px_-16px_rgba(16,24,64,0.35)]"
@@ -922,6 +1011,7 @@ function ProductCard({ product: p }: { product: Product }) {
         <h3 className="text-sm font-bold leading-snug line-clamp-2" style={{ color: "var(--text-primary)" }}>
           {p.name}
         </h3>
+        <StockLine stock={p.stock} inStock={p.inStock} unit={p.unit} low={lowStock} />
         {/* Two-up cards on phones are too narrow for price and button side by side. */}
         <div className="mt-auto pt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-2">
           <p>
@@ -943,6 +1033,25 @@ function ProductCard({ product: p }: { product: Product }) {
         </div>
       </div>
     </article>
+  );
+}
+
+/** How many are on the shelf: plenty, only a few left, or none. */
+function StockLine({ stock, inStock, unit, low }: { stock: number | null; inStock: boolean; unit: string; low: number }) {
+  if (stock == null) {
+    return (
+      <p className="mt-1.5 inline-flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: `var(--${inStock ? "good" : "bad"})` }}>
+        <Boxes size={13} className="shrink-0" /> {inStock ? "In stock" : "Out of stock"}
+      </p>
+    );
+  }
+  const qty = Number.isInteger(stock) ? stock.toLocaleString("en-PH") : stock.toLocaleString("en-PH", { maximumFractionDigits: 2 });
+  const tone = stock <= 0 ? "bad" : stock <= low ? "warn" : "good";
+  const text = stock <= 0 ? "Out of stock" : stock <= low ? `Only ${qty} ${unit} left` : `${qty} ${unit} in stock`;
+  return (
+    <p className="mt-1.5 inline-flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: `var(--${tone})` }}>
+      <Boxes size={13} className="shrink-0" /> <span className="num">{text}</span>
+    </p>
   );
 }
 

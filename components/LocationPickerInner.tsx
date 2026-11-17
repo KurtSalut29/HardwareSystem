@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Circle, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Circle, Polyline, Tooltip, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Search, MapPin, X, LocateFixed, Crosshair, AlertTriangle } from 'lucide-react';
+import { Search, MapPin, X, LocateFixed, Crosshair, AlertTriangle, Store } from 'lucide-react';
 import { BILIRAN_CENTER, BILIRAN_LEAFLET_BOUNDS, BILIRAN_VIEWBOX, isWithinBiliran } from '@/lib/biliran';
 
 /**
@@ -28,6 +28,27 @@ L.Icon.Default.mergeOptions({
 
 const BILIRAN_ZOOM = 12;
 
+/** The store on the checkout map: a blue badge, so it's never mistaken for the drop-off pin. */
+const STORE_ICON = L.divIcon({
+  className: '',
+  html: '<div style="width:34px;height:34px;border-radius:12px;background:#1E4FD8;border:3px solid #fff;box-shadow:0 6px 14px -6px rgba(16,24,64,.6);display:grid;place-items:center;color:#fff;font:700 15px/1 system-ui">&#127978;</div>',
+  iconSize: [34, 34],
+  iconAnchor: [17, 17],
+});
+
+/** Shows the store and the drop-off together whenever both are known. */
+function FitBoth({ store, value }: { store?: { lat: number; lng: number } | null; value: { lat: number; lng: number } | null }) {
+  const map = useMap();
+  const key = store && value ? `${store.lat},${store.lng}|${value.lat.toFixed(5)},${value.lng.toFixed(5)}` : '';
+  const last = useRef('');
+  useEffect(() => {
+    if (!key || key === last.current || !store || !value) return;
+    last.current = key;
+    map.fitBounds(L.latLngBounds([store.lat, store.lng], [value.lat, value.lng]), { padding: [36, 36], maxZoom: 15 });
+  }, [key, map, store, value]);
+  return null;
+}
+
 type SuggestionResult = {
   place_id: number;
   display_name: string;
@@ -44,6 +65,10 @@ export type PickedLocation = {
 type Props = {
   value: PickedLocation | null;
   onChange: (loc: PickedLocation | null) => void;
+  /** The store, shown with a line to the pin so customers see how far it is. */
+  store?: { lat: number; lng: number; name: string } | null;
+  /** Road distance and drive time from the store to the pin, when known. */
+  distance?: { km: number; minutes: number | null } | null;
 };
 
 // Flies the map to a new position whenever value changes
@@ -81,7 +106,7 @@ function MapClickHandler({ pinMode, onPick }: { pinMode: boolean; onPick: (lat: 
   return null;
 }
 
-export default function LocationPickerInner({ value, onChange }: Props) {
+export default function LocationPickerInner({ value, onChange, store, distance }: Props) {
   const [query, setQuery] = useState(value?.address ?? '');
   const [suggestions, setSuggestions] = useState<SuggestionResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -311,9 +336,18 @@ export default function LocationPickerInner({ value, onChange }: Props) {
 
       {/* Map */}
       <div
-        className={`rounded-lg overflow-hidden border-2 transition ${pinMode ? 'border-brand cursor-crosshair' : 'border-line'}`}
-        style={{ height: '220px' }}
+        className={`relative rounded-lg overflow-hidden border-2 transition ${pinMode ? 'border-brand cursor-crosshair' : 'border-line'}`}
+        style={{ height: store ? '260px' : '220px' }}
       >
+        {/* How far the pin is from the store, by road */}
+        {store && value && distance && (
+          <div className="pointer-events-none absolute left-12 right-2 top-2 z-[500] flex justify-start">
+            <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-surface/95 px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[0_6px_16px_-8px_rgba(16,24,64,0.5)]">
+              <Store size={13} className="shrink-0 text-brand" />
+              <span className="truncate"><span className="num">{distance.km.toFixed(1)} km</span> from {store.name} by road{distance.minutes != null ? <> · about <span className="num">{distance.minutes}</span> min</> : null}</span>
+            </span>
+          </div>
+        )}
         <MapContainer
           center={value ? [value.lat, value.lng] : BILIRAN_CENTER}
           zoom={value ? 15 : BILIRAN_ZOOM}
@@ -330,6 +364,16 @@ export default function LocationPickerInner({ value, onChange }: Props) {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <MapController value={value} />
+          <FitBoth store={store} value={value} />
+          {store && (
+            <Marker position={[store.lat, store.lng]} icon={STORE_ICON} interactive={false}>
+              <Tooltip direction="top" offset={[0, -16]} opacity={1} permanent={!value}>{store.name}</Tooltip>
+            </Marker>
+          )}
+          {store && value && (
+            <Polyline positions={[[store.lat, store.lng], [value.lat, value.lng]]}
+              pathOptions={{ color: '#1E4FD8', weight: 3, opacity: 0.75, dashArray: '6 8' }} />
+          )}
           <MapClickHandler pinMode={pinMode} onPick={handleMapClick} />
           {/* How far off a GPS pin could be */}
           {value && accuracy != null && (

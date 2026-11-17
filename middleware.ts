@@ -19,6 +19,8 @@ const ROLE_ROUTES: Record<string, string[]> = {
   "/pos": ["cashier"],
   "/shop": ["customer"],
   "/deliveries": ["driver"],
+  "/settings": ["admin", "cashier", "customer", "driver"],
+  "/my-transactions": ["customer"],
 };
 
 export async function middleware(req: NextRequest) {
@@ -34,6 +36,13 @@ export async function middleware(req: NextRequest) {
   }
 
   const matchedBase = Object.keys(ROLE_ROUTES).find((base) => pathname.startsWith(base));
+
+  // "/dashboard" on its own (or a dashboard that doesn't exist, like
+  // "/dashboard/staff") goes to the signed-in person's own dashboard.
+  if (!matchedBase && (pathname === "/dashboard" || pathname.startsWith("/dashboard/"))) {
+    const payload = token ? await verifyToken(token) : null;
+    return NextResponse.redirect(new URL(payload ? `/dashboard/${payload.role}` : "/login", req.url));
+  }
   if (!matchedBase) return NextResponse.next();
 
   if (!token) return NextResponse.redirect(new URL("/login", req.url));
@@ -63,5 +72,7 @@ export const config = {
     "/pos/:path*",
     "/shop/:path*",
     "/deliveries/:path*",
+    "/settings/:path*",
+    "/my-transactions/:path*",
   ],
 };

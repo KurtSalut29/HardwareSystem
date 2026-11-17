@@ -56,6 +56,6 @@ export async function DELETE(req: NextRequest) {
     await prisma.category.delete({ where: { id } });
     return NextResponse.json({ message: "Category deleted" });
   } catch {
-    return NextResponse.json({ error: "Cannot delete category with existing products" }, { status: 400 });
+    return NextResponse.json({ error: "This category still has products. Move them to another category or delete them first." }, { status: 400 });
   }
 }

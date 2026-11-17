@@ -1,11 +1,9 @@
 "use client";
 
 import {
-  Bell, ChevronDown, Package, ShoppingBag, Settings, Sun, Moon, Monitor, Menu, LogOut, Truck, PackageX, ClipboardCheck,
-  Volume2, VolumeX, UserPlus, LayoutDashboard, PackagePlus, Tag, Users, Receipt, ClipboardList, ShoppingCart, Store,
-  FileBarChart, History, BellRing, CheckCheck,
+  Bell, ChevronDown, Package, ShoppingBag, Settings, Sun, Moon, Menu, LogOut, Truck, PackageX, ClipboardCheck, UserPlus, LayoutDashboard, PackagePlus, Tag, Users, Receipt, ClipboardList, ShoppingCart, Store, FileBarChart, History, BellRing, CheckCheck, Wallet, Undo2, Clock, CircleAlert,
 } from "lucide-react";
-import { createElement, useState, useEffect, useRef, useSyncExternalStore } from "react";
+import { createElement, useState, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "@/components/ThemeProvider";
 import ConfirmModal from "@/components/ui/ConfirmModal";
@@ -13,11 +11,9 @@ import { useLogout } from "@/hooks/useLogout";
 import { useDriverAlerts } from "@/components/DriverAlertsProvider";
 import { useNotifications } from "@/components/NotificationsProvider";
 import { roleLabel } from "@/lib/roles";
-import { isSoundOn, playAlert, setSoundOn, subscribeSound, unlockAudio, type AlertSound } from "@/lib/sounds";
-import { desktopPermission, requestDesktop } from "@/lib/desktopNotify";
-import InstallAppCard from "@/components/pwa/InstallAppCard";
 
-type BellType = "new_order" | "new_customer" | "low_stock" | "out_of_stock" | "order_update" | "delivery";
+type BellType = "new_order" | "new_customer" | "low_stock" | "out_of_stock" | "order_update" | "delivery"
+  | "payment_review" | "refund_due" | "balance_overdue" | "payment_update" | "payment_problem" | "balance_due" | "refund_sent";
 type BellItem = { id: string; type: BellType; title: string; message: string; href?: string; unread: boolean };
 
 // Icon and colours for each kind of notification in the bell.
@@ -28,15 +24,15 @@ const BELL_STYLE: Record<BellType, { icon: typeof Bell; chip: string; text: stri
   delivery: { icon: Truck, chip: "bg-brand-soft text-brand", text: "text-brand" },
   low_stock: { icon: Package, chip: "bg-warn-soft text-warn", text: "text-warn" },
   out_of_stock: { icon: PackageX, chip: "bg-bad-soft text-bad", text: "text-bad" },
+  payment_review: { icon: Receipt, chip: "bg-brand-soft text-brand", text: "text-brand" },
+  refund_due: { icon: Undo2, chip: "bg-warn-soft text-warn", text: "text-warn" },
+  balance_overdue: { icon: Clock, chip: "bg-warn-soft text-warn", text: "text-warn" },
+  payment_update: { icon: CheckCheck, chip: "bg-good-soft text-good", text: "text-good" },
+  payment_problem: { icon: CircleAlert, chip: "bg-bad-soft text-bad", text: "text-bad" },
+  balance_due: { icon: Wallet, chip: "bg-warn-soft text-warn", text: "text-warn" },
+  refund_sent: { icon: Undo2, chip: "bg-good-soft text-good", text: "text-good" },
 };
 
-// The sound each role hears most, played by the "Test" button in Settings.
-const TEST_SOUND: Record<string, AlertSound> = {
-  admin: "new_order",
-  cashier: "new_order",
-  customer: "order_update",
-  driver: "delivery",
-};
 
 /** Where the user is: the page name, the area of the store it belongs to, and its icon. */
 function pageInfo(pathname: string, role: string): { label: string; area: string; icon: typeof Bell } {
@@ -54,6 +50,8 @@ function pageInfo(pathname: string, role: string): { label: string; area: string
   if (pathname.startsWith("/reports")) return { label: role === "admin" ? "Sales reports" : "Sales report", area: "Reporting", icon: FileBarChart };
   if (pathname.startsWith("/deliveries/history")) return { label: "Delivery history", area: "Deliveries", icon: History };
   if (pathname.startsWith("/deliveries")) return { label: "My deliveries", area: "Deliveries", icon: Truck };
+  if (pathname.startsWith("/settings")) return { label: "Settings", area: "Account", icon: Settings };
+  if (pathname.startsWith("/my-transactions")) return { label: "Transactions", area: "Shopping", icon: Wallet };
   return { label: "", area: "", icon: LayoutDashboard };
 }
 
@@ -61,26 +59,20 @@ function pageInfo(pathname: string, role: string): { label: string; area: string
 // full width under the bar on phones.
 const PANEL = "animate-pop-in fixed inset-x-3 top-[84px] z-50 overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_24px_60px_-20px_rgba(10,14,36,0.45)] md:absolute md:inset-x-auto md:right-0 md:top-[calc(100%+10px)]";
 const ICON_BTN = "relative grid size-10 place-items-center rounded-xl text-ink-3 transition hover:bg-recess hover:text-ink";
-const SECTION_LABEL = "mb-2 text-[10.5px] font-bold uppercase tracking-[0.12em] text-ink-4";
 
 export default function Navbar({ username, role, onMenuClick }: { username: string; role: string; onMenuClick: () => void }) {
   const { theme, toggle } = useTheme();
   const pathname = usePathname();
   const [showProfile, setShowProfile] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
-  const settingsRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { confirmOpen, requestLogout, cancelLogout, confirmLogout } = useLogout();
   const { alerts: deliveryAlerts, openPopup } = useDriverAlerts();
   const { items: feed, unread: feedUnread, isUnread, markAllRead } = useNotifications();
-  const soundOn = useSyncExternalStore(subscribeSound, isSoundOn, () => true);
   const [newWhenOpened, setNewWhenOpened] = useState<Set<string>>(new Set());
-  // Bumped after the browser's permission prompt so the settings row re-reads it.
-  const [, setDesktopAsked] = useState(0);
 
   // Live clock — set on mount only, so server/client markup matches (avoids hydration mismatch)
   useEffect(() => {
@@ -93,10 +85,9 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
     function handle(e: MouseEvent) {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) setShowNotifs(false);
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) setShowProfile(false);
-      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) setShowSettings(false);
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") { setShowNotifs(false); setShowProfile(false); setShowSettings(false); }
+      if (e.key === "Escape") { setShowNotifs(false); setShowProfile(false); }
     }
     document.addEventListener("mousedown", handle);
     document.addEventListener("keydown", onKey);
@@ -125,7 +116,7 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
   function toggleBell() {
     const opening = !showNotifs;
     setShowNotifs(opening);
-    setShowSettings(false); setShowProfile(false);
+    setShowProfile(false);
     if (opening && !isDriver) {
       setNewWhenOpened(new Set(feed.filter((n) => isUnread(n.key)).map((n) => n.key)));
       markAllRead();
@@ -137,11 +128,6 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
     if (item.href) router.push(item.href);
   }
 
-  function applySystemTheme() {
-    const sys = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    toggle(sys);
-    localStorage.removeItem("theme");
-  }
 
   const initial = username.charAt(0).toUpperCase();
 
@@ -251,94 +237,11 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
             )}
           </div>
 
-          {/* Settings */}
-          <div className="relative" ref={settingsRef}>
-            <button type="button" onClick={() => { setShowSettings(!showSettings); setShowNotifs(false); setShowProfile(false); }}
-              aria-label="Settings" aria-expanded={showSettings} className={`${ICON_BTN} ${showSettings ? "bg-recess text-ink" : ""}`}>
-              <Settings className="size-[18px]" />
-            </button>
-
-            {showSettings && (
-              <div className={`${PANEL} md:w-[300px]`}>
-                <div className="border-b border-line px-4 py-3.5">
-                  <p className="font-display text-[15px] font-extrabold text-ink">Settings</p>
-                  <p className="text-[12px] text-ink-4">Saved on this device</p>
-                </div>
-
-                {/* Appearance */}
-                <div className="px-4 py-3.5">
-                  <p className={SECTION_LABEL}>Appearance</p>
-                  <div className="grid grid-cols-3 gap-1 rounded-xl bg-recess p-1">
-                    {([
-                      { key: "light", label: "Light", icon: Sun, on: theme === "light", act: () => toggle("light") },
-                      { key: "dark", label: "Dark", icon: Moon, on: theme === "dark", act: () => toggle("dark") },
-                      { key: "system", label: "System", icon: Monitor, on: false, act: applySystemTheme },
-                    ]).map((o) => (
-                      <button key={o.key} type="button" onClick={o.act} aria-pressed={o.on}
-                        className={`flex flex-col items-center gap-1 rounded-lg py-2 text-[12px] font-semibold transition ${
-                          o.on ? "bg-surface text-brand-ink shadow-[0_1px_3px_rgba(16,24,64,0.12)]" : "text-ink-3 hover:text-ink"}`}>
-                        {createElement(o.icon, { className: "size-4" })}{o.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Notification sound */}
-                <div className="border-t border-line px-4 py-3.5">
-                  <div className="flex items-center gap-3">
-                    <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${soundOn ? "bg-brand-soft text-brand" : "bg-recess text-ink-4"}`}>
-                      {soundOn ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[13.5px] font-semibold text-ink">Alert sound</p>
-                      <p className="text-[12px] text-ink-4">{soundOn ? "Plays for new alerts" : "Muted"}</p>
-                    </div>
-                    <button type="button" role="switch" aria-checked={soundOn} aria-label="Alert sound"
-                      onClick={() => { unlockAudio(); setSoundOn(!soundOn); }}
-                      className={`relative h-6 w-11 shrink-0 rounded-full transition ${soundOn ? "bg-brand" : "bg-line-strong"}`}>
-                      <span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${soundOn ? "left-[22px]" : "left-0.5"}`} />
-                    </button>
-                  </div>
-                  <button type="button" onClick={() => { unlockAudio(); playAlert(TEST_SOUND[role] ?? "new_order", { force: true }); }}
-                    className="mt-2.5 h-8 w-full rounded-lg border border-line text-[12.5px] font-semibold text-ink-2 transition hover:border-brand/40 hover:bg-brand-soft hover:text-brand-ink">
-                    Play a test sound
-                  </button>
-                </div>
-
-                {/* Desktop alerts: pop up even when this tab is in the background */}
-                {role !== "driver" && (() => {
-                  const perm = desktopPermission();
-                  return (
-                    <div className="border-t border-line px-4 py-3.5">
-                      <p className={SECTION_LABEL}>Desktop alerts</p>
-                      <p className="mb-2 text-[12px] text-ink-3">Pop up from the taskbar when you&apos;re on another tab or app.</p>
-                      {perm === "granted" ? (
-                        <p className="inline-flex items-center gap-1.5 rounded-lg bg-good-soft px-2.5 py-1 text-[12px] font-semibold text-good"><CheckCheck className="size-3.5" /> On for this browser</p>
-                      ) : perm === "denied" ? (
-                        <p className="rounded-lg bg-warn-soft px-2.5 py-2 text-[12px] text-warn">Blocked. Allow notifications for this site from the lock icon in the address bar.</p>
-                      ) : perm === "unsupported" ? (
-                        <p className="text-[12px] text-ink-4">This browser doesn&apos;t support them.</p>
-                      ) : (
-                        <button type="button" onClick={async () => { unlockAudio(); await requestDesktop(); setDesktopAsked((n) => n + 1); }}
-                          className="h-9 w-full rounded-lg bg-brand text-[13px] font-semibold text-white transition hover:brightness-110">
-                          Turn on desktop alerts
-                        </button>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {/* Install as an app (home screen / taskbar) */}
-                <InstallAppCard labelClass={SECTION_LABEL} />
-              </div>
-            )}
-          </div>
-
           <span aria-hidden className="mx-1 hidden h-7 w-px bg-line sm:block" />
 
           {/* Profile */}
           <div className="relative" ref={profileRef}>
-            <button type="button" onClick={() => { setShowProfile(!showProfile); setShowNotifs(false); setShowSettings(false); }}
+            <button type="button" onClick={() => { setShowProfile(!showProfile); setShowNotifs(false); }}
               aria-expanded={showProfile} aria-label="Account menu"
               className={`flex h-11 items-center gap-2.5 rounded-xl pl-1 pr-1.5 transition hover:bg-recess sm:pr-2.5 ${showProfile ? "bg-recess" : ""}`}>
               <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand to-brand-ink font-display text-sm font-extrabold text-white">{initial}</span>
@@ -359,7 +262,7 @@ export default function Navbar({ username, role, onMenuClick }: { username: stri
                   </div>
                 </div>
                 <div className="space-y-0.5 border-t border-line p-1.5">
-                  <button type="button" onClick={() => { setShowProfile(false); setShowSettings(true); }}
+                  <button type="button" onClick={() => { setShowProfile(false); router.push("/settings"); }}
                     className="flex h-10 w-full items-center gap-2.5 rounded-xl px-3 text-[13.5px] font-semibold text-ink-2 transition hover:bg-recess hover:text-ink">
                     <Settings className="size-4" /> Settings
                   </button>

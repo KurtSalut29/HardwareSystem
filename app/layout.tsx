@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { ToastProvider } from "@/components/ui/ToastProvider";
 import { STORE_NAME } from "@/lib/brand";
 import PwaSetup from "@/components/pwa/PwaSetup";
+import SystemFeedback from "@/components/SystemFeedback";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -41,7 +42,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className={`${inter.variable} ${archivo.variable} antialiased`}>
         <PwaSetup />
         <ThemeProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider><SystemFeedback />{children}</ToastProvider>
         </ThemeProvider>
       </body>
     </html>

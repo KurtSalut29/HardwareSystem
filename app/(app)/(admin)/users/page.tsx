@@ -1,4 +1,5 @@
 "use client";
+import { limitPhoneInput } from "@/lib/validation";
 
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
@@ -451,8 +452,8 @@ function UsersPageInner() {
             </div>
             <div className="col-span-2">
               <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Mobile number <span className="text-ink-4">(optional)</span></label>
-              <input value={form.contact} onChange={(e) => setForm((p) => ({ ...p, contact: e.target.value }))} inputMode="numeric"
-                className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10" placeholder="0917 123 4567" />
+              <input value={form.contact} onChange={(e) => setForm((p) => ({ ...p, contact: limitPhoneInput(e.target.value) }))} inputMode="numeric" maxLength={13}
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 shadow-[0_1px_2px_rgba(16,24,64,0.04)] transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10" placeholder="09171234567" />
               <p className="text-[11px] text-ink-4 mt-1">11 digits starting with 09.</p>
             </div>
           </div>

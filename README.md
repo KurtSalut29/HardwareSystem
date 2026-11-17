@@ -12,12 +12,12 @@ To see which part of the code belongs to Admin, Staff, Customer, and Driver, jum
 
 | Role | What they can do |
 |---|---|
-| **Admin** | Dashboard with sales charts · products, categories and subcategories · restocks and stock adjustments · reorder planner · all orders and the delivery map · approve customer accounts and manage users · delivery fee and driver settings · sales reports from staff |
-| **Staff** | Point of Sale for walk-in sales · take phone and walk-in orders (pickup or delivery, with a driver picked right away if you like) · confirm orders and assign drivers · change a pickup order to delivery · record payments and downpayments · print receipts · send sales reports |
-| **Customer** | Browse the shop and place orders (pickup or delivery, Cash or GCash) · track each order · see receipts |
-| **Driver** | Go on or off duty · list of stops with the amount to collect · turn-by-turn navigation · proof-of-delivery photo · delivery history |
+| **Admin** | Everything Staff can do, plus: dashboard with sales charts · approve customer accounts and manage users · **Settings** to run the store (store details, GCash details and QR, payment and downpayment rules, cancellation and refund policy, delivery fees and options, stock shown to customers, customer approval, store email, receipt message) |
+| **Staff** | Point of Sale · take phone and walk-in orders (pickup or delivery, receiver and exact spot, driver picked right away) · **check customers' GCash receipts** (approve or reject with a reason) · confirm orders and assign drivers · change a pickup order to delivery · record payments · cancel orders and **send refunds** · print receipts · send sales reports |
+| **Customer** | Shop and check out: deliver to home, a saved place or somewhere else (with the distance from the store on the map), an exact spot and a different receiver · pay cash, full GCash, or a **GCash downpayment** with the receipt screenshot · **pay a balance** later · cancel (with the refund shown first) · **Transactions** page · **Settings** (details, password, saved addresses, email updates) |
+| **Driver** | Go on or off duty · stops with the receiver, exact spot and amount to collect · turn-by-turn navigation · proof-of-delivery photo · delivery history |
 
-Every role also has light and dark mode, alert sounds, notifications, and printable receipts marked **"Not an official receipt"**. The system can be **installed as an app** on a computer or phone (see [Install it as an app](#install-it-as-an-app-optional)).
+Every role also has **Settings** in the sidebar (account, password, appearance, alert sounds), notifications in the bell for every step (new orders, payments to check or approved or rejected, balances due, refunds), and printable receipts marked **"Not an official receipt"**. The system can be **installed as an app** on a computer or phone (see [Install it as an app](#install-it-as-an-app-optional)).
 
 ---
 
@@ -164,7 +164,7 @@ These accounts are created by `npm run setup`. Sign in with the **email** (the u
 
 The database also starts with **sample products, sales, and orders** so you can try every feature (`driver1` already has one delivery on the road). To add your real staff and drivers, log in as **admin** and open **Users**. Customers create their own accounts from the **Sign up** page; the admin approves them under **Users → To approve**.
 
-> **Before using the system for real,** change these passwords or delete the sample accounts in **Users**, and set the store's location in **Orders → Delivery map → Set store location** so delivery fees are measured from the right place.
+> **Before using the system for real,** change these passwords or delete the sample accounts in **Users**, then log in as admin and open **Settings**: fill in the store details and contact number, the store's map pin (delivery fees are measured from it), the GCash number and QR code customers pay to, and review the payment and refund rules.
 
 **Setup is complete.**
 
@@ -265,7 +265,7 @@ npm run build
 npm start
 ```
 
-`npx prisma migrate deploy` updates the database tables. It keeps all your existing data.
+`npx prisma migrate deploy` updates the database tables. It keeps all your existing data. (The update that added payments and refunds also turns each order's past payments into payment records, and GCash payments that were never verified on open orders go to staff as "receipts to check".)
 
 > Stop the system first (Ctrl + C in its Command Prompt window) before running these commands, or `npm run build` fails with an `EPERM` error. If you installed the app, close and reopen it after updating.
 
@@ -341,6 +341,10 @@ The screens read and save data through the files in `app/api/`. Many of these ar
 | `subcategories/` | Admin and Staff | Subcategories inside each category |
 | `stock-adjustments/`, `inventory/` | Admin and Staff | Stock corrections and the reorder planner |
 | `notifications/`, `nav-counts/` | Everyone | The bell's notifications and the sidebar's red counters |
+| `settings/` | Everyone reads the public ones; Admin changes them | Store settings (rules live in `lib/settings-schema.ts`) |
+| `payments/` | Customer pays; Staff check, record and refund | Payments and refunds for orders, and receipt screenshot uploads (`payments/proof/`, private) |
+| `orders/cancel/` | Customer and Staff | Cancels an order: items back in stock, refund opened per the policy |
+| `account/password/`, `account/addresses/` | Everyone / Customer | Change password; saved delivery addresses |
 | `account/` | Everyone | Your own details and saved delivery location |
 | `uploads/` | Everyone | Serves uploaded images |
 | `storefront/` | Public (no login) | Products shown on the home page |
@@ -351,7 +355,10 @@ The screens read and save data through the files in `app/api/`. Many of these ar
 |---|---|
 | `components/ui/` | Buttons, pop-ups, alerts, tiles, search box, and other pieces used by every role |
 | `components/layout/` | Floating sidebar, top bar (settings, notifications), and page frame used by every role |
-| `components/orders/` | New order, driver picker, change to delivery, order status, delivery settings |
+| `components/orders/` | New order, driver picker, change to delivery, cancel (with refund preview), order status, delivery settings |
+| `components/payments/` | GCash payment form, payment history, check a payment, send a refund, pay a balance |
+| `components/settings/` | The Settings page sections for every role, and the admin's store settings |
+| `components/shop/CartCheckout.tsx` | The customer's cart and checkout |
 | `components/receipts/` | The receipt (on screen and printed), marked "Not an official receipt" |
 | `components/catalog/`, `components/shop/` | Product cards and filters for the Products page and the shop |
 | `components/inventory/` | Reorder planner and stock changes |

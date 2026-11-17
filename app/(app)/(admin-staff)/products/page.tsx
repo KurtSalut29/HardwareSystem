@@ -385,7 +385,7 @@ export default function ProductsPage() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         title="Delete Product?"
-        body={<>Are you sure you want to delete <span className="font-medium text-ink">{deleteTarget?.name}</span>?</>}
+        body={<>Delete <span className="font-medium text-ink">{deleteTarget?.name}</span> from the catalogue? A product that was ever ordered or sold can&apos;t be deleted (its sales records need it) — set its stock to 0 instead so customers see it as out of stock.</>}
         confirmLabel="Yes, Delete"
       />
 

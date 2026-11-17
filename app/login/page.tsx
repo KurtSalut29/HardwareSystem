@@ -12,7 +12,7 @@ import {
 import { STORE_NAME } from "@/lib/brand";
 import LocationPicker, { type PickedLocation } from "@/components/LocationPicker";
 import {
-  SUFFIXES, PASSWORD_RULES, PHONE_HINT, cleanName, fullName, nameProblem, normalizeEmail, normalizePhone, passwordProblem,
+  SUFFIXES, PASSWORD_RULES, PHONE_HINT, limitPhoneInput, cleanName, fullName, nameProblem, normalizeEmail, normalizePhone, passwordProblem,
 } from "@/lib/validation";
 
 type Mode = "signin" | "signup";
@@ -223,7 +223,10 @@ function AuthPage() {
   const [siError, setSiError] = useState("");
   // Signed in with the right password, but the account isn't approved yet.
   const [siWaiting, setSiWaiting] = useState("");
-  const [siSuccess, setSiSuccess] = useState(() => (searchParams.get("registered") === "1" ? "Account created! You can now sign in." : ""));
+  const [siSuccess, setSiSuccess] = useState(() => (
+    searchParams.get("registered") === "1" ? "Account created! You can now sign in."
+      : searchParams.get("expired") === "1" ? "Your session ended for your security. Sign in again to continue where you left off."
+      : ""));
   const [siLoading, setSiLoading] = useState(false);
 
   // Sign up state
@@ -234,7 +237,7 @@ function AuthPage() {
   const [suError, setSuError] = useState("");
   const [suLoading, setSuLoading] = useState(false);
   // After registering: which email we wrote to, and whether the email went out.
-  const [suDone, setSuDone] = useState<{ email: string; emailSent: boolean } | null>(null);
+  const [suDone, setSuDone] = useState<{ email: string; emailSent: boolean; approved: boolean } | null>(null);
   const setSu = (k: keyof SignupForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setSuForm((p) => ({ ...p, [k]: e.target.value }));
 
   useEffect(() => {
@@ -320,7 +323,7 @@ function AuthPage() {
       setSuError(data.error || "Registration failed. Please try again.");
       return;
     }
-    setSuDone({ email: data.email, emailSent: Boolean(data.emailSent) });
+    setSuDone({ email: data.email, emailSent: Boolean(data.emailSent), approved: Boolean(data.approved) });
     setSuForm(EMPTY_SIGNUP); setSuLocation(null); setSuStep(0);
   }
 
@@ -524,11 +527,11 @@ function AuthPage() {
                       <span className="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "var(--good-soft)", color: "var(--good)" }}>
                         <MailCheck size={28} />
                       </span>
-                      <h2 className="mt-4 font-display text-xl font-extrabold" style={{ color: "var(--text-primary)" }}>Registration received</h2>
+                      <h2 className="mt-4 font-display text-xl font-extrabold" style={{ color: "var(--text-primary)" }}>{suDone.approved ? "Your account is ready" : "Registration received"}</h2>
                       <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                        The store will review your account first. {suDone.emailSent
+                        {suDone.approved ? <>Sign in with <b style={{ color: "var(--text-primary)" }}>{suDone.email}</b> and the password you chose to start ordering.</> : <>The store will review your account first. {suDone.emailSent
                           ? <>We sent a confirmation to <b style={{ color: "var(--text-primary)" }}>{suDone.email}</b>, and we&apos;ll email you again once it&apos;s approved.</>
-                          : <>Once it&apos;s approved, you can sign in with <b style={{ color: "var(--text-primary)" }}>{suDone.email}</b>.</>}
+                          : <>Once it&apos;s approved, you can sign in with <b style={{ color: "var(--text-primary)" }}>{suDone.email}</b>.</>}</>}
                       </p>
                       <button type="button" onClick={() => { setSiEmail(suDone.email); setSuDone(null); switchMode("signin"); }}
                         className={`${PRIMARY_BUTTON} mt-6`} style={PRIMARY_BUTTON_STYLE}>
@@ -569,8 +572,9 @@ function AuthPage() {
                     {suStep === 1 && (
                       <div className="space-y-5 animate-rise-in">
                         <div className="grid sm:grid-cols-2 gap-5 sm:gap-3">
-                          <Field id="su-contact" label="Mobile number" icon={Phone} type="tel" inputMode="numeric" autoComplete="tel" required maxLength={16}
-                            value={suForm.contact} onChange={setSu("contact")} placeholder="0917 123 4567" hint="11 digits, starts with 09." />
+                          <Field id="su-contact" label="Mobile number" icon={Phone} type="tel" inputMode="numeric" autoComplete="tel" required maxLength={13}
+                            value={suForm.contact} onChange={(e) => setSuForm((p) => ({ ...p, contact: limitPhoneInput(e.target.value) }))}
+                            placeholder="09171234567" hint={`11 digits, starts with 09 · ${suForm.contact.replace(/\D/g, "").length}/11`} />
                           <Field id="su-email" label="Gmail address" icon={Mail} type="email" autoComplete="email" required maxLength={120}
                             value={suForm.email} onChange={setSu("email")} placeholder="juan.delacruz@gmail.com" hint="You'll sign in with this." />
                         </div>

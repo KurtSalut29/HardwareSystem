@@ -16,6 +16,15 @@ export function normalizePhone(input: unknown): string | null {
 
 export const PHONE_HINT = "11 digits starting with 09, e.g. 0917 123 4567";
 
+/**
+ * For mobile-number inputs, applied on every keystroke: numbers only, and no
+ * more than 11 digits (or "+63" and 10 digits), so a longer number can't be typed.
+ */
+export function limitPhoneInput(value: string): string {
+  const t = value.replace(/[^\d+]/g, "").replace(/(?!^)\+/g, "");
+  return t.startsWith("+") ? t.slice(0, 13) : t.slice(0, 11);
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export function normalizeEmail(input: unknown): string | null {

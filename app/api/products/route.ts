@@ -106,6 +106,6 @@ export async function DELETE(req: NextRequest) {
     await prisma.product.delete({ where: { id } });
     return NextResponse.json({ message: "Product deleted" });
   } catch {
-    return NextResponse.json({ error: "Cannot delete product with existing orders or transactions" }, { status: 400 });
+    return NextResponse.json({ error: "This product has been ordered or sold, so it can't be deleted (the sales records need it). Set its stock to 0 to stop selling it." }, { status: 400 });
   }
 }

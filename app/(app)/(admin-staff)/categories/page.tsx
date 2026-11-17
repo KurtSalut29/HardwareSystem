@@ -109,7 +109,7 @@ export default function CategoriesPage() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         title="Delete this category?"
-        body={<>Are you sure you want to delete <span className="font-medium text-ink">{deleteTarget?.name}</span>?</>}
+        body={<>Delete <span className="font-medium text-ink">{deleteTarget?.name}</span>? This only works when no products are in it — move or delete its products first. It can&apos;t be undone.</>}
         confirmLabel="Yes, delete"
       />
 

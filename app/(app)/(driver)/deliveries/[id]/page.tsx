@@ -27,6 +27,10 @@ type Order = {
   customerName?: string | null;
   customerContact?: string | null;
   amountPaid?: number;
+  recipientName?: string | null;
+  recipientContact?: string | null;
+  deliveryNotes?: string | null;
+  payments?: { amount: number }[];
   items: OItem[];
   deliveryAddress?: string | null;
   latitude?: number | null;
@@ -174,7 +178,7 @@ export default function DeliveryNavigationPage() {
   const collectCash = order.paymentMethod === "Cash";
   const unverifiedGcash = order.paymentMethod === "GCash" && !order.paymentVerified;
   // Still owed at the door: the total less any downpayment or GCash transfer.
-  const due = Math.max(0, Math.round((order.totalAmount - (order.amountPaid ?? 0)) * 100) / 100);
+  const due = Math.max(0, Math.round((order.totalAmount - (order.amountPaid ?? 0) - (order.payments ?? []).reduce((t, p) => t + p.amount, 0)) * 100) / 100);
   const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
@@ -207,6 +211,8 @@ export default function DeliveryNavigationPage() {
           <p className="mt-1 flex items-start gap-1.5 text-[13.5px] opacity-90">
             <MapPin className="mt-0.5 size-4 shrink-0" /> {order.deliveryAddress || "No address recorded"}
           </p>
+          {order.deliveryNotes && <p className="mt-1 text-[13px] opacity-90"><b>Exact spot:</b> {order.deliveryNotes}</p>}
+          {order.recipientName && <p className="mt-0.5 text-[13px] opacity-90"><b>Give it to:</b> {order.recipientName}{order.recipientContact ? ` · ${order.recipientContact}` : ""}</p>}
         </div>
 
         <div className="grid grid-cols-3 divide-x divide-line border-b border-line">
@@ -244,7 +250,7 @@ export default function DeliveryNavigationPage() {
             </ul>
           </div>
 
-          <ContactCustomer phone={customerPhone(order)} name={customerLabel(order)} orderId={order.id} />
+          <ContactCustomer phone={order.recipientContact ?? customerPhone(order)} name={order.recipientName ? `${order.recipientName} (receiver)` : customerLabel(order)} orderId={order.id} />
         </div>
       </section>
 

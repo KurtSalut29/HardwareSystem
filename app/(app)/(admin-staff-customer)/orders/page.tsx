@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { ClipboardList, ShoppingBag, UserRoundSearch, ChevronDown, ChevronUp, CheckCircle, Clock, CheckCheck, Receipt, Plus, Camera, Phone, MapPin, ChevronLeft, ChevronRight, Truck, Ban, Smartphone, ShieldCheck, ShieldAlert, Upload, Calendar as CalendarIcon, Store, Route, CreditCard, X, CalendarDays } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { ClipboardList, ShoppingBag, UserRoundSearch, ChevronDown, CheckCircle, Clock, CheckCheck, Receipt, Plus, Camera, Phone, MapPin, ChevronLeft, ChevronRight, Truck, Ban, Smartphone, ShieldCheck, ShieldAlert, Upload, Wallet, Undo2, StickyNote, UserRound, ArrowUpRight, Calendar as CalendarIcon, Store, Route, CreditCard, X, CalendarDays } from "lucide-react";
 import Image from "next/image";
 import PageHeader from "@/components/ui/PageHeader";
 import Modal from "@/components/ui/Modal";
-import ConfirmModal from "@/components/ui/ConfirmModal";
 import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
 import Pagination from "@/components/ui/Pagination";
@@ -32,6 +32,12 @@ import { driverOption, canTakeOrder } from "@/lib/driverStatus";
 import { outstanding, paymentState } from "@/lib/payment";
 import { onTodaysBoard } from "@/lib/storeDay";
 import Alert from "@/components/ui/Alert";
+import PaymentHistory, { type PaymentRow } from "@/components/payments/PaymentHistory";
+import ReviewPaymentModal from "@/components/payments/ReviewPaymentModal";
+import SendRefundModal from "@/components/payments/SendRefundModal";
+import PayBalanceModal from "@/components/payments/PayBalanceModal";
+import CancelOrderModal from "@/components/orders/CancelOrderModal";
+import { useSettings } from "@/lib/useSettings";
 
 type OItem = { id: number; quantity: number; price: number; product: { name: string; unit?: string } };
 type Order = {
@@ -59,6 +65,13 @@ type Order = {
   deliveryFee?: number;
   deliveryFeeNote?: string | null;
   transactionId?: number | null;
+  payments?: PaymentRow[];
+  recipientName?: string | null;
+  recipientContact?: string | null;
+  deliveryNotes?: string | null;
+  paymentDueAt?: string | null;
+  cancelledBy?: string | null;
+  cancelReason?: string | null;
   proofImage?: string | null;
   deliveredAt?: string | null;
 };
@@ -260,7 +273,7 @@ const TOAST_CONFIG: Record<string, { msg: string; variant: "success" | "error" |
 };
 
 type ModeFilter = "all" | "delivery" | "pickup";
-type StatusFilter = "all" | "pending" | "needs_driver" | "active" | "open" | "done";
+type StatusFilter = "all" | "pending" | "needs_driver" | "active" | "open" | "done" | "payments" | "refunds";
 
 type Driver = DriverInfo;
 
@@ -305,9 +318,16 @@ function AssignDriverSelect({ drivers, onAssign }: { drivers: Driver[]; onAssign
 
 const NEXT_BTN = "inline-flex h-9 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 text-[12.5px] font-bold transition active:scale-[0.98] lg:w-[168px]";
 
+const pendingPayments = (o: Order) => (o.payments ?? []).filter((p) => p.kind === "payment" && p.status === "pending");
+const pendingRefunds = (o: Order) => (o.payments ?? []).filter((p) => p.kind === "refund" && p.status === "pending");
+const pendingSum = (o: Order) => pendingPayments(o).reduce((t, p) => t + p.amount, 0);
+const dueDay = (d: string) => new Date(d).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric" });
+
 /** The single next action for a row — always in the same place. */
-function NextStepCell({ order, drivers, canAssign, onStatus, onAssign }: {
+function NextStepCell({ order, drivers, canAssign, onStatus, onAssign, onCheck }: {
   order: Order;
+  /** Opens the oldest GCash receipt waiting to be checked. */
+  onCheck: (o: Order) => void;
   drivers: Driver[];
   /** Only the cashier dispatches drivers; admins see the state, not the control. */
   canAssign: boolean;
@@ -316,6 +336,14 @@ function NextStepCell({ order, drivers, canAssign, onStatus, onAssign }: {
 }) {
   const isPickup = order.fulfillmentMode === "pickup";
 
+  if (pendingPayments(order).length > 0 && order.status !== "cancelled") {
+    return (
+      <button type="button" onClick={() => onCheck(order)}
+        className={`${NEXT_BTN} bg-brand text-white shadow-[0_8px_18px_-10px_rgba(30,79,216,0.8)] hover:brightness-110`}>
+        <ShieldCheck className="size-3.5" /> Check payment
+      </button>
+    );
+  }
   if (order.status === "pending") {
     return (
       <button type="button" onClick={() => onStatus(order.id, "confirmed")}
@@ -384,14 +412,24 @@ export default function OrdersPage() {
   const [showMap, setShowMap] = useState(false);
   const [showDrivers, setShowDrivers] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const params = useSearchParams();
+  const viewParam = params.get("view");
+  const fromParam = (v: string | null): StatusFilter => (v === "payments" || v === "refunds" || v === "pending" ? v : "all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => fromParam(viewParam));
+  // A notification link (e.g. "?view=payments") while already on this page switches the filter.
+  const [seenView, setSeenView] = useState(viewParam);
+  if (seenView !== viewParam) { setSeenView(viewParam); setStatusFilter(fromParam(viewParam)); }
   const [drivers, setDrivers] = useState<DriverInfo[]>([]);
   /** The driver list failed to load, so an empty list doesn't mean "no drivers". */
   const [driversError, setDriversError] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [mapFocus, setMapFocus] = useState<MapFocus | null>(null);
   const staffRef = useRef(false);
-  const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
+  const [cancelId, setCancelId] = useState<number | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<{ order: Order; payment: PaymentRow } | null>(null);
+  const [refundTarget, setRefundTarget] = useState<{ order: Order; payment: PaymentRow } | null>(null);
+  const [payTarget, setPayTarget] = useState<Order | null>(null);
+  const settings = useSettings();
   const [statusOrderId, setStatusOrderId] = useState<number | null>(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [showFeeEditor, setShowFeeEditor] = useState(false);
@@ -495,10 +533,17 @@ export default function OrdersPage() {
     notifyStatus(status);
   }
 
-  async function handleCancelConfirm() {
-    if (!cancelTarget) return;
-    await updateStatus(cancelTarget.id, "cancelled");
-    setCancelTarget(null);
+  /** Reloads every order (after a payment, refund or cancellation changed several fields). */
+  async function reloadOrders() {
+    try {
+      const res = await fetch("/api/orders");
+      if (res.ok) { const d = await res.json(); setOrders(Array.isArray(d) ? d : []); }
+    } catch { /* the list stays as it was; the next action reloads it */ }
+  }
+
+  function openFirstPayment(o: Order) {
+    const p = pendingPayments(o)[0];
+    if (p) setReviewTarget({ order: o, payment: p });
   }
 
   async function assignDriver(id: number, driverIdStr: string) {
@@ -561,16 +606,7 @@ export default function OrdersPage() {
     showToast(`Balance for order #${id} marked as settled.`);
   }
 
-  async function setPaymentVerified(id: number, verified: boolean) {
-    const res = await fetch("/api/orders", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, paymentVerified: verified }),
-    });
-    if (!res.ok) { showToast((await res.json().catch(() => ({ error: "Failed to update payment" }))).error, "error"); return; }
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, paymentVerified: verified } : o)));
-    showToast(verified ? `GCash payment for Order #${id} marked verified.` : `Order #${id} payment set back to unverified.`, verified ? "success" : "warning");
-  }
+
 
   const isStaff = role === "admin" || role === "cashier";
   // Dispatch moved to the cashier; the admin keeps confirm/cancel/payment duties.
@@ -591,6 +627,8 @@ export default function OrdersPage() {
       case "active": return o.status === "out_for_delivery" || (o.status === "confirmed" && (o.fulfillmentMode === "pickup" || !!o.driverId));
       case "open": return o.status === "pending" || o.status === "confirmed" || o.status === "out_for_delivery";
       case "done": return o.status === "delivered" || o.status === "cancelled";
+      case "payments": return pendingPayments(o).length > 0;
+      case "refunds": return pendingRefunds(o).length > 0;
       default: return true;
     }
   };
@@ -724,7 +762,7 @@ export default function OrdersPage() {
           onStatus={updateStatus}
           onAssign={assignDriver}
           onSettle={settleBalance}
-          onCancel={() => { setCancelTarget(statusOrder); setStatusOrderId(null); }}
+          onCancel={() => { setCancelId(statusOrder.id); setStatusOrderId(null); }}
           onViewProof={() => { setProofView(statusOrder); setStatusOrderId(null); }}
           onAdjustFee={role === "admin" ? adjustFee : undefined}
           onRecordPayment={isStaff ? recordPayment : undefined}
@@ -790,15 +828,26 @@ export default function OrdersPage() {
         </Modal>
       )}
 
-      <ConfirmModal
-        open={!!cancelTarget}
-        onClose={() => setCancelTarget(null)}
-        onConfirm={handleCancelConfirm}
-        title="Cancel this order?"
-        body={cancelTarget ? <>Order #{cancelTarget.id} ({peso(cancelTarget.totalAmount)}) will be cancelled. This can&apos;t be undone.</> : null}
-        confirmLabel="Yes, cancel order"
-        cancelLabel="Keep order"
-      />
+      {cancelId != null && (
+        <CancelOrderModal orderId={cancelId} onClose={() => setCancelId(null)}
+          onDone={(msg) => { setCancelId(null); setExpanded(null); showToast(msg, "success"); void reloadOrders(); if (isStaff) refreshDrivers(); }} />
+      )}
+      {reviewTarget && (
+        <ReviewPaymentModal payment={reviewTarget.payment} orderId={reviewTarget.order.id} customer={customerLabel(reviewTarget.order)}
+          orderTotal={reviewTarget.order.totalAmount} alreadyPaid={reviewTarget.order.amountPaid ?? 0}
+          onClose={() => setReviewTarget(null)}
+          onDone={(msg, tone) => { setReviewTarget(null); showToast(msg, tone); void reloadOrders(); }} />
+      )}
+      {refundTarget && (
+        <SendRefundModal refund={refundTarget.payment} orderId={refundTarget.order.id} customer={customerLabel(refundTarget.order)}
+          onClose={() => setRefundTarget(null)}
+          onDone={(msg) => { setRefundTarget(null); showToast(msg, "success"); void reloadOrders(); }} />
+      )}
+      {payTarget && (
+        <PayBalanceModal orderId={payTarget.id} balance={Math.max(0, payTarget.totalAmount - (payTarget.amountPaid ?? 0))} pending={pendingSum(payTarget)}
+          dueAt={payTarget.paymentDueAt ?? null} onClose={() => setPayTarget(null)}
+          onDone={(msg) => { setPayTarget(null); showToast(msg, "success"); void reloadOrders(); }} />
+      )}
 
       {/* Date picker: a modal, so the list always keeps the full width */}
       <Modal open={showCalendar} onClose={() => setShowCalendar(false)} title="Show orders from" icon={<CalendarDays className="size-5" />} description="Pick a day to see only its orders." size="sm">
@@ -882,6 +931,63 @@ export default function OrdersPage() {
       />
 
       {/* Where each order stands: a summary that doubles as the status filter */}
+      {isStaff && (() => {
+        const toCheck = orders.filter((o) => pendingPayments(o).length > 0).length;
+        const toRefund = orders.filter((o) => pendingRefunds(o).length > 0).length;
+        if (!toCheck && !toRefund) return null;
+        return (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {toCheck > 0 && (
+              <button type="button" onClick={() => { setStatusFilter(statusFilter === "payments" ? "all" : "payments"); setPage(1); }} aria-pressed={statusFilter === "payments"}
+                className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition ${statusFilter === "payments" ? "border-brand bg-brand-soft ring-2 ring-brand/15" : "border-brand/30 bg-surface hover:border-brand"}`}>
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand text-white"><ShieldCheck className="size-5" /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[14px] font-bold text-ink">{toCheck} GCash {toCheck === 1 ? "receipt" : "receipts"} to check</span>
+                  <span className="block text-[12px] text-ink-3">Customers are waiting. Approve or reject so their orders can move.</span>
+                </span>
+                <ArrowUpRight className="size-4 shrink-0 text-brand" />
+              </button>
+            )}
+            {toRefund > 0 && (
+              <button type="button" onClick={() => { setStatusFilter(statusFilter === "refunds" ? "all" : "refunds"); setPage(1); }} aria-pressed={statusFilter === "refunds"}
+                className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition ${statusFilter === "refunds" ? "border-warn bg-warn-soft ring-2 ring-warn/15" : "border-warn/40 bg-surface hover:border-warn"}`}>
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-warn text-white"><Undo2 className="size-5" /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[14px] font-bold text-ink">{toRefund} {toRefund === 1 ? "refund" : "refunds"} to send</span>
+                  <span className="block text-[12px] text-ink-3">Cancelled orders the customer already paid for.</span>
+                </span>
+                <ArrowUpRight className="size-4 shrink-0 text-warn" />
+              </button>
+            )}
+          </div>
+        );
+      })()}
+      {!isStaff && (() => {
+        const owing = orders.filter((o) => o.status !== "cancelled" && o.status !== "delivered" && (o.totalAmount - (o.amountPaid ?? 0) - pendingSum(o)) > 0.005 && o.paymentDueAt);
+        const rejected = orders.filter((o) => o.status !== "cancelled" && (o.payments ?? []).some((p) => p.kind === "payment" && p.status === "rejected") && pendingPayments(o).length === 0 && (o.amountPaid ?? 0) === 0);
+        if (!owing.length && !rejected.length) return null;
+        return (
+          <div className="space-y-2">
+            {rejected.map((o) => (
+              <Alert key={`rej-${o.id}`} tone="bad" title={`Order #${o.id}: your payment wasn't accepted`}
+                action={<Button size="sm" onClick={() => setPayTarget(o)}>Send again</Button>}>
+                {(o.payments ?? []).filter((p) => p.status === "rejected").slice(-1)[0]?.note ?? "The store couldn't match your GCash payment."}
+              </Alert>
+            ))}
+            {owing.map((o) => {
+              const late = new Date(o.paymentDueAt!) < new Date();
+              return (
+                <Alert key={`owe-${o.id}`} tone={late ? "bad" : "warn"} title={`Order #${o.id}: ${peso(o.totalAmount - (o.amountPaid ?? 0) - pendingSum(o))} left to pay`}
+                  action={<Button size="sm" onClick={() => setPayTarget(o)}>Pay balance</Button>}>
+                  {late ? `It was due ${dueDay(o.paymentDueAt!)}. Please pay now, or call the store.` : `Due ${dueDay(o.paymentDueAt!)}.`}
+                  {settings.allowBalanceOnDelivery ? ` You can also pay it in cash ${o.fulfillmentMode === "pickup" ? "at pickup" : "on delivery"}.` : ""}
+                </Alert>
+              );
+            })}
+          </div>
+        );
+      })()}
+
       <FilterTiles tiles={TILES} value={statusFilter} onChange={(k) => { setStatusFilter(k); setPage(1); }}
         label="Filter orders by status" loading={loading} cols={isStaff ? (TILES.length === 5 ? 5 : 4) : 3} />
 
@@ -1017,16 +1123,18 @@ export default function OrdersPage() {
               const pay = paymentState(o);
               const pin = pins.find((p) => p.id === o.id);
               const liveDriver = o.driverId ? drivers.find((x) => x.id === o.driverId) : undefined;
-              const unverified = o.paymentMethod === "GCash" && !o.paymentVerified && o.status !== "cancelled";
+              const toCheck = pendingPayments(o).length > 0 && o.status !== "cancelled";
+              const toRefund = pendingRefunds(o).length > 0;
+              const owing = o.status !== "cancelled" && o.status !== "delivered" ? Math.max(0, o.totalAmount - (o.amountPaid ?? 0)) : 0;
               return (
-                <li key={o.id} className={open ? "bg-subtle" : ""}>
+                <li key={o.id}>
                   <div onClick={() => setExpanded(open ? null : o.id)}
                     className={`grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2.5 px-4 py-3.5 transition hover:bg-subtle lg:items-center lg:gap-4 ${COLS}`}>
 
                     {/* Order: number, how it reaches the customer, when */}
                     <div className="min-w-0">
                       <button type="button" onClick={(e) => { e.stopPropagation(); setExpanded(open ? null : o.id); }} aria-expanded={open}
-                        aria-label={`${open ? "Hide" : "Show"} details for order ${o.id}`}
+                        aria-label={`Open order ${o.id}`}
                         className="flex items-center gap-2 text-left">
                         <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${isPickup ? "bg-recess text-ink-3" : "bg-brand-soft text-brand"}`}
                           title={isPickup ? "Pickup at the store" : "Delivery"}>
@@ -1035,7 +1143,7 @@ export default function OrdersPage() {
                         <span className="min-w-0">
                           <span className="flex items-center gap-1 font-code text-[14px] font-bold text-ink">
                             #{o.id}
-                            {open ? <ChevronUp className="size-3.5 text-ink-4" /> : <ChevronDown className="size-3.5 text-ink-4" />}
+                            <ArrowUpRight className="size-3.5 text-ink-4" />
                           </span>
                           <span className="block truncate text-[11.5px] text-ink-4">{fmtWhen(o.dateTime)}</span>
                         </span>
@@ -1068,9 +1176,19 @@ export default function OrdersPage() {
                           className="rounded-full transition hover:ring-2 hover:ring-brand/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand">
                           <StatusPill status={o.status} pickup={isPickup} />
                         </button>
-                        {unverified && (
-                          <span title="GCash payment not checked yet" className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5 text-[11px] font-semibold text-warn">
-                            <ShieldAlert className="size-3" /> GCash to check
+                        {toCheck && (
+                          <span title="A GCash payment is waiting to be checked" className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-brand-ink">
+                            <ShieldAlert className="size-3" /> {isStaff ? "Receipt to check" : "Payment being checked"}
+                          </span>
+                        )}
+                        {toRefund && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5 text-[11px] font-semibold text-warn">
+                            <Undo2 className="size-3" /> {isStaff ? "Refund to send" : "Refund on the way"}
+                          </span>
+                        )}
+                        {!isStaff && !toCheck && owing > 0.005 && o.paymentDueAt && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5 text-[11px] font-semibold text-warn">
+                            <Wallet className="size-3" /> {peso(owing)} due {dueDay(o.paymentDueAt)}
                           </span>
                         )}
                         {isStaff && !isPickup && o.driverId && (o.status === "confirmed" || o.status === "out_for_delivery") && (
@@ -1085,7 +1203,7 @@ export default function OrdersPage() {
                     {/* The one next step — everything else lives in the opened order */}
                     <div className="col-span-2 flex items-center lg:col-span-1 lg:col-start-5 lg:row-start-1 lg:justify-end" onClick={(e) => e.stopPropagation()}>
                       {isStaff ? (
-                        <NextStepCell order={o} drivers={drivers} canAssign={canAssign} onStatus={updateStatus} onAssign={assignDriver} />
+                        <NextStepCell order={o} drivers={drivers} canAssign={canAssign} onStatus={updateStatus} onAssign={assignDriver} onCheck={openFirstPayment} />
                       ) : (
                         <button type="button" onClick={() => setStatusOrderId(o.id)}
                           className="ml-auto inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-[12.5px] font-semibold text-brand transition hover:bg-brand-soft">
@@ -1095,9 +1213,45 @@ export default function OrdersPage() {
                     </div>
                   </div>
 
-                  {/* Opened order: the receipt, getting it there, and the money */}
+                  {/* Opened order: a modal with the items, getting it there, and the money */}
                   {open && (
-                    <div className="grid gap-3 px-4 pb-4 md:grid-cols-2 xl:grid-cols-3">
+                    <Modal open onClose={() => setExpanded(null)} size="xl" icon={isPickup ? <Store className="size-5" /> : <Truck className="size-5" />}
+                      title={`Order #${o.id}`}
+                      description={`${isStaff ? `${customerLabel(o)} · ` : ""}${statusLabel(o.status, isPickup)} · placed ${fmtWhen(o.dateTime)}`}
+                      footer={
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button type="button" onClick={() => setStatusOrderId(o.id)} className={DETAIL_BTN}>
+                            <Clock className="size-3.5" /> Order progress
+                          </button>
+                          {(o.status === "confirmed" || o.status === "delivered" || o.status === "out_for_delivery") && (
+                            <button type="button" onClick={() => setReceipt(o)} className={DETAIL_BTN}>
+                              <Receipt className="size-3.5" /> Receipt
+                            </button>
+                          )}
+                          {isStaff && isPickup && (o.status === "pending" || o.status === "confirmed") && !o.transactionId && (
+                            <button type="button" onClick={() => setSwitchOrder(o)} className={DETAIL_BTN}>
+                              <Truck className="size-3.5" /> Change to delivery
+                            </button>
+                          )}
+                          {isStaff && !isPickup && o.status !== "delivered" && o.status !== "cancelled" && (
+                            <button type="button" onClick={() => setLocationOrder(o)} className={DETAIL_BTN}>
+                              <MapPin className="size-3.5" /> {o.latitude ? "Change delivery pin" : "Pin delivery location"}
+                            </button>
+                          )}
+                          {canCancelOrder(o) && (
+                            <button type="button" onClick={() => setCancelId(o.id)}
+                              className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[12.5px] font-semibold text-bad transition hover:bg-bad-soft">
+                              <Ban className="size-3.5" /> Cancel order
+                            </button>
+                          )}
+                        </div>
+                      }>
+                    {o.status === "cancelled" && (
+                      <div className="mb-3"><Alert tone="bad" compact title={o.cancelledBy === "store" ? "Cancelled by the store" : "Cancelled"}>
+                        {o.cancelReason ?? "This order was cancelled."} The items went back on the shelf.
+                      </Alert></div>
+                    )}
+                    <div className="grid gap-3 md:grid-cols-2">
                       <DetailBlock title="Items" icon={<Receipt className="size-3.5" />}>
                         <ul className="space-y-1.5">
                           {o.items.map((i) => (
@@ -1135,6 +1289,15 @@ export default function OrdersPage() {
                               <MapPin className="mt-0.5 size-3.5 shrink-0 text-ink-4" />
                               <span>{o.deliveryAddress || <span className="text-ink-4">No address pinned yet</span>}</span>
                             </p>
+                            {o.deliveryNotes && (
+                              <p className="flex items-start gap-1.5 rounded-lg bg-subtle px-2 py-1.5"><StickyNote className="mt-0.5 size-3.5 shrink-0 text-ink-4" /> <span><b className="text-ink">Exact spot:</b> {o.deliveryNotes}</span></p>
+                            )}
+                            {o.recipientName && (
+                              <p className="flex flex-wrap items-center gap-1.5">
+                                <UserRound className="size-3.5 text-ink-4" /> Receiver: <b className="text-ink">{o.recipientName}</b>
+                                {o.recipientContact && <a href={`tel:${o.recipientContact}`} className="num font-semibold text-brand hover:underline">{o.recipientContact}</a>}
+                              </p>
+                            )}
                             {pin?.distanceLabel && (
                               <p className="flex flex-wrap gap-x-3 text-ink-3">
                                 <span className="inline-flex items-center gap-1"><Route className="size-3.5" /> {pin.distanceLabel} from the store</span>
@@ -1185,54 +1348,47 @@ export default function OrdersPage() {
                         )}
                       </DetailBlock>
 
+                      <div className="md:col-span-2">
                       <DetailBlock title="Payment" icon={<CreditCard className="size-3.5" />}>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-ink-3">{o.paymentMethod ?? "—"}</span>
-                          {o.status !== "cancelled" && (
-                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                              pay === "paid" ? "bg-good-soft text-good" : pay === "partial" ? "bg-warn-soft text-warn" : "bg-recess text-ink-3"}`}>
-                              {pay === "paid" ? "Paid in full" : pay === "partial" ? `Paid ${peso(o.amountPaid ?? 0)}` : "Not paid yet"}
-                            </span>
-                          )}
-                        </div>
-                        {o.status !== "cancelled" && pay !== "paid" && (
-                          <p className="flex justify-between text-ink-3">Left to collect <span className="num font-semibold text-ink">{peso(outstanding(o))}</span></p>
-                        )}
-                        {o.paymentMethod === "GCash" && (
-                          <div className="space-y-1.5 rounded-lg bg-subtle p-2.5 text-[12px]">
-                            <p className="flex justify-between gap-2"><span className="inline-flex items-center gap-1 text-ink-3"><Smartphone className="size-3.5" /> From</span><span className="num font-semibold text-ink">{o.gcashNumber ?? "—"}</span></p>
-                            <p className="flex justify-between gap-2"><span className="text-ink-3">Ref. no.</span><span className="num font-semibold text-ink">{o.gcashReference ?? "—"}</span></p>
-                            <p className={`inline-flex items-center gap-1 font-semibold ${o.paymentVerified ? "text-good" : "text-warn"}`}>
-                              {o.paymentVerified ? <ShieldCheck className="size-3.5" /> : <ShieldAlert className="size-3.5" />}
-                              {o.paymentVerified ? "Payment verified" : "Not checked in GCash yet"}
-                            </p>
-                          </div>
-                        )}
-                        {isStaff && (
-                          <div className="flex flex-wrap gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
-                            {o.paymentMethod === "GCash" && (
-                              <button type="button" onClick={() => setPaymentVerified(o.id, !o.paymentVerified)}
-                                className={`h-8 rounded-lg px-3 text-[12px] font-semibold transition ${o.paymentVerified ? "bg-recess text-ink-3 hover:text-ink" : "border border-good/40 bg-good-soft text-good hover:border-good"}`}>
-                                {o.paymentVerified ? "Undo verification" : "Mark as received"}
-                              </button>
-                            )}
-                            {o.paymentMethod === "GCash" && o.status !== "cancelled" && outstanding(o) > 0.005 && (
-                              <button type="button" onClick={() => settleBalance(o.id, o.totalAmount)}
-                                className="h-8 rounded-lg border border-good/40 bg-good-soft px-3 text-[12px] font-semibold text-good transition hover:border-good">
-                                Balance collected
-                              </button>
-                            )}
-                            <button type="button" onClick={() => setStatusOrderId(o.id)}
-                              className="h-8 rounded-lg border border-line px-3 text-[12px] font-semibold text-ink-2 transition hover:border-brand/40 hover:bg-brand-soft hover:text-brand-ink">
-                              Record payment
-                            </button>
-                          </div>
-                        )}
+                        {(() => {
+                          const paid = o.amountPaid ?? 0;
+                          const checking = pendingSum(o);
+                          const left = Math.max(0, o.totalAmount - paid);
+                          const canPay = !isStaff && o.status !== "cancelled" && o.status !== "delivered" && left - checking > 0.005 && settings.gcashEnabled;
+                          return (
+                            <>
+                              <dl className="space-y-1">
+                                <div className="flex justify-between"><dt className="text-ink-3">Method</dt><dd className="font-semibold text-ink">{o.paymentMethod === "Cash" ? (isPickup ? "Cash at pickup" : "Cash on delivery") : o.paymentMethod}</dd></div>
+                                <div className="flex justify-between"><dt className="text-ink-3">Paid (approved)</dt><dd className="num font-semibold text-good">{peso(paid)}</dd></div>
+                                {checking > 0 && <div className="flex justify-between"><dt className="text-ink-3">Being checked</dt><dd className="num font-semibold text-brand-ink">{peso(checking)}</dd></div>}
+                                {o.status !== "cancelled" && (
+                                  <div className="flex justify-between border-t border-line pt-1"><dt className="font-semibold text-ink">{left > 0.005 ? "Balance" : "Balance"}</dt>
+                                    <dd className={`num font-bold ${left > 0.005 ? "text-warn" : "text-good"}`}>{left > 0.005 ? peso(left) : "Paid in full"}</dd></div>
+                                )}
+                                {left > 0.005 && o.paymentDueAt && o.status !== "cancelled" && o.status !== "delivered" && (
+                                  <p className={`text-[12px] ${new Date(o.paymentDueAt) < new Date() ? "font-semibold text-bad" : "text-ink-3"}`}>
+                                    Due {dueDay(o.paymentDueAt)}{new Date(o.paymentDueAt) < new Date() ? " — overdue" : ""}{settings.allowBalanceOnDelivery ? ` · or in cash ${isPickup ? "at pickup" : "on delivery"}` : ""}
+                                  </p>
+                                )}
+                              </dl>
+                              <PaymentHistory payments={o.payments ?? []} viewer={isStaff ? "staff" : "customer"}
+                                onReview={(p) => setReviewTarget({ order: o, payment: p })}
+                                onSendRefund={(p) => setRefundTarget({ order: o, payment: p })} />
+                              {canPay && <Button size="sm" className="w-full" icon={<Wallet className="size-4" />} onClick={() => setPayTarget(o)}>Pay balance by GCash</Button>}
+                              {isStaff && o.status !== "cancelled" && left > 0.005 && (
+                                <button type="button" onClick={() => setStatusOrderId(o.id)}
+                                  className="h-8 w-full rounded-lg border border-line px-3 text-[12px] font-semibold text-ink-2 transition hover:border-brand/40 hover:bg-brand-soft hover:text-brand-ink">
+                                  Record a payment received
+                                </button>
+                              )}
+                            </>
+                          );
+                        })()}
                         {isStaff && (
                           <label className="flex items-center gap-2 border-t border-line pt-2" onClick={(e) => e.stopPropagation()}>
                             <span className="text-ink-3">Status</span>
                             <select value={o.status}
-                              onChange={(e) => (e.target.value === "cancelled" ? setCancelTarget(o) : updateStatus(o.id, e.target.value))}
+                              onChange={(e) => (e.target.value === "cancelled" ? setCancelId(o.id) : updateStatus(o.id, e.target.value))}
                               className={`h-8 min-w-0 flex-1 cursor-pointer rounded-lg border border-line px-2 text-[12.5px] font-semibold focus:outline-none focus:ring-2 focus:ring-brand/20 ${ORDER_STATUS_STYLE[o.status]?.pill ?? ""}`}>
                               {(isPickup ? STATUSES.filter((s) => s !== "out_for_delivery") : STATUSES)
                                 .map((s) => <option key={s} value={s} className="bg-surface text-ink">{statusLabel(s, isPickup)}</option>)}
@@ -1241,34 +1397,10 @@ export default function OrdersPage() {
                         )}
                         <p className="text-[11.5px] text-ink-4">Placed {new Date(o.dateTime).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })}</p>
                       </DetailBlock>
-
-                      <div className="flex flex-wrap items-center gap-2 md:col-span-2 xl:col-span-3" onClick={(e) => e.stopPropagation()}>
-                        <button type="button" onClick={() => setStatusOrderId(o.id)} className={DETAIL_BTN}>
-                          <Clock className="size-3.5" /> Order progress
-                        </button>
-                        {(o.status === "confirmed" || o.status === "delivered" || o.status === "out_for_delivery") && (
-                          <button type="button" onClick={() => setReceipt(o)} className={DETAIL_BTN}>
-                            <Receipt className="size-3.5" /> Receipt
-                          </button>
-                        )}
-                        {isStaff && isPickup && (o.status === "pending" || o.status === "confirmed") && !o.transactionId && (
-                          <button type="button" onClick={() => setSwitchOrder(o)} className={DETAIL_BTN}>
-                            <Truck className="size-3.5" /> Change to delivery
-                          </button>
-                        )}
-                        {isStaff && !isPickup && (
-                          <button type="button" onClick={() => setLocationOrder(o)} className={DETAIL_BTN}>
-                            <MapPin className="size-3.5" /> {o.latitude ? "Change delivery pin" : "Pin delivery location"}
-                          </button>
-                        )}
-                        {canCancelOrder(o) && (
-                          <button type="button" onClick={() => setCancelTarget(o)}
-                            className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[12.5px] font-semibold text-bad transition hover:bg-bad-soft">
-                            <Ban className="size-3.5" /> Cancel order
-                          </button>
-                        )}
                       </div>
+
                     </div>
+                    </Modal>
                   )}
                 </li>
               );

@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { cleanName, fullName, nameProblem, normalizeEmail, normalizePhone, passwordProblem, PHONE_HINT, SUFFIXES } from "@/lib/validation";
 import { isWithinBiliran } from "@/lib/biliran";
 import { sendRegistrationReceived } from "@/lib/mailer";
+import { getSettings } from "@/lib/settings";
 
 /**
  * Customer self-registration. The account starts "pending": it can't sign in
@@ -62,6 +63,8 @@ export async function POST(req: NextRequest) {
   for (let n = 2; await prisma.user.findUnique({ where: { username } }); n++) username = `${display} (${n})`;
 
   const hashed = await bcrypt.hash(password, 10);
+  // The admin decides in Settings whether new customers wait for approval.
+  const { requireCustomerApproval } = await getSettings();
   await prisma.user.create({
     data: {
       username,
@@ -74,13 +77,16 @@ export async function POST(req: NextRequest) {
       middleName: middleName || null,
       lastName,
       suffix: suffix || null,
-      accountStatus: "pending",
+      accountStatus: requireCustomerApproval ? "pending" : "approved",
       defaultAddress: address,
       defaultLat: lat,
       defaultLng: lng,
     },
   });
 
+  if (!requireCustomerApproval) {
+    return NextResponse.json({ message: "Account created", email, emailSent: false, approved: true }, { status: 201 });
+  }
   const mail = await sendRegistrationReceived(email, firstName);
-  return NextResponse.json({ message: "Registration received", email, emailSent: mail.sent }, { status: 201 });
+  return NextResponse.json({ message: "Registration received", email, emailSent: mail.sent, approved: false }, { status: 201 });
 }

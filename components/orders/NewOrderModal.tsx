@@ -10,6 +10,7 @@ import { useDeliveryQuote } from "@/lib/useDeliveryQuote";
 import { PAY_NOW_OPTIONS, payNowAmount, type PayNow } from "@/lib/payment";
 import { ICON_SIZE } from "@/lib/constants/icon-size";
 import Alert from "@/components/ui/Alert";
+import { limitPhoneInput } from "@/lib/validation";
 import DriverPicker, { type DriverPick } from "@/components/orders/DriverPicker";
 
 type Product = { id: number; name: string; price: number; unit: string; stock: number; category: { name: string } | null };
@@ -60,6 +61,9 @@ export default function NewOrderModal({ onClose, onCreated }: {
   const [drivers, setDrivers] = useState<DriverPick[]>([]);
   const [driversFailed, setDriversFailed] = useState(false);
   const [driverId, setDriverId] = useState("");
+  const [rName, setRName] = useState("");
+  const [rContact, setRContact] = useState("");
+  const [spot, setSpot] = useState("");
 
   const [who, setWho] = useState<"walkin" | "account">("walkin");
   const [customerId, setCustomerId] = useState("");
@@ -130,6 +134,8 @@ export default function NewOrderModal({ onClose, onCreated }: {
     if (mode === "delivery" && delivery.loading) { setError("Still working out the delivery fee — one moment."); return; }
     if (mode === "delivery" && !quote) { setError(delivery.error ?? "Couldn't work out the delivery fee. Move the pin and try again."); return; }
     if (quote?.tooFar) { setError("That location is beyond the delivery area."); return; }
+    if (mode === "delivery" && rContact && rContact.replace(/\D/g, "").length < 11) { setError("The receiver's number should be 11 digits starting with 09."); return; }
+    if (mode === "delivery" && rContact && !rName.trim()) { setError("Add the receiver's name with their number."); return; }
     if (payOtherInvalid) { setError(`Enter an amount from ₱0 to ${peso(total)}.`); return; }
 
     setSaving(true);
@@ -141,6 +147,7 @@ export default function NewOrderModal({ onClose, onCreated }: {
         fulfillmentMode: mode,
         ...(mode === "delivery" && location ? { deliveryAddress: location.address, latitude: location.lat, longitude: location.lng } : {}),
         ...(mode === "delivery" && driverId ? { driverId: Number(driverId) } : {}),
+        ...(mode === "delivery" ? { recipientName: rName || undefined, recipientContact: rContact || undefined, deliveryNotes: spot || undefined } : {}),
         paymentMethod: payment,
         ...(payment === "GCash" ? { gcashNumber, gcashReference } : {}),
         amountPaid: paidNow ?? 0,
@@ -173,7 +180,7 @@ export default function NewOrderModal({ onClose, onCreated }: {
           {who === "walkin" ? (
             <div className="grid sm:grid-cols-2 gap-2">
               <input aria-label="Customer name" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="Customer name" maxLength={80} />
-              <input aria-label="Contact number" value={contact} onChange={(e) => setContact(e.target.value.replace(/[^\d+]/g, "").slice(0, 13))} className={inputCls} placeholder="Contact no. (09…)" inputMode="tel" />
+              <input aria-label="Contact number" value={contact} onChange={(e) => setContact(limitPhoneInput(e.target.value))} className={inputCls} placeholder="Contact no. (09…)" inputMode="tel" />
             </div>
           ) : (
             <select aria-label="Customer account" value={customerId} onChange={(e) => setCustomerId(e.target.value)} className={inputCls}>
@@ -251,6 +258,11 @@ export default function NewOrderModal({ onClose, onCreated }: {
                   <span className="font-bold text-ink num whitespace-nowrap">{quote.fee === 0 ? "Free" : peso(quote.fee)}</span>
                 </div>
               )}
+              <div className="grid gap-2 sm:grid-cols-3">
+                <input aria-label="Exact spot or landmark" value={spot} onChange={(e) => setSpot(e.target.value)} maxLength={200} className={`${inputCls} sm:col-span-3`} placeholder="Exact spot or landmark (optional), e.g. blue gate, 2nd floor" />
+                <input aria-label="Receiver's name" value={rName} onChange={(e) => setRName(e.target.value)} maxLength={80} className={inputCls} placeholder="Receiver (if not the customer)" />
+                <input aria-label="Receiver's number" inputMode="numeric" value={rContact} onChange={(e) => setRContact(limitPhoneInput(e.target.value))} maxLength={13} className={`${inputCls} sm:col-span-2`} placeholder="Receiver's number (09…)" />
+              </div>
               <DriverPicker drivers={drivers} value={driverId} onChange={setDriverId} loadFailed={driversFailed} />
             </div>
           )}
@@ -267,7 +279,7 @@ export default function NewOrderModal({ onClose, onCreated }: {
                 <input aria-label="GCash number paid from" value={gcashNumber} onChange={(e) => setGcashNumber(e.target.value.replace(/\D/g, "").slice(0, 11))} className={inputCls} placeholder="Paid from (09…)" inputMode="numeric" />
                 <input aria-label="GCash reference number" value={gcashReference} onChange={(e) => setGcashReference(e.target.value.replace(/\D/g, "").slice(0, 13))} className={inputCls} placeholder="13-digit Ref. No." inputMode="numeric" />
               </div>
-              <p className="text-[11px] text-ink-4">Leave blank if the customer hasn&apos;t sent it yet. It stays &ldquo;not verified&rdquo; until you check it.</p>
+              <p className="text-[11px] text-ink-4">Fill these in from the customer&apos;s GCash receipt once you&apos;ve seen the money arrive. What you record under &ldquo;Paid now&rdquo; counts as received right away.</p>
             </div>
           )}
           <div className="space-y-1.5">

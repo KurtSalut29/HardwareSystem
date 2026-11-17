@@ -8,16 +8,26 @@ import { STORE_NAME } from "@/lib/brand";
  * "Install app" for the Settings panel: a button where the browser supports
  * it, Add-to-Home-Screen steps on iPhone/iPad, and a note once installed.
  */
-export default function InstallAppCard({ labelClass }: { labelClass: string }) {
+export default function InstallAppCard({ labelClass, fallback = false, bare = false }: {
+  labelClass: string;
+  /** Show browser-menu steps when the browser offers no install button. */
+  fallback?: boolean;
+  /** No top border, wider padding: for use inside a settings card. */
+  bare?: boolean;
+}) {
   const state = useInstallState();
-  if (state === "unavailable") return null;
+  if (state === "unavailable" && !fallback) return null;
 
   return (
-    <div className="border-t border-line px-4 py-3.5">
+    <div className={bare ? "px-5 py-4" : "border-t border-line px-4 py-3.5"}>
       <p className={labelClass}>App</p>
       {state === "installed" ? (
         <p className="inline-flex items-center gap-1.5 rounded-lg bg-good-soft px-2.5 py-1 text-[12px] font-semibold text-good">
           <CheckCheck className="size-3.5" /> {STORE_NAME} is installed on this device
+        </p>
+      ) : state === "unavailable" ? (
+        <p className="text-[12.5px] leading-relaxed text-ink-3">
+          This browser doesn&apos;t offer an install button here. In Chrome or Edge, open the browser menu (⋮) and choose <b className="text-ink-2">Install app</b> or <b className="text-ink-2">Add to Home screen</b>. On iPhone, use Safari: <b className="text-ink-2">Share → Add to Home Screen</b>.
         </p>
       ) : state === "available" ? (
         <>

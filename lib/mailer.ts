@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import { STORE_ADDRESS, STORE_NAME } from "@/lib/brand";
+import { getSettings } from "@/lib/settings";
 
 /**
  * Email through the store's Gmail account, for account approval notices.
@@ -35,6 +35,7 @@ function getTransport() {
 
 async function send(to: string, subject: string, heading: string, paragraphs: string[], cta?: { label: string; href: string }): Promise<MailResult> {
   if (!mailReady()) return { sent: false, reason: "Email isn't set up yet (GMAIL_USER and GMAIL_APP_PASSWORD in .env)." };
+  const { storeName: STORE_NAME, storeAddress: STORE_ADDRESS } = await getSettings();
   const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
   const html = `<!doctype html><html><body style="margin:0;background:#f3f5fa;font-family:Arial,Helvetica,sans-serif;color:#1f2937">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 12px"><tr><td align="center">
@@ -73,23 +74,65 @@ function signInUrl(origin?: string) {
   return `${(process.env.APP_URL || origin || "").replace(/\/$/, "")}/login`;
 }
 
-export function sendRegistrationReceived(to: string, name: string) {
+export async function sendRegistrationReceived(to: string, name: string) {
+  const { storeName: STORE_NAME } = await getSettings();
   return send(to, `We received your registration — ${STORE_NAME}`, `Thanks for registering, ${name}!`, [
     "Your customer account is waiting for the store's approval. This keeps orders safe for everyone: the store checks each new account before it can order.",
     "We'll email you again at this address as soon as it's approved. It usually takes less than a day.",
   ]);
 }
 
-export function sendAccountApproved(to: string, name: string, origin?: string) {
+export async function sendAccountApproved(to: string, name: string, origin?: string) {
+  const { storeName: STORE_NAME } = await getSettings();
   return send(to, `Your account is approved — ${STORE_NAME}`, `You're all set, ${name}!`, [
     "The store approved your customer account. You can now sign in with this email and the password you chose, and start ordering for delivery or pickup.",
   ], { label: "Sign in", href: signInUrl(origin) });
 }
 
-export function sendAccountRejected(to: string, name: string, reason: string) {
+export async function sendAccountRejected(to: string, name: string, reason: string) {
+  const { storeName: STORE_NAME } = await getSettings();
   return send(to, `About your registration — ${STORE_NAME}`, `Hi ${name},`, [
     "We couldn't approve your customer account this time.",
     `Reason from the store: ${reason}`,
     "If you think this is a mistake, please visit or call the store.",
+  ]);
+}
+
+const pesoText = (n: number) => `PHP ${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+export async function sendTestEmail(to: string) {
+  const { storeName } = await getSettings();
+  return send(to, `Test email — ${storeName}`, "Your store email works", [
+    "This is a test from the Settings page. Customers will receive account, payment and refund emails from this address.",
+  ]);
+}
+
+/** A GCash payment the store checked and approved; says what is still owed, if anything. */
+export async function sendPaymentApproved(to: string, name: string, orderId: number, received: number, balance: number, dueText: string | null, origin?: string) {
+  const { storeName } = await getSettings();
+  return send(to, `Payment received for Order #${orderId} — ${storeName}`, `Thanks, ${name}! We received your payment.`, [
+    `We confirmed ${pesoText(received)} for Order #${orderId}.`,
+    balance > 0
+      ? `You still have a balance of ${pesoText(balance)}${dueText ? `, due ${dueText}` : ""}. You can pay it from My Orders in the app.`
+      : "Your order is now fully paid.",
+  ], { label: "View my order", href: `${(process.env.APP_URL || origin || "").replace(/\/$/, "")}/orders` });
+}
+
+/** A payment the store couldn't accept, with the reason, so the customer can send it again. */
+export async function sendPaymentRejected(to: string, name: string, orderId: number, amount: number, reason: string, origin?: string) {
+  const { storeName } = await getSettings();
+  return send(to, `We couldn't accept a payment for Order #${orderId} — ${storeName}`, `Hi ${name},`, [
+    `We couldn't accept the ${pesoText(amount)} payment you sent for Order #${orderId}.`,
+    `Reason from the store: ${reason}`,
+    "Please check your GCash receipt and send it again from My Orders in the app. Contact the store if you think this is a mistake.",
+  ], { label: "Open my order", href: `${(process.env.APP_URL || origin || "").replace(/\/$/, "")}/orders` });
+}
+
+/** The store sent a refund. */
+export async function sendRefundSent(to: string, name: string, orderId: number, amount: number, method: string, details: string) {
+  const { storeName } = await getSettings();
+  return send(to, `Your refund for Order #${orderId} — ${storeName}`, `Hi ${name}, your refund is on its way.`, [
+    `We sent ${pesoText(amount)} for cancelled Order #${orderId} by ${method}.`,
+    details,
   ]);
 }

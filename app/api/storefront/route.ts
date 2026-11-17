@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { resolveStoreName } from "@/lib/brand";
+import { getSettings } from "@/lib/settings";
 
 // Public, unauthenticated catalogue for the landing page. Deliberately a
 // separate route from /api/products (which requires a session): visitors get to
@@ -10,7 +10,7 @@ import { resolveStoreName } from "@/lib/brand";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const [categories, products, storeName] = await Promise.all([
+  const [categories, products, settings] = await Promise.all([
     prisma.category.findMany({ orderBy: { name: "asc" } }),
     prisma.product.findMany({
       orderBy: { name: "asc" },
@@ -28,15 +28,23 @@ export async function GET() {
         category: { select: { id: true, name: true } },
       },
     }),
-    prisma.setting.findUnique({ where: { key: "store_name" } }),
+    getSettings(),
   ]);
 
   return NextResponse.json({
-    storeName: resolveStoreName(storeName?.value),
+    storeName: settings.storeName,
+    store: { address: settings.storeAddress, contact: settings.storeContact, hours: settings.storeHours },
+    lowStockLevel: settings.lowStockLevel,
+    showStock: settings.publicShowStock,
     categories,
-    // Stock is exposed only as an in/out flag — browsers don't need exact
-    // on-hand quantities, and it keeps the landing page honest about
-    // availability without leaking inventory levels publicly.
-    products: products.map(({ stock, subcategory, ...p }) => ({ ...p, subcategory: subcategory?.name ?? null, inStock: stock > 0 })),
+    // The store wants shoppers to see how many are left, so the on-hand
+    // quantity is shown on each product (never below zero).
+    products: products.map(({ stock, subcategory, ...p }) => ({
+      ...p,
+      subcategory: subcategory?.name ?? null,
+      // The admin can hide exact counts (Settings → Inventory); then only in/out shows.
+      stock: settings.publicShowStock ? Math.max(0, Math.round(stock * 100) / 100) : null,
+      inStock: stock > 0,
+    })),
   });
 }
