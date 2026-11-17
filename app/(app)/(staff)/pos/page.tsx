@@ -307,8 +307,8 @@ export default function POSPage() {
             <CatalogToolbar query={search} onQuery={setSearch} sort={sort} onSort={setSort}
               sorts={["name", "category", "price_asc", "price_desc"]} placeholder="Scan or type a product, brand or code" />
 
-            <div className="-mx-4 min-w-0 space-y-2 sm:mx-0">
-              <div className="flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:flex-wrap sm:px-0" role="group" aria-label="Categories">
+            <div className="-mx-3 min-w-0 space-y-2 sm:mx-0">
+              <div className="flex gap-1.5 overflow-x-auto px-3 pb-1 [scrollbar-width:none] sm:flex-wrap sm:px-0" role="group" aria-label="Categories">
                 <button type="button" onClick={() => { setCatId(null); setSub(null); }} aria-pressed={catId === null}
                   className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition ${catId === null ? "border-brand bg-brand text-white" : "border-line bg-surface text-ink-2 hover:border-line-strong"}`}>
                   All
@@ -321,7 +321,7 @@ export default function POSPage() {
                 ))}
               </div>
               {subList.length > 0 && (
-                <div className="flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:flex-wrap sm:px-0" role="group" aria-label="Subcategories">
+                <div className="flex gap-1.5 overflow-x-auto px-3 pb-1 [scrollbar-width:none] sm:flex-wrap sm:px-0" role="group" aria-label="Subcategories">
                   {[null, ...subList].map((s) => (
                     <button key={s ?? "all"} type="button" onClick={() => setSub(s)} aria-pressed={sub === s}
                       className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition ${sub === s ? "bg-brand-soft text-brand-ink ring-1 ring-brand/30" : "text-ink-3 hover:bg-recess hover:text-ink"}`}>
@@ -375,7 +375,7 @@ export default function POSPage() {
                         <ProductThumb image={p.image} name={p.name} category={p.category?.name} subcategory={p.subcategory} className="aspect-[16/10]" />
                         <span className="flex flex-1 flex-col px-3 pb-2.5 pt-2">
                           <span className="line-clamp-2 min-h-[2.5em] text-[13px] font-semibold leading-tight text-ink">{p.name}</span>
-                          <span className="mt-1.5 flex items-baseline justify-between gap-2">
+                          <span className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
                             <span className="num font-display text-[15px] font-extrabold text-ink">{peso(p.price)}<span className="font-sans text-[11px] font-medium text-ink-4">/{p.unit}</span></span>
                             <span className={`num shrink-0 text-[11px] font-medium ${out ? "text-bad" : st === "low" ? "text-warn" : "text-ink-4"}`}>
                               {out ? "Out" : `${fmtQty(p.stock)} left`}
@@ -451,7 +451,7 @@ export default function POSPage() {
       {/* Smaller screens: a bar that opens the ticket */}
       {cart.length > 0 && !cartOpen && (
         <button type="button" onClick={() => setCartOpen(true)}
-          className="fixed inset-x-4 bottom-4 z-30 flex items-center justify-between rounded-2xl bg-brand px-5 py-3.5 text-white shadow-[0_18px_40px_-14px_rgba(18,50,127,0.7)] xl:hidden">
+          className="fixed inset-x-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 lg:bottom-4 flex items-center justify-between rounded-2xl bg-brand px-5 py-3.5 text-white shadow-[0_18px_40px_-14px_rgba(18,50,127,0.7)] xl:hidden">
           <span className="flex items-center gap-2 text-sm font-semibold"><ShoppingCart className="size-4" /> Current sale · {cart.length}</span>
           <span className="num font-display text-base font-extrabold">{peso(total)}</span>
         </button>

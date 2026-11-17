@@ -7,6 +7,7 @@ import 'leaflet/dist/leaflet.css';
 import { Search, MapPin, X, LocateFixed, Crosshair, AlertTriangle, Store } from 'lucide-react';
 import { BILIRAN_CENTER, BILIRAN_LEAFLET_BOUNDS, BILIRAN_VIEWBOX, isWithinBiliran } from '@/lib/biliran';
 import { STORE_PIN_SVG } from '@/lib/mapMarkers';
+import { useStoreDistance, useStorePin } from '@/lib/useStoreDistance';
 
 /**
  * "Use my location" keeps listening for a better GPS fix instead of taking the
@@ -77,6 +78,12 @@ type Props = {
   distance?: { km: number; minutes: number | null; source?: 'road' | 'estimate' } | null;
   /** The road the distance was measured along, as [lat, lng] points. */
   route?: [number, number][] | null;
+  /**
+   * Show the store and the road distance to the pin. On by default: when the
+   * parent doesn't pass `store`/`distance`, the map measures it itself. Off only
+   * for maps that place the store itself.
+   */
+  measure?: boolean;
 };
 
 // Flies the map to a new position whenever value changes
@@ -114,7 +121,17 @@ function MapClickHandler({ pinMode, onPick }: { pinMode: boolean; onPick: (lat: 
   return null;
 }
 
-export default function LocationPickerInner({ value, onChange, store, distance, route }: Props) {
+export default function LocationPickerInner({ value, onChange, store: storeProp, distance: distanceProp, route: routeProp, measure = true }: Props) {
+  // Measure here unless the parent already did (checkout passes its own quote).
+  const auto = measure && storeProp === undefined;
+  const autoStore = useStorePin(auto);
+  const autoDist = useStoreDistance(auto && value ? value : null);
+  const store = auto ? autoStore : storeProp;
+  const distance = auto
+    ? (autoDist.data ? { km: autoDist.data.km, minutes: autoDist.data.minutes, source: autoDist.data.source } : null)
+    : distanceProp;
+  const route = auto ? autoDist.data?.path ?? null : routeProp;
+  const measuring = auto && !!value && autoDist.loading;
   const byRoad = distance?.source !== 'estimate';
   const [query, setQuery] = useState(value?.address ?? '');
   const [suggestions, setSuggestions] = useState<SuggestionResult[]>([]);
@@ -349,6 +366,14 @@ export default function LocationPickerInner({ value, onChange, store, distance, 
         style={{ height: store ? '260px' : '220px' }}
       >
         {/* How far the pin is from the store, by road */}
+        {store && value && measuring && (
+          <div className="pointer-events-none absolute left-12 right-2 top-2 z-[500] flex justify-start">
+            <span className="inline-flex max-w-full animate-pulse items-center gap-1.5 rounded-full bg-surface/95 px-3 py-1.5 text-[12px] font-semibold text-ink-3 shadow-[0_6px_16px_-8px_rgba(16,24,64,0.5)]">
+              <Store size={13} className="shrink-0 text-brand" />
+              <span className="truncate">Measuring the road from {store.name}…</span>
+            </span>
+          </div>
+        )}
         {store && value && distance && (
           <div className="pointer-events-none absolute left-12 right-2 top-2 z-[500] flex justify-start">
             <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-surface/95 px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[0_6px_16px_-8px_rgba(16,24,64,0.5)]">
@@ -417,6 +442,15 @@ export default function LocationPickerInner({ value, onChange, store, distance, 
       {value ? (
         <div className="text-[11px] space-y-0.5">
           <p className="text-good flex items-center gap-1"><MapPin size={11} className="shrink-0" /> {value.address}</p>
+          {auto && store && distance && (
+            <p className="flex items-center gap-1 text-ink-3">
+              <Store size={11} className="shrink-0 text-brand" />
+              {byRoad
+                ? <span><b className="num text-ink">{distance.km.toFixed(1)} km</b> from {store.name} by road{distance.minutes != null ? <> · about <span className="num">{distance.minutes}</span> min drive</> : null}</span>
+                : <span>About <b className="num text-ink">{distance.km.toFixed(1)} km</b> from {store.name}{autoDist.data?.island ? ` (${autoDist.data.island} is reached by boat)` : ' (estimate — no road route found)'}</span>}
+            </p>
+          )}
+          {auto && !measuring && autoDist.error && <p className="text-warn">{autoDist.error}</p>}
           <p className="text-ink-4">
             {accuracy != null && accuracy <= ROUGH_M ? `Located within about ${fmtAccuracy(accuracy)}. ` : ''}
             Not quite right? Drag the pin onto your house.

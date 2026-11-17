@@ -24,6 +24,8 @@ const MAX_SNAP_M = 1500;
 
 /** ~10 m precision, so pins a few steps apart share one lookup. */
 const key = (p: { lat: number; lng: number }) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`;
+/** The cache key RouteDistance uses for a pin. */
+export const pinKey = key;
 
 /** A road path as [lat, lng] points, from the store's road to the drop-off's road. */
 export type RoadPath = [number, number][];

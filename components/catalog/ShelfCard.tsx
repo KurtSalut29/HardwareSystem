@@ -60,7 +60,7 @@ export default function ShelfCard({
         )}
       </div>
 
-      <div className="flex flex-1 flex-col px-3.5 pb-3.5 pt-3">
+      <div className="flex flex-1 flex-col px-3 pb-3 pt-3 min-[360px]:px-3.5 min-[360px]:pb-3.5">
         <div className="flex items-center justify-between gap-2">
           <p className="min-w-0 truncate text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-4">
             {p.brand && <span className="text-brand">{p.brand}</span>}
@@ -73,13 +73,14 @@ export default function ShelfCard({
 
         {/* The shelf tag */}
         <div className="relative mt-3 rounded-lg border border-line bg-subtle py-2 pl-3 pr-2.5 before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-r-full before:bg-brand">
-          <p className="num leading-tight">
-            <span className="font-display text-[19px] font-extrabold tracking-tight text-ink">{peso(p.price)}</span>
-            <span className="ml-0.5 text-xs font-medium text-ink-3">/{p.unit}</span>
+          {/* On the narrowest phones the unit drops under the price instead of being cut off */}
+          <p className="num flex flex-wrap items-baseline gap-x-0.5 leading-tight">
+            <span className="font-display text-[17px] font-extrabold tracking-tight text-ink min-[360px]:text-[19px]">{peso(p.price)}</span>
+            <span className="text-xs font-medium text-ink-3">/{p.unit}</span>
           </p>
-          <div className="mt-1.5 flex items-center gap-2" title={audience === "staff" ? `${qty} on hand · reorder at ${fmtQty(reorderAt)} ${p.unit}` : undefined}>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1" title={audience === "staff" ? `${qty} on hand · reorder at ${fmtQty(reorderAt)} ${p.unit}` : undefined}>
             <StockMeter stock={p.stock} reorderAt={reorderAt} state={state} className="shrink-0" />
-            <span className={`min-w-0 flex-1 truncate text-[11.5px] font-medium ${state === "out" ? "text-bad" : state === "low" ? "text-warn" : "text-ink-3"}`}>
+            <span className={`min-w-0 flex-1 text-[11.5px] font-medium leading-snug ${state === "out" ? "text-bad" : state === "low" ? "text-warn" : "text-ink-3"}`}>
               {stockText}
             </span>
           </div>

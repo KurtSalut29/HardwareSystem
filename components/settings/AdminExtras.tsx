@@ -55,7 +55,7 @@ export function StorePinCard() {
         </div>
       }>
       <div className="space-y-3 py-4">
-        {pin ? <LocationPicker value={pin} onChange={setPin} /> : <div className="h-64 animate-pulse rounded-xl bg-recess" />}
+        {pin ? <LocationPicker value={pin} onChange={setPin} measure={false} /> : <div className="h-64 animate-pulse rounded-xl bg-recess" />}
         <Alert tone="info" compact>Orders already placed keep the fee they were given. Only new orders use the new pin.</Alert>
         {error && <Alert tone="bad" compact>{error}</Alert>}
       </div>

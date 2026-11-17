@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Receipt,
-  ClipboardList, Store, LogOut, Tag, X, Truck, History, FileBarChart, PackagePlus, PanelLeftClose, PanelLeftOpen, Settings, Wallet
+  ClipboardList, Store, LogOut, Tag, X, Truck, History, FileBarChart, PackagePlus, PanelLeftClose, PanelLeftOpen, Settings, Wallet, Menu
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import ConfirmModal from "@/components/ui/ConfirmModal";
@@ -189,7 +189,83 @@ function SidebarNav({ groups, pathname, collapsed, onNavigate, counts }: { group
   );
 }
 
-export default function Sidebar({ role, username, mobileOpen, onClose }: { role: string; username: string; mobileOpen: boolean; onClose: () => void }) {
+/** The phone tab bar: the few places each role visits most, plus More for the rest. */
+const tabsByRole: Record<string, NavItem[]> = {
+  admin: [
+    { label: "Home", href: "/dashboard/admin", icon: <LayoutDashboard size={20} /> },
+    { label: "Orders", href: "/orders", icon: <ClipboardList size={20} /> },
+    { label: "Products", href: "/products", icon: <Package size={20} /> },
+    { label: "Reports", href: "/reports", icon: <FileBarChart size={20} /> },
+  ],
+  cashier: [
+    { label: "Home", href: "/dashboard/cashier", icon: <LayoutDashboard size={20} /> },
+    { label: "POS", href: "/pos", icon: <ShoppingCart size={20} /> },
+    { label: "Orders", href: "/orders", icon: <ClipboardList size={20} /> },
+    { label: "Products", href: "/products", icon: <Package size={20} /> },
+  ],
+  customer: [
+    { label: "Home", href: "/dashboard/customer", icon: <LayoutDashboard size={20} /> },
+    { label: "Shop", href: "/shop", icon: <Store size={20} /> },
+    { label: "Orders", href: "/orders", icon: <ClipboardList size={20} /> },
+    { label: "Payments", href: "/my-transactions", icon: <Wallet size={20} /> },
+  ],
+  driver: [
+    { label: "Home", href: "/dashboard/driver", icon: <LayoutDashboard size={20} /> },
+    { label: "Deliveries", href: "/deliveries", icon: <Truck size={20} /> },
+    { label: "History", href: "/deliveries/history", icon: <History size={20} /> },
+    { label: "Settings", href: "/settings", icon: <Settings size={20} /> },
+  ],
+};
+
+function MobileTabBar({ role, pathname, counts, onMore, moreOpen }: { role: string; pathname: string; counts: NavCounts; onMore: () => void; moreOpen: boolean }) {
+  const tabs = tabsByRole[role] ?? [];
+  const activeHref = tabs
+    .filter((t) => pathname === t.href || pathname.startsWith(t.href + "/"))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+  // Pages not in the bar (Settings, Users, Restocks…) light up More instead.
+  const elsewhere = !activeHref;
+  const moreBadge = Object.entries(counts).some(([href, c]) => c.count > 0 && !tabs.some((t) => t.href === href));
+
+  const cell = (on: boolean) =>
+    `relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl py-1.5 text-[10.5px] font-semibold transition active:scale-95 ${on ? "text-brand" : "text-ink-4"}`;
+
+  return (
+    <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 px-2 pb-[max(env(safe-area-inset-bottom),6px)] pt-1.5 shadow-[0_-10px_30px_-18px_rgba(16,24,64,0.35)] backdrop-blur-md lg:hidden">
+      <ul className="mx-auto flex max-w-xl items-stretch gap-1">
+        {tabs.map((t) => {
+          const on = t.href === activeHref;
+          const badge = counts[t.href]?.count ?? 0;
+          return (
+            <li key={t.href} className="flex min-w-0 flex-1">
+              <Link href={t.href} aria-current={on ? "page" : undefined} className={cell(on)}>
+                <span className={`relative grid h-7 w-12 place-items-center rounded-full transition ${on ? "bg-brand-soft" : ""}`}>
+                  {t.icon}
+                  {badge > 0 && (
+                    <span className="num absolute -right-0.5 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-bad px-1 text-[9.5px] font-bold leading-none text-white ring-2 ring-surface">
+                      {badge > 99 ? "99+" : badge}
+                    </span>
+                  )}
+                </span>
+                <span className="max-w-full truncate">{t.label}</span>
+              </Link>
+            </li>
+          );
+        })}
+        <li className="flex min-w-0 flex-1">
+          <button type="button" onClick={onMore} aria-expanded={moreOpen} className={cell(elsewhere || moreOpen)}>
+            <span className={`relative grid h-7 w-12 place-items-center rounded-full transition ${elsewhere || moreOpen ? "bg-brand-soft" : ""}`}>
+              <Menu size={20} />
+              {moreBadge && <span className="absolute right-2 top-0.5 size-2 rounded-full bg-bad ring-2 ring-surface" />}
+            </span>
+            <span>More</span>
+          </button>
+        </li>
+      </ul>
+    </nav>
+  );
+}
+
+export default function Sidebar({ role, username, mobileOpen, onClose, onOpen }: { role: string; username: string; mobileOpen: boolean; onClose: () => void; onOpen: () => void }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileVisible, setMobileVisible] = useState(mobileOpen);
@@ -282,6 +358,9 @@ export default function Sidebar({ role, username, mobileOpen, onClose }: { role:
           </div>
         </div>
       )}
+
+      {/* Phones and tablets: an app-style tab bar */}
+      <MobileTabBar role={role} pathname={pathname} counts={counts} moreOpen={mobileOpen} onMore={mobileOpen ? onClose : onOpen} />
 
       <ConfirmModal
         open={confirmOpen}

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/auth";
-import { haversineKm, estimateMinutes, formatDistance, formatDuration } from "@/lib/distance";
+import { estimateMinutes, formatDistance, formatDuration } from "@/lib/distance";
+import { pinKey, roadDistance } from "@/lib/deliveryQuote";
+import { estimateRoadKm } from "@/lib/deliveryFee";
+import { getDeliverySettings } from "@/lib/deliverySettings";
 import { OPEN_STATUSES, startOfStoreDay } from "@/lib/storeDay";
 
 async function getPayload(req: NextRequest) {
@@ -58,13 +61,32 @@ export async function GET(req: NextRequest) {
     },
   });
 
+  // Road distance from the store to each drop-off: the saved one (the same
+  // number checkout priced the order with), else measured now for a few open
+  // orders per request, else the straight-line estimate × road factor.
+  const store = { lat: storeLat, lng: storeLng };
+  const settings = await getDeliverySettings();
+  const storeKey = pinKey(store);
+  const toKeys = [...new Set(orders.map((o) => pinKey({ lat: o.latitude!, lng: o.longitude! })))];
+  const saved = await prisma.routeDistance.findMany({ where: { fromKey: storeKey, toKey: { in: toKeys } } }).catch(() => []);
+  const road = new Map(saved.map((r) => [r.toKey, { km: r.km, minutes: r.minutes }]));
+  const missing = orders.filter((o) => !["delivered", "cancelled"].includes(o.status) && !road.has(pinKey({ lat: o.latitude!, lng: o.longitude! }))).slice(0, 4);
+  await Promise.all(missing.map(async (o) => {
+    const to = { lat: o.latitude!, lng: o.longitude! };
+    const r = await roadDistance(store, to);
+    if (r) road.set(pinKey(to), { km: r.km, minutes: r.minutes });
+  }));
+
   const result = orders.map((o) => {
-    const distKm = haversineKm(storeLat, storeLng, o.latitude!, o.longitude!);
-    const minutes = estimateMinutes(distKm);
+    const to = { lat: o.latitude!, lng: o.longitude! };
+    const r = road.get(pinKey(to));
+    const km = r ? r.km : estimateRoadKm(settings, store, to);
+    const minutes = r?.minutes ?? estimateMinutes(km);
     return {
       ...o,
-      distanceKm: parseFloat(distKm.toFixed(2)),
-      distanceLabel: formatDistance(distKm),
+      distanceKm: parseFloat(km.toFixed(2)),
+      distanceSource: r ? "road" : "estimate",
+      distanceLabel: r ? `${formatDistance(km)} by road` : `~${formatDistance(km)}`,
       durationLabel: formatDuration(minutes),
     };
   });

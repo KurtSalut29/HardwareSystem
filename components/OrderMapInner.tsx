@@ -2,7 +2,7 @@
 
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, Tooltip, useMap } from 'react-leaflet';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { BILIRAN_CENTER, BILIRAN_LEAFLET_BOUNDS } from '@/lib/biliran';
@@ -63,7 +63,7 @@ const driverIcon = L.divIcon({
 
 const isFinished = (status: string) => status === 'delivered' || status === 'cancelled';
 
-function orderPopup(pin: OrderPin) {
+function orderPopup(pin: OrderPin, storeName: string) {
   return (
     <div className="text-sm space-y-1 min-w-[160px]">
       <p><strong>Order #{pin.id}</strong></p>
@@ -76,7 +76,7 @@ function orderPopup(pin: OrderPin) {
       {pin.customerUsername && <p className="text-xs text-ink-3 flex items-center gap-1"><User size={12} className="shrink-0" /> {pin.customerUsername}</p>}
       {pin.distanceLabel && (
         <div className="mt-1 pt-1 border-t border-line text-xs text-ink-2 space-y-0.5">
-          <p className="flex items-center gap-1"><Route size={12} className="shrink-0" /> {pin.distanceLabel} from store</p>
+          <p className="flex items-center gap-1"><Route size={12} className="shrink-0" /> {pin.distanceLabel} from {storeName}</p>
           <p className="flex items-center gap-1"><Clock size={12} className="shrink-0" /> {pin.durationLabel} travel time</p>
         </div>
       )}
@@ -284,13 +284,16 @@ export default function OrderMapInner({
           radius={5}
           pathOptions={{ color: 'white', weight: 1.5, fillColor: STATUS_COLORS[pin.status] ?? STATUS_COLORS.confirmed, fillOpacity: 0.9 }}
         >
-          <Popup>{orderPopup(pin)}</Popup>
+          {pin.distanceLabel && <Tooltip direction="top" opacity={1}>#{pin.id} · {pin.distanceLabel} from {storeName}</Tooltip>}
+          <Popup>{orderPopup(pin, storeName)}</Popup>
         </CircleMarker>
       ))}
       {/* Active orders are full pins, drawn on top. */}
       {pins.filter((pin) => !isFinished(pin.status)).map((pin) => (
         <Marker key={pin.id} position={[pin.latitude, pin.longitude]} icon={createPinIcon(pin.status)} zIndexOffset={500}>
-          <Popup>{orderPopup(pin)}</Popup>
+          {/* Hover shows how far it is; tap for the full details */}
+          {pin.distanceLabel && <Tooltip direction="top" offset={[0, -34]} opacity={1}>#{pin.id} · {pin.distanceLabel} from {storeName}</Tooltip>}
+          <Popup>{orderPopup(pin, storeName)}</Popup>
         </Marker>
       ))}
       {pins

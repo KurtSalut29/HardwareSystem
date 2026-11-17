@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useDriverPref } from "@/lib/driverPrefs";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -97,6 +98,22 @@ export default function DeliveryNavigationPage() {
     );
     return () => { if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current); };
   }, []);
+
+  // Keep the screen on while navigating, if the driver wants it (Settings → Driving).
+  // The browser drops the lock when the tab is hidden, so take it again on return.
+  const keepAwake = useDriverPref("keepAwake");
+  useEffect(() => {
+    if (!keepAwake || !("wakeLock" in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    let live = true;
+    const take = () => {
+      if (document.visibilityState !== "visible") return;
+      navigator.wakeLock.request("screen").then((l) => { if (live) lock = l; else void l.release(); }).catch(() => {});
+    };
+    take();
+    document.addEventListener("visibilitychange", take);
+    return () => { live = false; document.removeEventListener("visibilitychange", take); void lock?.release().catch(() => {}); };
+  }, [keepAwake]);
 
   // Keep the store's live tracking fed while this screen is open
   useEffect(() => {

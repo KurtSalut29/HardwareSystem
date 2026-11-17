@@ -11,6 +11,7 @@ import Alert from "@/components/ui/Alert";
 import AccountSection from "@/components/settings/AccountSection";
 import PreferencesSection from "@/components/settings/PreferencesSection";
 import AddressesSection from "@/components/settings/AddressesSection";
+import DrivingSection from "@/components/settings/DrivingSection";
 import StoreSettingsForm from "@/components/settings/StoreSettingsForm";
 import { DeliveryFeesCard, StorePinCard, TestEmailCard } from "@/components/settings/AdminExtras";
 
@@ -21,6 +22,7 @@ const PERSONAL: Tab[] = [
   { key: "preferences", label: "Preferences", icon: SlidersHorizontal, hint: "Appearance, alerts, app" },
 ];
 const CUSTOMER_EXTRA: Tab[] = [{ key: "addresses", label: "Addresses", icon: MapPin, hint: "Where you have orders delivered" }];
+const DRIVER_EXTRA: Tab[] = [{ key: "driving", label: "Driving", icon: Truck, hint: "Duty, location sharing, the store" }];
 const STORE: Tab[] = [
   { key: "store", label: "Store details", icon: Store, hint: "Name, address, hours, map pin" },
   { key: "gcash", label: "GCash", icon: Smartphone, hint: "Account, number, QR code" },
@@ -37,10 +39,12 @@ export default function SettingsClient({ role }: { role: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const isAdmin = role === "admin";
-  const personal = role === "customer" ? [PERSONAL[0], ...CUSTOMER_EXTRA, PERSONAL[1]] : PERSONAL;
+  const personal = role === "customer" ? [PERSONAL[0], ...CUSTOMER_EXTRA, PERSONAL[1]]
+    : role === "driver" ? [...DRIVER_EXTRA, ...PERSONAL]
+    : PERSONAL;
   const all = isAdmin ? [...personal, ...STORE] : personal;
   const requested = params.get("tab");
-  const tab = all.find((t) => t.key === requested)?.key ?? (isAdmin ? "store" : "account");
+  const tab = all.find((t) => t.key === requested)?.key ?? (isAdmin ? "store" : role === "driver" ? "driving" : "account");
 
   const go = (key: string) => router.replace(`${pathname}?tab=${key}`, { scroll: false });
 
@@ -89,6 +93,7 @@ export default function SettingsClient({ role }: { role: string }) {
         </nav>
 
         <div className="min-w-0 space-y-5">
+          {tab === "driving" && <DrivingSection />}
           {tab === "account" && <AccountSection />}
           {tab === "addresses" && <AddressesSection />}
           {tab === "preferences" && <PreferencesSection role={role} />}

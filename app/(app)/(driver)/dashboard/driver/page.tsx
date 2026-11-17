@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getDriverPref } from "@/lib/driverPrefs";
 import Link from "next/link";
 import { Truck, Navigation, CheckCheck, CalendarDays, Trophy, Flag, MapPin, ListChecks, History, CircleStop } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
@@ -137,7 +138,8 @@ export default function DriverDashboardPage() {
   useEffect(() => {
     const hadNone = prevActiveCountRef.current === 0;
     prevActiveCountRef.current = activeOrders.length;
-    if (hadNone && activeOrders.length > 0 && !sharing && !geoError) startSharing();
+    // Drivers can turn the automatic start off in Settings → Driving.
+    if (hadNone && activeOrders.length > 0 && !sharing && !geoError && getDriverPref("autoShare")) startSharing();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeOrders.length]);
 

@@ -56,15 +56,15 @@ export default function CategoryRail({ categories, total, value, onChange }: {
       </nav>
 
       {/* Phone and tablet: chip rows */}
-      <div className="-mx-4 min-w-0 space-y-2 lg:hidden">
-        <div className="flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="group" aria-label="Categories">
+      <div className="-mx-3 min-w-0 space-y-2 lg:hidden">
+        <div className="flex gap-1.5 overflow-x-auto px-3 pb-1 [scrollbar-width:none]" role="group" aria-label="Categories">
           <Chip on={value.categoryId === null} onClick={() => onChange({ categoryId: null, sub: null })}>All · {total}</Chip>
           {categories.map((c) => (
             <Chip key={c.id} on={c.id === value.categoryId} onClick={() => onChange({ categoryId: c.id, sub: null })}>{c.name}</Chip>
           ))}
         </div>
         {active && active.subs.length > 0 && (
-          <div className="flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="group" aria-label={`${active.name} subcategories`}>
+          <div className="flex gap-1.5 overflow-x-auto px-3 pb-1 [scrollbar-width:none]" role="group" aria-label={`${active.name} subcategories`}>
             <Chip small on={!value.sub} onClick={() => onChange({ categoryId: active.id, sub: null })}>All {active.name}</Chip>
             {active.subs.map((s) => (
               <Chip small key={s.name} on={value.sub === s.name} onClick={() => onChange({ categoryId: active.id, sub: s.name })}>{s.name}</Chip>

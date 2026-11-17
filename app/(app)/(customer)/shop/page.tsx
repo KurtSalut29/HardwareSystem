@@ -200,7 +200,7 @@ export default function ShopPage() {
       {/* The cart stays on screen while scrolling: a bar on phones, a floating card on desktops */}
       {cartCount > 0 && !showCart && (
         <button type="button" onClick={() => setShowCart(true)} aria-label={`Open cart: ${cart.length} items, ${peso(subtotal)}`}
-          className="group fixed inset-x-4 bottom-4 z-30 flex items-center justify-between gap-4 rounded-2xl bg-brand px-5 py-3.5 text-white shadow-[0_18px_40px_-14px_rgba(18,50,127,0.7)] transition hover:brightness-110 lg:inset-x-auto lg:bottom-6 lg:right-8 lg:min-w-[320px] lg:animate-rise-in">
+          className="group fixed inset-x-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 lg:bottom-4 flex items-center justify-between gap-4 rounded-2xl bg-brand px-5 py-3.5 text-white shadow-[0_18px_40px_-14px_rgba(18,50,127,0.7)] transition hover:brightness-110 lg:inset-x-auto lg:bottom-6 lg:right-8 lg:min-w-[320px] lg:animate-rise-in">
           <span className="flex items-center gap-2.5 text-sm font-semibold">
             <span className="relative grid size-9 place-items-center rounded-xl bg-white/15">
               <ShoppingCart className="size-4" />

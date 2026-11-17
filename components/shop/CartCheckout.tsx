@@ -241,14 +241,22 @@ export default function CartCheckout({ open, onClose, cart, setCart, onPlaced }:
                   <li key={i.id} className="flex items-start gap-3">
                     {i.image ? <Image src={i.image} alt={i.name} width={40} height={40} className="size-10 shrink-0 rounded-xl border border-line object-cover" />
                       : <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-sm font-bold text-brand">{i.name.charAt(0)}</div>}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-ink">{i.name}</p>
-                      <p className="text-xs text-ink-4">{peso(i.price)} / {i.unit} · <span className="num font-semibold text-ink-2">{peso(i.price * i.quantity)}</span></p>
+                    {/* Name and line total on top, quantity and Remove below: fits a phone without cutting the name */}
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="line-clamp-2 text-sm font-medium text-ink">{i.name}</p>
+                          <p className="text-xs text-ink-4"><span className="num">{peso(i.price)}</span> / {i.unit}</p>
+                        </div>
+                        <p className="num shrink-0 text-sm font-bold text-ink">{peso(i.price * i.quantity)}</p>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <CartQty name={i.name} quantity={i.quantity} unit={i.unit} step={stepFor(i.unit)} max={i.stock}
+                          onChange={(q) => setCart((prev) => prev.map((c) => (c.id === i.id ? { ...c, quantity: q } : c)))} />
+                        <button type="button" onClick={() => { setCart((prev) => prev.filter((c) => c.id !== i.id)); showToast(`${i.name} removed from your cart.`, "info"); }} aria-label={`Remove ${i.name}`}
+                          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg px-2 text-[11.5px] font-semibold text-bad transition hover:bg-bad-soft"><Trash2 className="size-3.5" /> Remove</button>
+                      </div>
                     </div>
-                    <CartQty name={i.name} quantity={i.quantity} unit={i.unit} step={stepFor(i.unit)} max={i.stock}
-                      onChange={(q) => setCart((prev) => prev.map((c) => (c.id === i.id ? { ...c, quantity: q } : c)))} />
-                    <button type="button" onClick={() => { setCart((prev) => prev.filter((c) => c.id !== i.id)); showToast(`${i.name} removed from your cart.`, "info"); }} aria-label={`Remove ${i.name}`}
-                      className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg px-2 text-[11.5px] font-semibold text-bad transition hover:bg-bad-soft"><Trash2 className="size-3.5" /> Remove</button>
                   </li>
                 ))}
               </ul>

@@ -165,7 +165,7 @@ function StoreLocationModal({ current, onClose, onSaved }: {
         </div>
         <div>
           <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">Store Location on Map</label>
-          <LocationPicker value={pickedLocation} onChange={setPickedLocation} />
+          <LocationPicker value={pickedLocation} onChange={setPickedLocation} measure={false} />
         </div>
         {error && <Alert tone="bad" compact>{error}</Alert>}
       </div>
